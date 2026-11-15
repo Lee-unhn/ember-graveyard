@@ -76,6 +76,16 @@ async function desktopChecks() {
       return { avg: t / frames, peak, enemies: enemies.length }; })()`);
     rep.ok(perf.avg < 8, `logic+visual update averages ${perf.avg.toFixed(2)} ms/frame under load (budget 8 ms; peak ${perf.peak} quads, ${perf.enemies} monsters)`);
 
+    // terrain under load: a 40x40 burning field plus lava, the automaton and texture uploads every frame
+    const tperf = await p.evaluate(`(() => { player.pos.set(0, 0, 0);
+      for (let z = -20; z < 20; z++) for (let x = -20; x < 20; x++) setT(cellOf(x + .5, z + .5), (x + z) % 7 === 0 ? TER.LAVA : TER.GRASS, 30);
+      for (let k = 0; k < 40; k++) applyEl(cellOf(Math.random() * 40 - 20, Math.random() * 40 - 20), 'fire');
+      let t = 0, worst = 0, burning = 0; for (let f = 0; f < 300; f++) { const a = performance.now(); time += 1/60; logic(1/60); visuals(1/60); const d = performance.now() - a; t += d; worst = Math.max(worst, d); }
+      for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE || TT[i] === TER.ASH) burning++;
+      return { avg: t / 300, worst, burning }; })()`);
+    rep.ok(tperf.burning > 200, `terrain load test actually burned (${tperf.burning} cells on fire or ash)`);
+    rep.ok(tperf.avg < 8, `terrain automaton + texture upload averages ${tperf.avg.toFixed(2)} ms/frame (budget 8 ms, worst ${tperf.worst.toFixed(1)} ms)`);
+
     // leaks: five restarts with heavy spells in between keep scene / DOM / pools bounded
     const leak = await p.evaluate(`(() => { const snap = () => ({ scene: scene.children.length, fx: document.querySelector('#fx').children.length, pool: ADD.pool.length + SMOKE.pool.length });
       const rounds = [];

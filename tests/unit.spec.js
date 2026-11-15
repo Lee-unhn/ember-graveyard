@@ -1,6 +1,6 @@
 // Unit tests. Injected into the running page (index.html) and executed against its global functions.
 // Each test resets world state through fresh(); no test depends on another test's leftovers.
-window.__runUnit = async () => {
+window.__runUnit = async (only) => {
   const tests = [], results = [];
   const test = (name, fn) => tests.push([name, fn]);
   class AssertError extends Error {}
@@ -188,8 +188,104 @@ window.__runUnit = async () => {
     fresh(); hurtPlayer(9999); ok($('#deadSub').textContent.includes('波'));
   });
 
+  // ---------------------------------------------------------------- P2 terrain
+  const C = (x, z) => cellOf(x, z);
+  const put = (x, z, t, tm) => setT(C(x, z), t, tm);
+  const tAt = (x, z) => TT[C(x, z)];
+  const clearBox = (x0, z0, x1, z1, t = TER.SOIL) => { for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) put(x + .5, z + .5, t); };
+  test('terrain grid: cell <-> world mapping, out of bounds is -1', () => {
+    eq(C(-44, -44), 0); eq(C(43.99, 43.99), GN * GN - 1); eq(C(50, 0), -1); const c = cellCenter(C(3.2, -7.9)); eq(c.x, 3.5); eq(c.z, -7.5);
+  });
+  test('initial map is deterministic and contains every base terrain', () => {
+    fresh(); genTerrain(); let same = true; for (let i = 0; i < TT.length; i++) if (TT[i] !== TT0[i]) { same = false; break; } ok(same, 'regenerated map equals the saved one');
+    for (const t of [TER.GRASS, TER.SOIL, TER.PAVE, TER.WATER, TER.MUD, TER.BONE, TER.WISP]) ok(TT0.includes(t), `map has ${TP[t].n}`); resetTerrain();
+  });
+  test('reaction table: every spell element turns each terrain into the expected one', () => {
+    fresh(); const R = [
+      ['fire', TER.GRASS, TER.FIRE], ['fire', TER.BONE, TER.FIRE], ['fire', TER.WATER, TER.STEAM], ['fire', TER.SHOCK, TER.STEAM], ['fire', TER.MUD, TER.SOIL], ['fire', TER.PAVE, TER.PAVE],
+      ['meteor', TER.PAVE, TER.CRATER], ['meteor', TER.SOIL, TER.LAVA], ['meteor', TER.GRASS, TER.LAVA], ['meteor', TER.WATER, TER.STEAM], ['meteor', TER.BLOOD, TER.LAVA],
+      ['crater', TER.PAVE, TER.CRATER], ['crater', TER.SOIL, TER.CRATER], ['crater', TER.GRASS, TER.FIRE], ['crater', TER.WATER, TER.STEAM],
+      ['blood', TER.SOIL, TER.BLOOD], ['blood', TER.PAVE, TER.BLOOD], ['blood', TER.FIRE, TER.ASH], ['blood', TER.WATER, TER.WATER],
+      ['bolt', TER.PAVE, TER.PAVE]];
+    for (const [el, from, to] of R) { put(10.5, 10.5, from); applyEl(C(10.5, 10.5), el); eq(tAt(10.5, 10.5), to, `${el} on ${TP[from].n}`); }
+    put(10.5, 10.5, TER.GRASS); withRandom(.1, () => applyEl(C(10.5, 10.5), 'bolt')); eq(tAt(10.5, 10.5), TER.FIRE, 'bolt ignites grass 30%');
+    put(10.5, 10.5, TER.GRASS); withRandom(.9, () => applyEl(C(10.5, 10.5), 'bolt')); eq(tAt(10.5, 10.5), TER.GRASS, 'bolt leaves grass 70%');
+    put(10.5, 10.5, TER.OBSID); applyEl(C(10.5, 10.5), 'meteor'); applyEl(C(10.5, 10.5), 'meteor'); eq(tAt(10.5, 10.5), TER.OBSID, 'obsidian survives 2 hits'); applyEl(C(10.5, 10.5), 'meteor'); eq(tAt(10.5, 10.5), TER.CRATER, 'third hit breaks it');
+    for (const el of ['fire', 'bolt', 'meteor', 'crater']) { booms.length = 0; put(10.5, 10.5, TER.WISP); applyEl(C(10.5, 10.5), el); eq(booms.length, 1, `${el} sets off a wisp grave`); }
+    booms.length = 0;
+  });
+  test('electrify floods connected water only, and the charge fades back to water', () => {
+    fresh(); clearBox(5, 5, 12, 7); for (let x = 5; x <= 8; x++) put(x + .5, 6.5, TER.WATER); put(10.5, 6.5, TER.WATER);
+    applyEl(C(5.5, 6.5), 'bolt'); for (let x = 5; x <= 8; x++) eq(tAt(x + .5, 6.5), TER.SHOCK, 'connected'); eq(tAt(10.5, 6.5), TER.WATER, 'gap blocks the current');
+    player.pos.set(6, 0, 6); automata(1.5); eq(tAt(5.5, 6.5), TER.WATER, 'charge fades');
+  });
+  test('cellular automaton: fire spreads to grass, burns out to ash', () => {
+    fresh(); player.pos.set(6, 0, 6); clearBox(4, 4, 9, 9); put(6.5, 6.5, TER.FIRE, 3); put(7.5, 6.5, TER.GRASS); put(6.5, 7.5, TER.BONE);
+    withRandom(.99, () => automata(.2)); eq(tAt(7.5, 6.5), TER.GRASS, 'no spread on a high roll');
+    withRandom(0, () => automata(.2)); eq(tAt(7.5, 6.5), TER.FIRE, 'grass caught fire'); eq(tAt(6.5, 7.5), TER.FIRE, 'bone pile caught fire');
+    withRandom(.99, () => { for (let k = 0; k < 20; k++) automata(.2); }); eq(tAt(6.5, 6.5), TER.ASH, 'burnt out');
+  });
+  test('cellular automaton: lava flows into craters, quenches water into obsidian, cools down', () => {
+    fresh(); player.pos.set(6, 0, 6); clearBox(4, 4, 9, 9); put(6.5, 6.5, TER.LAVA, 20); put(7.5, 6.5, TER.CRATER);
+    withRandom(0, () => automata(.2)); eq(tAt(7.5, 6.5), TER.LAVA, 'flowed into crater');
+    clearBox(4, 4, 9, 9); put(6.5, 6.5, TER.LAVA, 20); put(5.5, 6.5, TER.WATER); withRandom(0, () => automata(.2));
+    eq(tAt(5.5, 6.5), TER.STEAM, 'water boiled'); eq(tAt(6.5, 6.5), TER.OBSID, 'lava quenched');
+    clearBox(4, 4, 9, 9); put(6.5, 6.5, TER.LAVA, .1); withRandom(.99, () => automata(.2)); eq(tAt(6.5, 6.5), TER.OBSID, 'cooled');
+    put(6.5, 6.5, TER.STEAM, .1); automata(.2); eq(tAt(6.5, 6.5), TER.CRATER, 'steam leaves a crater');
+    put(6.5, 6.5, TER.BLOOD, .1); automata(.2); eq(tAt(6.5, 6.5), TER.SOIL, 'blood pool dries');
+    put(6.5, 6.5, TER.CRATER); put(7.5, 6.5, TER.WATER); withRandom(0, () => automata(.2)); eq(tAt(6.5, 6.5), TER.WATER, 'water flows into crater');
+  });
+  test('wisp graves chain-explode and their kills count as terrain kills', () => {
+    fresh(); clearBox(4, 4, 10, 8); put(6.5, 6.5, TER.WISP); put(7.5, 6.5, TER.WISP); spawnEnemy('spider', 7, 6.5, .5); const e = enemies[0];
+    queueBoom(C(6.5, 6.5)); for (let k = 0; k < 10; k++) updateTerrain(.1);
+    eq(tAt(6.5, 6.5), TER.CRATER); eq(tAt(7.5, 6.5), TER.CRATER, 'neighbour went off too'); eq(e.alive, false); eq(e.lastKind, 'boom'); ok(terrainKills >= 1);
+  });
+  test('terrain damage: standing in lava kills; mud slows; chain counter builds and resets', () => {
+    fresh(); player.pos.set(-30, 0, 30); clearBox(4, 4, 12, 8);
+    for (let k = 0; k < 3; k++) { put(5.5 + k * 2, 6.5, TER.LAVA, 60); spawnEnemy('spider', 5.5 + k * 2, 6.5, 1); enemies[k].T = Object.assign({}, enemies[k].T, { speed: 0, dmg: 0 }); }
+    for (let k = 0; k < 40 && enemies.some((x) => x.alive); k++) updateEnemies(.1);
+    ok(enemies.every((x) => !x.alive), 'all three burned'); eq(terrainKills, 3); ok(chainN >= 2, `chain ${chainN}`); eq($('#chainTag').hidden, false); ok(/×\d/.test($('#chainTag').textContent));
+    time += 2; updateTerrain(.01); eq($('#chainTag').hidden, true, 'chain tag hides after 1.4 s');
+    spawnEnemy('lizard', 9.5, 6.5, 1); put(9.5, 6.5, TER.MUD); near(terrainEffects(enemies[3], .016), .45, 1e-9, 'mud speed factor');
+  });
+  test('player: lava hurts, mud slows, obsidian is a wall', () => {
+    fresh(); clearBox(-2, -2, 3, 3); put(.5, .5, TER.LAVA, 60); player.pos.set(.5, 0, .5); const hp0 = player.hp; for (let k = 0; k < 10; k++) updatePlayer(.1); ok(player.hp < hp0 - 5, `hp ${player.hp}`);
+    fresh(); clearBox(-2, -2, 3, 3); put(.5, .5, TER.OBSID); const p = new THREE.Vector3(.5, 0, .5); pushOut(p, .4); ok(Math.abs(p.x - .5) >= .9 - 1e-6 || Math.abs(p.z - .5) >= .9 - 1e-6, 'pushed out of the wall');
+  });
+  test('tombstone: three blasts topple it away from the blast; it crushes what is in its path only', () => {
+    fresh(); const t = props.find((p) => p.kind === 'tomb'); const src = new THREE.Vector3(t.x - 1, 0, t.z);
+    // spiders: 45 HP, less than the 80 crush damage
+    spawnEnemy('spider', t.x + t.len * .5, t.z, 1); spawnEnemy('spider', t.x - 1.6, t.z, 1); const [hit, safe] = enemies; for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
+    damageProps(src, 1.5, 1, 'fire'); damageProps(src, 1.5, 1, 'fire'); eq(t.state, 'up', 'still standing after 2'); damageProps(src, 1.5, 1, 'fire'); eq(t.state, 'falling');
+    ok(t.dir.x > .9, 'falls away from the blast'); eq(t.ob.r, 0, 'no longer blocks');
+    withRandom(.9, () => { for (let k = 0; k < 8; k++) updateProps(.1); }); eq(t.state, 'down'); eq(hit.alive, false, 'crushed'); eq(hit.lastKind, 'crush'); eq(safe.alive, true, 'the one behind survives');
+  });
+  test('dead tree: fire sets it burning, it falls after 6 s; fence and sarcophagus break', () => {
+    fresh(); const tr = props.find((p) => p.kind === 'tree'); damageProps(new THREE.Vector3(tr.x, 0, tr.z), 1, 1, 'fire'); eq(tr.state, 'burning');
+    for (let k = 0; k < 61; k++) updateProps(.1); ok(tr.state === 'falling' || tr.state === 'down', 'falls after burning'); for (let k = 0; k < 6; k++) updateProps(.1); eq(tr.state, 'down');
+    const f = props.find((p) => p.kind === 'fence'); damageProps(new THREE.Vector3(f.x, 0, f.z), .5, 3, 'meteor'); eq(f.state, 'broken');
+    const m = new THREE.Matrix4(); fencePosts.getMatrixAt(f.idx, m); ok(Math.abs(m.elements[5]) < .01, 'post hidden');
+    const s = props.find((p) => p.kind === 'sarc'), n0 = enemies.length, l0 = loots.length; damageProps(new THREE.Vector3(s.x, 0, s.z), .5, 4, 'meteor');
+    eq(s.state, 'broken'); eq(enemies.length - n0, 2, 'two ghosts released'); ok(enemies.slice(n0).every((e) => e.type === 'ghost')); eq(loots.length - l0, 1, 'one guaranteed drop');
+  });
+  test('boss and terrain: lava hurts the Lord; its shockwave topples tombstones', () => {
+    // player far away: body-blocking would push the boss off the lava
+    fresh(); story.on = true; player.pos.set(-30, 0, 30); startBoss(); const b = story.boss; clearBox(-2, -2, 2, 2);
+    put(.5, .5, TER.LAVA, 60); b.pos.set(.5, 0, .5); b.T = Object.assign({}, b.T, { speed: 0 }); b.shockT = 99;
+    const hp0 = b.hp; for (let k = 0; k < 20; k++) updateEnemies(.1);
+    ok(hp0 - b.hp > 150, `lava damage ${(hp0 - b.hp).toFixed(0)} on tile ${TP[tileAt(b.pos.x, b.pos.z)].n}`);
+    const t = props.find((p) => p.kind === 'tomb' && p.state === 'up'); shocks.push({ x: t.x - 4, z: t.z, t: 0, mesh: new THREE.Mesh(shockGeo, new THREE.MeshBasicMaterial({ transparent: true })), hit: true });
+    for (let k = 0; k < 60 && t.state === 'up'; k++) updateShocks(.016); ok(t.state !== 'up', 'toppled by the ring'); ok(t.dir.x > .9, 'outward');
+    for (const s of shocks) scene.remove(s.mesh); shocks.length = 0;
+  });
+  test('restart restores terrain, props and blockers exactly', () => {
+    fresh(); put(.5, .5, TER.LAVA); const t = props.find((p) => p.kind === 'tomb'); breakProp(t, new THREE.Vector3(t.x - 1, 0, t.z)); terrainKills = 5;
+    clearWorld(); let same = true; for (let i = 0; i < TT.length; i++) if (TT[i] !== TT0[i]) { same = false; break; }
+    ok(same, 'terrain back to the initial map'); eq(t.state, 'up'); eq(t.ob.r, t.ob.r0); eq(terrainKills, 0);
+  });
+
   // ---------------------------------------------------------------- run
-  for (const [name, fn] of tests) {
+  for (const [name, fn] of tests) { if (only && !name.includes(only)) continue;
     try { await fn(); results.push({ name, ok: true }); }
     catch (e) { results.push({ name, ok: false, err: e instanceof AssertError ? e.message : (e && e.stack || String(e)).split('\n').slice(0, 2).join(' ') }); }
   }

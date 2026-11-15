@@ -101,7 +101,28 @@ async function freeFlow() {
   } finally { await p.close(); }
 }
 
-try { await storyFlow(); await freeFlow(); }
+async function terrainFlow() {
+  const p = await openPage(url, { width: W, height: H });
+  try {
+    await p.waitFor(`!document.querySelector('#go').disabled`);
+    await p.clickSel('#go'); await sleep(150);
+    // setup: a dry-grass field north of the mage, one spider at the aim point, four lizards further out on the grass
+    await p.evaluate(`(() => { for (const e of enemies) e.pos.set(30, 0, 30 - Math.random() * 5), e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
+      player.pos.set(0, 0, 0); for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) setT(cellOf(x + .5, z + .5), TER.GRASS);
+      // three spiders 3 cells from the impact: outside the blast radius, so only the spreading fire can kill them
+      spawnEnemy('spider', .5, -5.5, 1); for (const [x, z] of [[-2.5, -5.5], [3.5, -5.5], [.5, -8.5]]) spawnEnemy('spider', x, z, .6);
+      for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); window.__tk0 = terrainKills; })()`);
+    const aim = await p.evaluate(`(() => { const v = new THREE.Vector3(.5, 1, -5.5).project(camera); return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight]; })()`);
+    await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]); await sleep(120); await p.mouse('mouseReleased', aim[0], aim[1]);
+    rep.ok(await p.waitFor(`(() => { let n = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE) n++; return n >= 3; })()`, 4000), 'a real left click sets the dry grass on fire');
+    rep.ok(await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) { const t = TT[cellOf(x + .5, z + .5)]; if (t === TER.FIRE || t === TER.ASH) n++; } return n >= 20; })()`, 15000), 'the fire spreads across the field on its own');
+    rep.ok(await p.waitFor(`terrainKills > window.__tk0`, 25000), 'monsters standing in the fire die as terrain kills');
+    rep.ok(await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) if (TT[cellOf(x + .5, z + .5)] === TER.ASH) n++; return n >= 5; })()`, 12000), 'burnt grass turns to ash and stays on the map');
+    rep.ok(p.errors.length === 0, 'terrain flow: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { await storyFlow(); await freeFlow(); await terrainFlow(); }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

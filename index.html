@@ -112,6 +112,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #dialog .skip{position:absolute;top:8px;right:10px;background:none;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-size:11px;padding:2px 8px;cursor:pointer}
 .sk.locked{opacity:.32;filter:grayscale(1)}
 .gobox{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+#chainTag{top:30%;left:50%;transform:translateX(-50%);font-family:var(--f-head);font-size:24px;letter-spacing:.14em;text-shadow:0 2px 10px #000;pointer-events:none}
+#chainTag.pop{animation:chainPop .35s ease-out}
+@keyframes chainPop{0%{transform:translateX(-50%) scale(1.5)}100%{transform:translateX(-50%) scale(1)}}
+@media (prefers-reduced-motion:reduce){#chainTag.pop{animation:none}}
 .go.alt{background:#151821;border-color:#4c5568;color:#cfd6e6}
 @media (max-width:760px){
   .steps{grid-template-columns:1fr}
@@ -133,6 +137,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </div>
 
 <div class="hud" id="objective" hidden></div>
+<div class="hud" id="chainTag" hidden aria-live="polite"></div>
 <div class="hud" id="bossbar" hidden><div class="nm">無燈之主</div><div class="bar"><i id="bossfill"></i></div></div>
 <div id="dialog" hidden role="dialog" aria-live="polite">
   <svg class="portrait" id="dPortrait" viewBox="0 0 84 84" aria-hidden="true"></svg>
@@ -449,21 +454,200 @@ function freeSpot(minR,maxR){for(let k=0;k<40;k++){const a=rand(0,TAU),r=rand(mi
 // 四座燈塔先佔位，墓碑與枯樹不會生在塔邊；擺完再縮回塔身大小
 const TOWER_POS=[[0,-15],[16,-1],[1,16],[-16,1]];
 const towerObs=TOWER_POS.map(([x,z])=>{const o={x,z,r:3};obstacles.push(o);return o});
-for(let i=0;i<46;i++){const [x,z]=freeSpot(5,40),g=new THREE.Group(),m=Math.random()<.5?stoneMat:stoneMat2,s=rand(.8,1.25);
-  if(Math.random()<.75){const b=new THREE.Mesh(new THREE.BoxGeometry(.9,1,.24),m);b.position.y=.5;g.add(b);
+// 可破壞物：墓碑（倒下壓怪）、枯樹（燒完倒下）、鐵柵欄（分段撞斷）、石棺（打破放出殘魂）
+const props=[];
+function addProp(p){p.q0=p.g?p.g.quaternion.clone():null;p.pos0=p.g?p.g.position.clone():null;p.state='up';p.t=0;p.hp=p.hp0;if(p.ob)p.ob.r0=p.ob.r;props.push(p);return p}
+for(let i=0;i<46;i++){const [x,z]=freeSpot(5,40),g=new THREE.Group(),m=Math.random()<.5?stoneMat:stoneMat2,s=rand(.8,1.25);let h;
+  if(Math.random()<.75){const b=new THREE.Mesh(new THREE.BoxGeometry(.9,1,.24),m);b.position.y=.5;g.add(b);h=1.45;
     const t=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,.24,14,1,false,0,Math.PI),m);t.rotation.set(Math.PI/2,0,Math.PI/2);t.position.y=1;g.add(t)}
-  else{const a=new THREE.Mesh(new THREE.BoxGeometry(.2,1.7,.2),m);a.position.y=.85;g.add(a);const b=new THREE.Mesh(new THREE.BoxGeometry(.9,.2,.2),m);b.position.y=1.25;g.add(b)}
-  g.position.set(x,0,z);g.rotation.set(rand(-.12,.12),rand(0,TAU),rand(-.15,.15));g.scale.setScalar(s);scene.add(g);obstacles.push({x,z,r:.55*s})}
-for(let i=0;i<12;i++){const [x,z]=freeSpot(8,40),g=new THREE.Group(),h=rand(2.6,4);
-  const tr=new THREE.Mesh(new THREE.CylinderGeometry(.12,.3,h,7),barkMat);tr.position.y=h/2;g.add(tr);
-  for(let j=0;j<5;j++){const L=rand(.8,1.8),b=new THREE.Mesh(new THREE.CylinderGeometry(.03,.09,L,5),barkMat);const p=new THREE.Group();
+  else{const a=new THREE.Mesh(new THREE.BoxGeometry(.2,1.7,.2),m);a.position.y=.85;g.add(a);const b=new THREE.Mesh(new THREE.BoxGeometry(.9,.2,.2),m);b.position.y=1.25;g.add(b);h=1.7}
+  g.position.set(x,0,z);g.rotation.set(rand(-.12,.12),rand(0,TAU),rand(-.15,.15));g.scale.setScalar(s);scene.add(g);
+  const ob={x,z,r:.55*s};obstacles.push(ob);addProp({kind:'tomb',g,x,z,ob,hp0:3,len:h*s})}
+for(let i=0;i<12;i++){const [x,z]=freeSpot(8,40),g=new THREE.Group(),h=rand(2.6,4),bm=barkMat.clone();
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(.12,.3,h,7),bm);tr.position.y=h/2;g.add(tr);
+  for(let j=0;j<5;j++){const L=rand(.8,1.8),b=new THREE.Mesh(new THREE.CylinderGeometry(.03,.09,L,5),bm);const p=new THREE.Group();
     p.position.y=rand(h*.45,h*.95);p.rotation.set(rand(.5,1.1),rand(0,TAU),0);b.position.y=L/2;p.add(b);g.add(p)}
-  g.position.set(x,0,z);g.rotation.y=rand(0,TAU);scene.add(g);obstacles.push({x,z,r:.45})}
-{const posts=new THREE.InstancedMesh(new THREE.BoxGeometry(.12,1.6,.12),new THREE.MeshLambertMaterial({color:0x1c1d22}),140);const o=new THREE.Object3D();
-  for(let i=0;i<140;i++){const a=i/140*TAU;o.position.set(Math.cos(a)*44,.8,Math.sin(a)*44);o.rotation.set(0,-a,0);o.updateMatrix();posts.setMatrixAt(i,o.matrix)}scene.add(posts);
-  for(const y of [.55,1.3]){const rail=new THREE.Mesh(new THREE.TorusGeometry(44,.035,4,180),new THREE.MeshLambertMaterial({color:0x1c1d22}));rail.rotation.x=Math.PI/2;rail.position.y=y;scene.add(rail)}}
+  g.position.set(x,0,z);g.rotation.y=rand(0,TAU);scene.add(g);const ob={x,z,r:.45};obstacles.push(ob);addProp({kind:'tree',g,x,z,ob,hp0:1,len:h,mat:bm,burn:0,acc:{}})}
+const FENCE_N=140,fenceMat=new THREE.MeshLambertMaterial({color:0x1c1d22});
+const fencePosts=new THREE.InstancedMesh(new THREE.BoxGeometry(.12,1.6,.12),fenceMat,FENCE_N),fenceRails=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.07,.07),fenceMat,FENCE_N*2);
+fencePosts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);fenceRails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+function setFence(i,up){const o=new THREE.Object3D(),a=i/FENCE_N*TAU,am=(i+.5)/FENCE_N*TAU,seg=2*Math.PI*44/FENCE_N;
+  o.position.set(Math.cos(a)*44,.8,Math.sin(a)*44);o.rotation.set(0,-a,0);o.scale.setScalar(up?1:.0001);o.updateMatrix();fencePosts.setMatrixAt(i,o.matrix);
+  for(let k=0;k<2;k++){o.position.set(Math.cos(am)*44,k?1.3:.55,Math.sin(am)*44);o.rotation.set(0,-am+Math.PI/2,0);o.scale.set(up?seg:.0001,1,1);o.updateMatrix();fenceRails.setMatrixAt(i*2+k,o.matrix)}
+  fencePosts.instanceMatrix.needsUpdate=true;fenceRails.instanceMatrix.needsUpdate=true}
+for(let i=0;i<FENCE_N;i++){setFence(i,true);const am=(i+.5)/FENCE_N*TAU;addProp({kind:'fence',idx:i,x:Math.cos(am)*44,z:Math.sin(am)*44,hp0:2})}
+scene.add(fencePosts);scene.add(fenceRails);
+for(let i=0;i<6;i++){const [x,z]=freeSpot(9,36),g=new THREE.Group(),base=new THREE.Mesh(new THREE.BoxGeometry(1,.6,2),stoneMat2);base.position.y=.3;g.add(base);
+  const lid=new THREE.Mesh(new THREE.BoxGeometry(1.12,.16,2.12),stoneMat);lid.position.y=.68;g.add(lid);
+  const rune=new THREE.Mesh(new THREE.BoxGeometry(.5,.02,.08),new THREE.MeshBasicMaterial({color:0x6fd8ff}));rune.position.y=.77;lid.add(rune);rune.position.y=.09;
+  g.position.set(x,0,z);g.rotation.y=rand(0,TAU);scene.add(g);const ob={x,z,r:.95};obstacles.push(ob);addProp({kind:'sarc',g,x,z,ob,hp0:4,lid,lid0:lid.position.clone()})}
 {const mush=new THREE.MeshBasicMaterial({color:0x4fd8c0});for(let i=0;i<70;i++){const [x,z]=freeSpot(3,42);const m=new THREE.Mesh(new THREE.SphereGeometry(rand(.05,.11),6,4),mush);m.position.set(x,.05,z);scene.add(m)}}
 towerObs.forEach(o=>o.r=1.1);
+
+/* ---------- 地形網格：每格 1 單位，88×88 格涵蓋整座墓園（參考 The-Waste-Land 的地形破壞＋地形殺） ---------- */
+const GN=88,GH=44,TPX=4;  // 格數、半寬、每格在貼圖上幾像素
+const TER={GRASS:0,SOIL:1,PAVE:2,WATER:3,MUD:4,FIRE:5,ASH:6,LAVA:7,CRATER:8,OBSID:9,SHOCK:10,BLOOD:11,WISP:12,BONE:13,STEAM:14};
+// ed＝每秒對怪傷害、pd＝每秒對玩家傷害、em／pm＝怪／玩家移動倍率、col＝地面色、glow＝發光色
+const TP=[
+  {n:'枯草',col:[86,92,52,170],flam:1},
+  {n:'墓土',col:[0,0,0,0]},
+  {n:'石板路',col:[70,70,76,150],pm:1.1},
+  {n:'積水',col:[22,36,52,175],em:.55,pm:.8},
+  {n:'泥沼',col:[58,44,30,210],em:.45,pm:.85},
+  {n:'火焰',col:[60,26,10,220],ed:18,glow:[255,110,30]},
+  {n:'灰燼',col:[44,42,40,220]},
+  {n:'熔岩',col:[90,30,8,240],ed:30,pd:12,em:.6,pm:.75,glow:[255,120,30]},
+  {n:'坑洞',col:[30,24,20,220],ed:6,em:.7},
+  {n:'黑曜石',col:[24,18,34,250],solid:1},
+  {n:'帶電水',col:[50,80,110,210],ed:26,em:.5,pm:.8,glow:[120,200,255]},
+  {n:'血沼',col:[80,10,18,215],ed:10,em:.5,glow:[90,6,14]},
+  {n:'磷火墳',col:[40,60,70,220],glow:[60,170,220]},
+  {n:'骨堆',col:[168,160,140,200],flam:1},
+  {n:'蒸氣',col:[70,74,78,180],ed:10,em:.9}];
+const TT=new Uint8Array(GN*GN),TM=new Float32Array(GN*GN),THP=new Uint8Array(GN*GN);
+const cellOf=(x,z)=>{const gx=Math.floor(x+GH),gz=Math.floor(z+GH);return gx<0||gz<0||gx>=GN||gz>=GN?-1:gz*GN+gx};
+const cellCenter=i=>new V3(i%GN-GH+.5,0,Math.floor(i/GN)-GH+.5);
+const isFlam=t=>t===TER.GRASS||t===TER.BONE;
+const isGround=t=>t===TER.GRASS||t===TER.SOIL||t===TER.ASH||t===TER.MUD||t===TER.BONE||t===TER.CRATER;
+const tileAt=(x,z)=>{const i=cellOf(x,z);return i<0?TER.SOIL:TT[i]};
+const spreadP=nt=>nt===TER.BONE?.12:.08;  // 每 0.2 秒、每個鄰格的延燒機率：草約 2.5 秒燒過一格
+function distSeg(px,pz,ax,az,bx,bz){const dx=bx-ax,dz=bz-az,t=clamp(((px-ax)*dx+(pz-az)*dz)/(dx*dx+dz*dz),0,1);return Math.hypot(px-ax-dx*t,pz-az-dz*t)}
+// 固定種子的初始地圖：枯草叢、積水、泥沼、通往四塔的石板路、骨堆、磷火墳
+function genTerrain(){
+  for(let gz=0;gz<GN;gz++)for(let gx=0;gx<GN;gx++){const x=gx-GH+.5,z=gz-GH+.5,i=gz*GN+gx,r=Math.hypot(x,z);let t=TER.SOIL;
+    const n1=vnoise(x*.13+3.1,z*.13+7.7),n2=vnoise(x*.085+40.2,z*.085-11.3);
+    if(n1>.58)t=TER.GRASS;
+    if(n2>.74)t=TER.MUD;if(n2>.79)t=TER.WATER;
+    if(h2(gx*7+3,gz*13+1)<.014)t=TER.BONE;
+    if(r>8&&h2(gx*3+11,gz*5+2)<.006)t=TER.WISP;
+    if(Math.abs(r-9)<.6||TOWER_POS.some(([tx,tz])=>distSeg(x,z,0,0,tx,tz)<.8||Math.hypot(x-tx,z-tz)<2.2))t=TER.PAVE;
+    if(r>43)t=TER.SOIL;
+    TT[i]=t;TM[i]=0;THP[i]=0}}
+genTerrain();const TT0=TT.slice();
+// 兩張地面貼圖：一張受光照的地面色，一張疊加發光（火、熔岩、帶電水、血沼、磷火）
+const TW=GN*TPX,tData=new Uint8Array(TW*TW*4),gData=new Uint8Array(TW*TW*4);
+const tTex=new THREE.DataTexture(tData,TW,TW,THREE.RGBAFormat),gTex=new THREE.DataTexture(gData,TW,TW,THREE.RGBAFormat);
+for(const tx of [tTex,gTex]){tx.magFilter=THREE.LinearFilter;tx.minFilter=THREE.LinearFilter;tx.generateMipmaps=false}
+let terrDirty=false;
+function paintCell(i){const gx=i%GN,gz=Math.floor(i/GN),t=TT[i],c=TP[t].col,g=TP[t].glow,px0=gx*TPX,py0=(GN-1-gz)*TPX;
+  for(let py=0;py<TPX;py++)for(let px=0;px<TPX;px++){const k=((py0+py)*TW+px0+px)*4,j=.82+.36*h2(px0+px,py0+py);
+    tData[k]=c[0]*j;tData[k+1]=c[1]*j;tData[k+2]=c[2]*j;tData[k+3]=c[3];
+    if(g){const gj=.7+.6*h2(px0+px+977,py0+py);gData[k]=Math.min(255,g[0]*gj);gData[k+1]=Math.min(255,g[1]*gj);gData[k+2]=Math.min(255,g[2]*gj);gData[k+3]=255}
+    else{gData[k]=gData[k+1]=gData[k+2]=gData[k+3]=0}}
+  terrDirty=true}
+for(let i=0;i<GN*GN;i++)paintCell(i);
+const terrMat=new THREE.MeshLambertMaterial({map:tTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
+const glowMat=new THREE.MeshBasicMaterial({map:gTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,polygonOffset:true,polygonOffsetFactor:-2});
+for(const [m,y] of [[terrMat,.015],[glowMat,.025]]){const p=new THREE.Mesh(new THREE.PlaneGeometry(GN,GN),m);p.rotation.x=-Math.PI/2;p.position.y=y;p.renderOrder=1;scene.add(p)}
+function setT(i,t,tm){if(i<0)return;TT[i]=t;TM[i]=tm||0;if(t===TER.OBSID)THP[i]=3;paintCell(i)}
+
+// 招式改地形
+const booms=[];
+function queueBoom(i,delay=.05){if(TT[i]!==TER.WISP)return;TT[i]=TER.FIRE;TM[i]=.4;paintCell(i);booms.push({i,t:delay})}
+function electrify(i){const q=[i],seen=new Set();let n=0;
+  while(q.length&&n<140){const c=q.shift();if(seen.has(c))continue;seen.add(c);const t=TT[c];if(t!==TER.WATER&&t!==TER.SHOCK)continue;setT(c,TER.SHOCK,1.4);n++;
+    const gx=c%GN,gz=Math.floor(c/GN);if(gx>0)q.push(c-1);if(gx<GN-1)q.push(c+1);if(gz>0)q.push(c-GN);if(gz<GN-1)q.push(c+GN)}}
+function applyEl(i,el){if(i<0)return;const t=TT[i];
+  if(el==='fire'){if(t===TER.GRASS)setT(i,TER.FIRE,rand(3,5));else if(t===TER.BONE)setT(i,TER.FIRE,rand(6,8));else if(t===TER.WATER||t===TER.SHOCK)setT(i,TER.STEAM,rand(2,3));else if(t===TER.MUD)setT(i,TER.SOIL);else if(t===TER.WISP)queueBoom(i)}
+  else if(el==='bolt'){if(t===TER.WATER||t===TER.SHOCK)electrify(i);else if(t===TER.GRASS&&Math.random()<.3)setT(i,TER.FIRE,3);else if(t===TER.WISP)queueBoom(i)}
+  else if(el==='meteor'){if(t===TER.OBSID){if(--THP[i]<=0)setT(i,TER.CRATER)}else if(t===TER.WATER||t===TER.SHOCK)setT(i,TER.STEAM,2.5);else if(t===TER.PAVE)setT(i,TER.CRATER);else if(t===TER.WISP)queueBoom(i);else if(isGround(t)||t===TER.FIRE||t===TER.BLOOD)setT(i,TER.LAVA,rand(20,28))}
+  else if(el==='crater'){if(isFlam(t))setT(i,TER.FIRE,rand(3,5));else if(t===TER.PAVE||t===TER.SOIL||t===TER.ASH||t===TER.MUD)setT(i,TER.CRATER);else if(t===TER.WATER)setT(i,TER.STEAM,2.5);else if(t===TER.WISP)queueBoom(i)}
+  else if(el==='blood'){if(isGround(t)||t===TER.PAVE)setT(i,TER.BLOOD,rand(7,9));else if(t===TER.FIRE)setT(i,TER.ASH)}}
+function cellsIn(pos,r,fn){const gx0=Math.floor(pos.x+GH-r),gx1=Math.floor(pos.x+GH+r),gz0=Math.floor(pos.z+GH-r),gz1=Math.floor(pos.z+GH+r);
+  for(let gz=Math.max(0,gz0);gz<=Math.min(GN-1,gz1);gz++)for(let gx=Math.max(0,gx0);gx<=Math.min(GN-1,gx1);gx++){const d=Math.hypot(gx-GH+.5-pos.x,gz-GH+.5-pos.z);if(d<=r)fn(gz*GN+gx,d)}}
+function terrainBlast(pos,r,el){cellsIn(pos,r,i=>applyEl(i,el))}
+function meteorTerrain(pos,r){cellsIn(pos,r,(i,d)=>applyEl(i,d<r*.45?'meteor':'crater'))}
+function boom(i){const p=cellCenter(i);TT[i]=TER.CRATER;TM[i]=0;paintCell(i);
+  if(running){for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.x,e.pos.z-p.z)<2+e.radius*.5)dealDamage(e,40,'boom')}
+    if(player.alive&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2)hurtPlayer(8)}
+  cellsIn(p,2,(c,d)=>{const t=TT[c];if(t===TER.WISP)queueBoom(c,.1+Math.random()*.12);else if(isFlam(t))setT(c,TER.FIRE,rand(3,5));else if(t===TER.WATER)setT(c,TER.STEAM,2.5);else if(t===TER.OBSID){if(--THP[c]<=0)setT(c,TER.CRATER)}else if(d<1.1&&(t===TER.SOIL||t===TER.ASH))setT(c,TER.CRATER)});
+  damageProps(p,2,2,'boom');explode(new V3(p.x,.5,p.z),.9,[.55,.9,1],false);sfx.boom(.7)}
+
+// 自動演變：每 0.2 秒掃玩家附近 24 格（細胞自動機）
+let caAcc=0;const hot=[],NB=[[1,0],[-1,0],[0,1],[0,-1]];
+function automata(dt){const cx=Math.floor(player.pos.x+GH),cz=Math.floor(player.pos.z+GH),R=24,ch=[],dec=[];hot.length=0;
+  for(let gz=Math.max(0,cz-R);gz<=Math.min(GN-1,cz+R);gz++)for(let gx=Math.max(0,cx-R);gx<=Math.min(GN-1,cx+R);gx++){const i=gz*GN+gx,t=TT[i];
+    if(t===TER.SOIL||t===TER.GRASS||t===TER.PAVE||t===TER.MUD||t===TER.BONE)continue;
+    if(t===TER.FIRE){TM[i]-=dt;hot.push(i);if(TM[i]<=0){ch.push(i,TER.ASH,0);continue}
+      for(const [dx,dz] of NB){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=GN||nz>=GN)continue;const n=nz*GN+nx,nt=TT[n];
+        if(isFlam(nt)){if(Math.random()<spreadP(nt))ch.push(n,TER.FIRE,nt===TER.BONE?7:4)}else if(nt===TER.WISP){if(Math.random()<.25)ch.push(n,-1,0)}}}
+    else if(t===TER.LAVA){TM[i]-=dt;hot.push(i);if(TM[i]<=0){ch.push(i,TER.OBSID,0);continue}
+      for(const [dx,dz] of NB){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=GN||nz>=GN)continue;const n=nz*GN+nx,nt=TT[n];
+        if(nt===TER.WATER||nt===TER.SHOCK){if(Math.random()<.25){ch.push(n,TER.STEAM,3);ch.push(i,TER.OBSID,0)}}
+        else if(nt===TER.CRATER){if(Math.random()<.12)ch.push(n,TER.LAVA,Math.max(6,TM[i]*.85))}
+        else if(isFlam(nt)){if(Math.random()<.01)ch.push(n,TER.FIRE,4)}}}
+    else if(t===TER.WATER){for(const [dx,dz] of NB){const nx=gx+dx,nz=gz+dz;if(nx<0||nz<0||nx>=GN||nz>=GN)continue;const n=nz*GN+nx;if(TT[n]===TER.CRATER&&Math.random()<.15)ch.push(n,TER.WATER,0)}}
+    else if(t===TER.STEAM){TM[i]-=dt;hot.push(i);if(TM[i]<=0)ch.push(i,TER.CRATER,0)}
+    else if(t===TER.SHOCK){TM[i]-=dt;hot.push(i);if(TM[i]<=0)ch.push(i,TER.WATER,0)}
+    else if(t===TER.BLOOD){TM[i]-=dt;hot.push(i);if(TM[i]<=0)ch.push(i,TER.SOIL,0)}
+    else if(t===TER.WISP)hot.push(i);
+    else if(t===TER.ASH){if(Math.random()<.002)dec.push(i,TER.SOIL,0)}
+    else if(t===TER.CRATER){if(Math.random()<.0005)dec.push(i,TER.SOIL,0)}}
+  // 慢慢回填的衰退變化優先度最低：先套用，同一輪的流動、燃燒再蓋過去
+  for(let k=0;k<dec.length;k+=3)setT(dec[k],dec[k+1],0);
+  for(let k=0;k<ch.length;k+=3){const i=ch[k],nt=ch[k+1];if(nt===-1){if(TT[i]===TER.WISP)queueBoom(i)}else if(TT[i]!==nt||nt===TER.LAVA)setT(i,nt,ch[k+2])}}
+function emitHot(dt){if(!hot.length)return;rate(emitHot,'acc',Math.min(260,hot.length*4),dt,()=>{const i=hot[Math.floor(Math.random()*hot.length)],t=TT[i],p=cellCenter(i);p.x+=rand(-.45,.45);p.z+=rand(-.45,.45);
+  if(t===TER.FIRE)ADD.emit({x:p.x,y:.25,z:p.z,vx:rand(-.2,.2),vy:rand(1,2.2),vz:rand(-.2,.2),kind:0,fm:0,fps:24,life:rand(.4,.7),s0:rand(.5,.9),s1:.12,r:1,g:.8,b:.6,a0:.95,a1:0,fadeIn:.15});
+  else if(t===TER.LAVA){if(Math.random()<.5)ADD.emit({x:p.x,y:.12,z:p.z,vy:rand(.6,1.6),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:3,fm:2,frame:8,life:rand(.6,1),s0:.14,s1:.03,r:1,g:.55,b:.2,a0:1,a1:0});
+    else ADD.emit({x:p.x,y:.1,z:p.z,vy:rand(.3,.8),kind:0,fm:0,fps:20,life:rand(.4,.6),s0:.55,s1:.1,r:1,g:.6,b:.3,a0:.7,a1:0})}
+  else if(t===TER.SHOCK){if(Math.random()<.4){const q=p.clone();q.y=.05;bolt(q,q.clone().add(new V3(rand(-.6,.6),rand(.1,.5),rand(-.6,.6))),.12,.08,false)}}
+  else if(t===TER.STEAM)SMOKE.emit({x:p.x,y:.2,z:p.z,vy:rand(.8,1.6),vx:rand(-.2,.2),vz:rand(-.2,.2),kind:2,fm:1,life:rand(1,1.6),s0:.8,s1:2,r:.8,g:.82,b:.85,a0:.35,a1:0,fadeIn:.2});
+  else if(t===TER.WISP){if(Math.random()<.35)ADD.emit({x:p.x,y:rand(.3,1.2),z:p.z,vy:rand(.2,.5),vx:rand(-.2,.2),vz:rand(-.2,.2),kind:3,fm:2,frame:0,life:rand(1,1.8),s0:.3,s1:.1,r:.4,g:.85,b:1,a0:.8,a1:0,fadeIn:.3})}
+  else if(t===TER.BLOOD){if(Math.random()<.25)ADD.emit({x:p.x,y:.08,z:p.z,vy:rand(.2,.5),kind:3,fm:2,frame:0,life:.6,s0:.16,s1:.03,r:.8,g:.08,b:.12,a0:.8,a1:0})}})}
+
+// 地形殺與地形連鎖
+let terrainKills=0,chainN=0,chainT=-9;
+const isTerrainKind=k=>k==='terrain'||k==='crush'||k==='boom';
+function onTerrainKill(e){terrainKills++;if(Math.random()<.6)dropLoot(e.pos);
+  chainN=time-chainT<1.2?chainN+1:1;chainT=time;
+  if(chainN>=2){const el=$('#chainTag');el.textContent=`地形連鎖 ×${chainN}`;el.style.color=chainN>=8?'#ff5a7a':chainN>=4?'#ffe066':'#ffb35c';el.hidden=false;
+    el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');tone(440*Math.pow(1.06,Math.min(chainN,20)),440*Math.pow(1.06,Math.min(chainN,20))*1.5,.14,'triangle',.12)}}
+function terrainEffects(e,dt){
+  if(e.type==='lord'){const t=tileAt(e.pos.x,e.pos.z);const m=t===TER.LAVA?4:t===TER.FIRE?2:0;if(m){e.tacc=(e.tacc||0)+TP[t].ed*m*dt;if(e.tacc>=12){const a=e.tacc;e.tacc=0;dealDamage(e,a,'terrain')}}return 1}
+  if(e.T.float)return 1;
+  const tp=TP[tileAt(e.pos.x,e.pos.z)];
+  if(tp.ed){e.tacc=(e.tacc||0)+tp.ed*dt;if(e.tacc>=6||e.tacc>=e.hp){const a=e.tacc;e.tacc=0;dealDamage(e,a,'terrain')}}
+  return tp.em||1}
+
+// 可破壞物：受擊、倒下、壓怪
+function damageProps(pos,r,dmg,src){for(const p of props){if(p.state!=='up')continue;const d=Math.hypot(p.x-pos.x,p.z-pos.z);if(d>r+.6)continue;
+  if(p.kind==='tree'){if(src==='fire'||src==='meteor'||src==='boom')igniteTree(p);continue}
+  p.hp-=dmg;if(p.hp<=0)breakProp(p,pos)}}
+function igniteTree(p){if(p.state!=='up')return;p.state='burning';p.t=6;p.src=null}
+function breakProp(p,src){p.hp=0;const away=new V3(p.x-src.x,0,p.z-src.z);if(away.lengthSq()<1e-4)away.set(Math.random()-.5,0,Math.random()-.5);away.normalize();p.dir=away;
+  if(p.ob)p.ob.r=0;
+  if(p.kind==='fence'){p.state='broken';setFence(p.idx,false);
+    for(let k=0;k<10;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.8,z:p.z,vx:d.x*4,vy:Math.abs(d.y)*4,vz:d.z*4,kind:2,fm:2,frame:3,life:rand(.6,1),s0:.25,s1:.15,grav:14,r:.12,g:.12,b:.14,a0:.9,a1:.7})}return}
+  if(p.kind==='sarc'){p.state='broken';p.t=0;for(let k=0;k<2;k++)spawnEnemy('ghost',p.x+rand(-1.5,1.5),p.z+rand(-1.5,1.5),1+(story.on?story.act*.15:(wave-1)*.25));
+    dropLoot(new V3(p.x,0,p.z),1+Math.floor(Math.random()*2));note('石棺裂開，殘魂竄了出來');
+    for(let k=0;k<14;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.7,z:p.z,vx:d.x*3,vy:Math.abs(d.y)*3+1,vz:d.z*3,kind:2,fm:1,life:rand(.8,1.4),s0:.8,s1:2,r:.4,g:.45,b:.55,a0:.6,a1:0})}return}
+  p.state='falling';p.t=0;p.axis=new V3(p.dir.z,0,-p.dir.x)}
+const _q=new THREE.Quaternion();
+function crush(p){for(const e of enemies){if(!e.alive||e.T.float)continue;const rx=e.pos.x-p.x,rz=e.pos.z-p.z,along=rx*p.dir.x+rz*p.dir.z,side=Math.abs(rx*p.dir.z-rz*p.dir.x);
+    if(along>-.2&&along<p.len+.3&&side<.55+e.radius)dealDamage(e,80,'crush')}
+  for(let k=0;k<12;k++){const a=rand(0,p.len);SMOKE.emit({x:p.x+p.dir.x*a,y:.2,z:p.z+p.dir.z*a,vx:rand(-1,1),vy:rand(.5,1.4),vz:rand(-1,1),kind:2,fm:1,life:rand(.8,1.3),s0:.8,s1:2,r:.45,g:.42,b:.4,a0:.5,a1:0})}
+  shakeAmt=Math.max(shakeAmt,.18);sfx.boom(.5)}
+function flushTerrain(){if(terrDirty){tTex.needsUpdate=true;gTex.needsUpdate=true;terrDirty=false}glowMat.opacity=.85+.15*Math.sin(time*3)}
+function updateProps(dt){for(const p of props){
+  if(p.kind==='tree'&&p.state==='up'&&tileAt(p.x,p.z)===TER.FIRE)igniteTree(p);
+  if(p.state==='burning'){p.t-=dt;rate(p.acc,'f',36,dt,()=>ADD.emit({x:p.x+rand(-.3,.3),y:rand(.3,p.len),z:p.z+rand(-.3,.3),vy:rand(1,2),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:0,fm:0,fps:24,life:rand(.4,.7),s0:rand(.6,1),s1:.15,r:1,g:.8,b:.6,a0:.95,a1:0}));
+    rate(p.acc,'g',1,dt,()=>terrainBlast(new V3(p.x,0,p.z),1.4,'fire'));p.mat.color.setHex(0x2a211b).multiplyScalar(Math.max(.25,p.t/6));
+    if(p.t<=0){p.dir=new V3(Math.random()-.5,0,Math.random()-.5).normalize();p.axis=new V3(p.dir.z,0,-p.dir.x);p.state='falling';p.t=0;if(p.ob)p.ob.r=0}}
+  else if(p.state==='falling'){p.t+=dt;const k=Math.min(1,p.t/.5);_q.setFromAxisAngle(p.axis,k*k*Math.PI/2*.94);p.g.quaternion.copy(_q).multiply(p.q0);
+    if(k>=1){p.state='down';crush(p)}}
+  else if(p.kind==='sarc'&&p.state==='broken'&&p.t<1){p.t+=dt;p.lid.position.set(p.lid0.x+p.t*1.6,p.lid0.y+Math.sin(p.t*Math.PI)*1.2,p.lid0.z);p.lid.rotation.z=-p.t*1.2}}}
+function resetProps(){for(const p of props){p.state='up';p.t=0;p.hp=p.hp0;if(p.ob)p.ob.r=p.ob.r0;
+  if(p.kind==='fence')setFence(p.idx,true);else{p.g.quaternion.copy(p.q0);p.g.position.copy(p.pos0)}
+  if(p.kind==='tree')p.mat.color.setHex(0x2a211b);if(p.kind==='sarc'){p.lid.position.copy(p.lid0);p.lid.rotation.set(0,0,0)}}}
+function resetTerrain(){TT.set(TT0);TM.fill(0);THP.fill(0);booms.length=0;hot.length=0;for(let i=0;i<GN*GN;i++)paintCell(i);resetProps();terrainKills=0;chainN=0;chainT=-9;$('#chainTag').hidden=true}
+function updateTerrain(dt){caAcc+=dt;if(caAcc>=.2){automata(caAcc);caAcc=0}
+  for(let k=booms.length-1;k>=0;k--){booms[k].t-=dt;if(booms[k].t<=0){const b=booms[k];booms.splice(k,1);boom(b.i)}}
+  updateProps(dt);emitHot(dt);
+  if(chainN&&time-chainT>1.4){$('#chainTag').hidden=true;chainN=0}}
+function solidPush(p,r){const gx0=Math.floor(p.x+GH-r),gx1=Math.floor(p.x+GH+r),gz0=Math.floor(p.z+GH-r),gz1=Math.floor(p.z+GH+r);
+  for(let gz=Math.max(0,gz0);gz<=Math.min(GN-1,gz1);gz++)for(let gx=Math.max(0,gx0);gx<=Math.min(GN-1,gx1);gx++){if(!TP[TT[gz*GN+gx]].solid)continue;
+    const x0=gx-GH,z0=gz-GH,qx=clamp(p.x,x0,x0+1),qz=clamp(p.z,z0,z0+1),dx=p.x-qx,dz=p.z-qz,d=Math.hypot(dx,dz);
+    if(d<r){if(d>1e-5){p.x=qx+dx/d*r;p.z=qz+dz/d*r}else{const cxm=x0+.5,czm=z0+.5,ax=p.x-cxm,az=p.z-czm;if(Math.abs(ax)>Math.abs(az))p.x=cxm+Math.sign(ax||1)*(.5+r);else p.z=czm+Math.sign(az||1)*(.5+r)}}}}
 
 /* ---------- 法陣材質（三種路線各一） ---------- */
 const DEBUG_FS=`varying vec2 vUv;uniform vec3 uCol;uniform float uOp;void main(){float e=max(abs(vUv.x-.5),abs(vUv.y-.5));gl_FragColor=vec4(uCol,mix(.07,.95,step(.47,e))*uOp);}`;
@@ -564,14 +748,15 @@ function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=buildEnemy(type);b.g.
 function pickType(mix){const r=Math.random();return r<mix[0]?'spider':r<mix[0]+mix[1]?'lizard':'ghost'}
 function spawnWave(n,mix=[.45,.35,.2],hpMul=1+(wave-1)*.25){for(let i=0;i<n;i++){let x,z;do{const a=rand(0,TAU),r=rand(12,40);x=Math.cos(a)*r;z=Math.sin(a)*r}while(Math.hypot(x-player.pos.x,z-player.pos.z)<11);
   spawnEnemy(pickType(mix),x,z,hpMul)}}
-function dealDamage(e,amt,kind){if(!e.alive)return;const crit=Math.random()<.12;if(crit)amt*=1.8;e.hp-=amt;e.flash=.09;e.aggro=true;
-  const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
+function dealDamage(e,amt,kind){if(!e.alive)return;const crit=Math.random()<.12;if(crit)amt*=1.8;e.hp-=amt;e.flash=.09;e.aggro=true;e.lastKind=kind;
+  const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a',terrain:'#c9e06a',crush:'#e0d6c2',boom:'#7fe0ff'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
   if(!e.hpEl&&e.type!=='lord'){e.hpEl=document.createElement('div');e.hpEl.className='hpb';e.hpEl.innerHTML='<i></i>';fxLayer.appendChild(e.hpEl)}
   if(e.hpEl)e.hpEl.firstChild.style.transform=`scaleX(${Math.max(0,e.hp/e.maxhp)})`;
   if(e.hp<=0)killEnemy(e)}
 function aoe(pos,r,dmg,kind,skip){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*rand(.9,1.1),kind)}}
 function killEnemy(e){e.alive=false;e.dying=0;player.kills++;if(e.hpEl){e.hpEl.remove();e.hpEl=null}
   if(e.type==='lord'){dropLoot(e.pos,3);dropLoot(e.pos,3);onBossDead(e);return}
+  if(isTerrainKind(e.lastKind))onTerrainKill(e);
   const c=e.type==='ghost'?[.5,.85,1]:e.type==='lizard'?[.5,.9,.4]:[.8,.3,.9];
   for(let i=0;i<14;i++){const d=randUnit();ADD.emit({x:e.pos.x,y:.8,z:e.pos.z,vx:d.x*3,vy:Math.abs(d.y)*4+1,vz:d.z*3,kind:3,fm:2,frame:0,life:rand(.4,.7),s0:.25,s1:.05,r:c[0],g:c[1],b:c[2],a0:.9,a1:0,grav:6,drag:1})}
   for(let i=0;i<3;i++)SMOKE.emit({x:e.pos.x+rand(-.3,.3),y:.6,z:e.pos.z+rand(-.3,.3),vy:rand(.4,.9),kind:2,fm:1,life:rand(.9,1.3),s0:1,s1:2.2,r:.45,g:.45,b:.5,a0:.45,a1:0});
@@ -584,7 +769,8 @@ function updateEnemies(dt){
     const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,d=Math.hypot(dx,dz)||1;let mx=0,mz=0;
     if(player.alive&&(d<24||e.aggro)){e.aggro=true;if(d>e.radius+.55){mx=dx/d;mz=dz/d}}
     else{e.wt-=dt;if(e.wt<=0){e.wa=rand(0,TAU);e.wt=rand(1,3)}mx=Math.cos(e.wa)*.35;mz=Math.sin(e.wa)*.35}
-    e.pos.x+=mx*e.T.speed*dt;e.pos.z+=mz*e.T.speed*dt;
+    const tm=terrainEffects(e,dt);if(!e.alive)continue;
+    e.pos.x+=mx*e.T.speed*tm*dt;e.pos.z+=mz*e.T.speed*tm*dt;
     for(let j=0;j<i;j++){const f=list[j];if(!f.alive)continue;const ox=e.pos.x-f.pos.x,oz=e.pos.z-f.pos.z,od=Math.hypot(ox,oz),min=e.radius+f.radius;
       if(od<min&&od>1e-4){const p=(min-od)*.5;e.pos.x+=ox/od*p;e.pos.z+=oz/od*p;f.pos.x-=ox/od*p;f.pos.z-=oz/od*p}}
     if(!e.T.float)pushOut(e.pos,e.radius);else{const R=Math.hypot(e.pos.x,e.pos.z);if(R>42.5){e.pos.x*=42.5/R;e.pos.z*=42.5/R}}
@@ -599,7 +785,8 @@ function updateEnemies(dt){
     if(e.hpEl){const [x,y,ok]=toScreen(tv.set(e.pos.x,e.T.float?2.4:1.5,e.pos.z));e.hpEl.style.transform=`translate(${x-22}px,${y}px)`;e.hpEl.style.display=ok?'block':'none'}
   }
 }
-function pushOut(p,r){for(const o of obstacles){const dx=p.x-o.x,dz=p.z-o.z,d=Math.hypot(dx,dz),m=o.r+r;if(d<m&&d>1e-4){p.x=o.x+dx/d*m;p.z=o.z+dz/d*m}}
+function pushOut(p,r){for(const o of obstacles){if(!o.r)continue;const dx=p.x-o.x,dz=p.z-o.z,d=Math.hypot(dx,dz),m=o.r+r;if(d<m&&d>1e-4){p.x=o.x+dx/d*m;p.z=o.z+dz/d*m}}
+  solidPush(p,r);
   const R=Math.hypot(p.x,p.z);if(R>42.5){p.x*=42.5/R;p.z*=42.5/R}}
 
 /* ---------- 投射物 ---------- */
@@ -645,13 +832,13 @@ function updateProjs(dt){
     if(p.kind==='fire')fireTrail(p,dt);
     else{
       rate(p.acc,'arc',16,dt,()=>bolt(p.pos,p.pos.clone().add(randUnit().multiplyScalar(rand(.6,1.2))),.16,.08,false));
-      rate(p.acc,'gnd',7,dt,()=>{const a=rand(0,TAU),r=rand(.6,1.8),g=new V3(p.pos.x+Math.cos(a)*r,.05,p.pos.z+Math.sin(a)*r);bolt(p.pos,g,.22,.12,false);
+      rate(p.acc,'gnd',7,dt,()=>{const a=rand(0,TAU),r=rand(.6,1.8),g=new V3(p.pos.x+Math.cos(a)*r,.05,p.pos.z+Math.sin(a)*r);bolt(p.pos,g,.22,.12,false);applyEl(cellOf(g.x,g.z),'bolt');
         for(let k=0;k<6;k++){const d=randUnit();ADD.emit({x:g.x,y:.1,z:g.z,vx:d.x*3,vy:Math.abs(d.y)*3,vz:d.z*3,kind:3,fm:2,frame:0,life:.3,s0:.15,s1:.03,grav:10,r:.6,g:.85,b:1,a0:1,a1:0})}});
     }
     let hit=null;for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.pos.x,e.pos.z-p.pos.z)<e.radius+.45){hit=e;break}}
     if(hit||p.life<=0||Math.hypot(p.pos.x,p.pos.z)>44){p.dead=true;projs.splice(i,1);
-      if(p.kind==='fire'){explode(p.pos,1);aoe(p.pos,2.2,34*fireMul(),'fire')}
-      else{zapBurst(p.pos);sfx.zap();if(hit){dealDamage(hit,30*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),6,30*spellMul()*.88);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit)}}
+      if(p.kind==='fire'){explode(p.pos,1);aoe(p.pos,2.2,34*fireMul(),'fire');terrainBlast(p.pos,1.6,'fire');damageProps(p.pos,1.8,1,'fire')}
+      else{zapBurst(p.pos);sfx.zap();terrainBlast(p.pos,.9,'bolt');if(hit){dealDamage(hit,30*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),6,30*spellMul()*.88);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit)}}
     }
   }
 }
@@ -661,7 +848,7 @@ function zapBurst(pos){ADD.emit({x:pos.x,y:pos.y,z:pos.z,kind:3,fm:2,frame:9,lif
 function chain(from,hitSet,n,dmg){if(n<=0)return;after(.075,()=>{
   let best=null,bd=7.5;for(const e of enemies){if(!e.alive||hitSet.has(e))continue;const d=Math.hypot(e.pos.x-from.pos.x,e.pos.z-from.pos.z);if(d<bd){bd=d;best=e}}
   if(!best)return;const a=new V3(from.pos.x,1,from.pos.z),b=new V3(best.pos.x,1,best.pos.z);bolt(a,b,.32,.16,true);zapBurst(b);sfx.zap();
-  hitSet.add(best);dealDamage(best,dmg,'bolt');chain(best,hitSet,n-1,dmg*.92)})}
+  hitSet.add(best);applyEl(cellOf(best.pos.x,best.pos.z),'bolt');dealDamage(best,dmg,'bolt');chain(best,hitSet,n-1,dmg*.92)})}
 function boltPath(a,b){let pts=[a.clone(),b.clone()],d=a.distanceTo(b)*.22;
   for(let l=0;l<4;l++){const np=[];for(let i=0;i<pts.length-1;i++){const m=pts[i].clone().lerp(pts[i+1],.5);m.x+=rand(-d,d);m.y+=rand(-d,d)*.6;m.z+=rand(-d,d);np.push(pts[i],m)}np.push(pts[pts.length-1]);pts=np;d*=.5}return pts}
 function bolt(a,b,w,life,branch){
@@ -700,7 +887,7 @@ function updateMeteors(dt){
     if(k>=1){meteors.splice(i,1);m.dead=true;scene.remove(m.ring);const p=m.to.clone();p.y=.35;
       explode(p,1.7*s);
       for(let j=0;j<30;j++){const d=randUnit(),sp=rand(4,9);SMOKE.emit({x:p.x,y:.3,z:p.z,vx:d.x*sp,vy:Math.abs(d.y)*sp+2,vz:d.z*sp,kind:2,fm:2,frame:randi(0,4),life:rand(.6,1),s0:.35,s1:.2,grav:18,r:.2,g:.16,b:.13,a0:.9,a1:.6})}
-      aoe(p,2.7*s,60*s*fireMul(),'fire');addBurn(p,2.2*s,3.5);
+      aoe(p,2.7*s,60*s*fireMul(),'fire');addBurn(p,2.2*s,3.5);meteorTerrain(p,2.2*s);damageProps(p,2.6*s,3,'meteor');
       m.mesh.position.set(p.x,.15*s,p.z);rocks.push({mesh:m.mesh,t:0});
       shakeAmt=Math.max(shakeAmt,.38*s)}
   }
@@ -714,7 +901,7 @@ function updateBurns(dt){for(let i=burns.length-1;i>=0;i--){const b=burns[i];b.t
   if(b.t<b.life-.4)rate(b.acc,'f',22*b.r,dt,()=>{const a=rand(0,TAU),rr=Math.sqrt(Math.random())*b.r*.9;
     ADD.emit({x:b.pos.x+Math.cos(a)*rr,y:.2,z:b.pos.z+Math.sin(a)*rr,vx:rand(-.2,.2),vy:rand(1,2.2),vz:rand(-.2,.2),kind:0,fm:0,fps:24,life:rand(.4,.7),s0:rand(.5,1),s1:.15,r:1,g:.8,b:.6,a0:.95,a1:0,fadeIn:.15})});
   rate(b.acc,'e',8,dt,()=>ADD.emit({x:b.pos.x+rand(-b.r,b.r)*.7,y:.2,z:b.pos.z+rand(-b.r,b.r)*.7,vy:rand(.8,1.6),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:3,fm:2,frame:8,life:rand(.8,1.2),s0:.12,s1:.03,r:1,g:.55,b:.2,a0:1,a1:0}));
-  b.tick-=dt;if(b.tick<=0&&b.t<b.life){b.tick=.5;aoe(b.pos,b.r,7*fireMul(),'burn')}
+  b.tick-=dt;if(b.tick<=0&&b.t<b.life){b.tick=.5;aoe(b.pos,b.r,7*fireMul(),'burn');const a=rand(0,TAU),rr=Math.random()*b.r;applyEl(cellOf(b.pos.x+Math.cos(a)*rr,b.pos.z+Math.sin(a)*rr),'fire')}
   b.decal.material.opacity=.9*fade;if(b.light&&b.light.owner===b)b.light.i0=1.6*fade;
   if(b.t>=b.life){b.dead=true;scene.remove(b.decal);b.decal.material.dispose();burns.splice(i,1)}}}
 
@@ -744,6 +931,7 @@ function updateRites(dt){
         const t=Math.min(1,b.t),u=1-t;b.pos.set(u*u*b.from.x+2*u*t*b.ctrl.x+t*t*end.x,u*u*b.from.y+2*u*t*b.ctrl.y+t*t*end.y,u*u*b.from.z+2*u*t*b.ctrl.z+t*t*end.z);
         rate(b.acc,'t',140,dt,()=>ADD.emit({x:b.pos.x+rand(-.06,.06),y:b.pos.y,z:b.pos.z+rand(-.06,.06),kind:0,fm:0,fps:30,life:rand(.12,.18),s0:.48,s1:.05,r:1,g:.2,b:.26,a0:1,a1:.3}));
         if(t>=1){b.dead=true;explode(b.pos,.5,[1,.25,.32],false);sfx.boom(.45);
+          terrainBlast(new V3(b.pos.x,0,b.pos.z),1.2,'blood');
           if(b.target&&b.target.alive)dealDamage(b.target,26*spellMul(),'blood');else aoe(b.pos,1.3,18*spellMul(),'blood')}}}
     if(ts>2.45&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);o.mesh.material.dispose();rites.splice(i,1)}}
 }
@@ -876,7 +1064,8 @@ function updatePlayer(dt){
   if(player.alive){
     if(lmb)tryCast('fire');
     let mx=(keys.KeyD?1:0)-(keys.KeyA?1:0),mz=(keys.KeyS?1:0)-(keys.KeyW?1:0);const l=Math.hypot(mx,mz);
-    const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,sp=6.2*(1+stats.move/100)*root;
+    const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);
+    if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a)}}
     if(l){player.pos.x+=mx/l*sp*dt;player.pos.z+=mz/l*sp*dt;player.walk+=dt*10*root}
     pushOut(player.pos,.4);
     if(!c)player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);
@@ -973,7 +1162,9 @@ function obj(main,sub){const o=$('#objective');o.hidden=false;o.innerHTML=main+(
 function refreshSkillLabels(){$('#mfire').textContent=tierOf('fire')?'三連發':'單發';$('#mbolt').textContent=tierOf('bolt')?'彈跳 6 次':'單擊';$('#mmeteor').textContent=tierOf('meteor')?'十顆連落':'單顆'}
 function clearWorld(){for(const e of enemies){scene.remove(e.g);if(e.hpEl)e.hpEl.remove()}enemies.length=0;for(const L of loots){scene.remove(L.g);L.el.remove()}loots.length=0;
   for(const p of projs)p.dead=true;projs.length=0;for(const s of shocks){scene.remove(s.mesh)}shocks.length=0;timers.length=0;
-  player.alive=true;player.hp=player.maxhp;player.cast=null;P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true)}
+  player.alive=true;player.hp=player.maxhp;player.cast=null;player.tacc=0;P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true);
+  for(const m of meteors){m.dead=true;scene.remove(m.mesh);scene.remove(m.ring)}meteors.length=0;for(const b of burns){b.dead=true;scene.remove(b.decal)}burns.length=0;
+  resetTerrain()}
 function startStory(){initAudio();$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();player.pos.set(0,0,4);player.kills=0;
   Object.assign(story,{on:true,act:0,phase:'idle',unlocked:new Set(['fire']),tier:{fire:0},seen:new Set(),t0:time});
   TOWERS.forEach(T=>{setTowerLit(T,false);T.beam.visible=false});$('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();beginAct(0)}
@@ -1015,6 +1206,7 @@ function bossAI(e,dt){e.shockT-=dt;
   if(f<.5&&!e.flags.dark){e.flags.dark=true;setDark(1);after(9,()=>setDark(0));playDialog('dark',null)}
   if(f<.33&&!e.flags.s2){e.flags.s2=true;summon(e,9);note('更多亡者從墳裡爬出來')}}
 function updateShocks(dt){for(let i=shocks.length-1;i>=0;i--){const s=shocks[i];s.t+=dt;const k=s.t/1.5,r=1+k*13;s.mesh.scale.setScalar(r);s.mesh.material.opacity=.9*(1-k*.6);
+  for(const p of props)if(p.state==='up'&&(p.kind==='tomb'||p.kind==='fence')&&Math.abs(Math.hypot(p.x-s.x,p.z-s.z)-r)<.8){p.hp-=3;if(p.hp<=0)breakProp(p,new V3(s.x,0,s.z))}
   if(!s.hit&&player.alive&&r>2.2){const d=Math.hypot(player.pos.x-s.x,player.pos.z-s.z);if(Math.abs(d-r)<.75){s.hit=true;hurtPlayer(22);flash(player.pos.clone().setY(1),0xa05cff,3,6,.3)}}
   rate(s,'p',90,dt,()=>{const a=rand(0,TAU);ADD.emit({x:s.x+Math.cos(a)*r,y:.15,z:s.z+Math.sin(a)*r,vy:rand(.5,1.5),kind:3,fm:2,frame:0,life:.4,s0:.35,s1:.05,r:.65,g:.35,b:1,a0:.9,a1:0})});
   if(k>=1){scene.remove(s.mesh);s.mesh.material.dispose();shocks.splice(i,1)}}}
@@ -1023,7 +1215,7 @@ function onBossDead(e){story.phase='outro';$('#bossbar').hidden=true;$('#objecti
   after(1.4,()=>{for(const o of enemies)if(o.alive)killEnemy(o);setDark(0)});
   after(2.8,()=>playDialog('end',showEnding))}
 function showEnding(){story.phase='end';const s=Math.round(time-story.t0);
-  $('#endSub').textContent=`用時 ${Math.floor(s/60)} 分 ${String(s%60).padStart(2,'0')} 秒・擊倒 ${player.kills} 隻`;$('#ending').hidden=false;$('#objective').hidden=true}
+  $('#endSub').textContent=`用時 ${Math.floor(s/60)} 分 ${String(s%60).padStart(2,'0')} 秒・擊倒 ${player.kills} 隻・地形擊殺 ${terrainKills}（${player.kills?Math.round(terrainKills/player.kills*100):0}%）`;$('#ending').hidden=false;$('#objective').hidden=true}
 $('#endAgain').onclick=startStory;$('#endFree').onclick=startFree;
 $('#btnVoice').onclick=()=>{voiceOn=!voiceOn;$('#btnVoice').textContent='語音：'+(voiceOn?'開':'關');if(!voiceOn)hush()};
 
@@ -1060,9 +1252,9 @@ function restart(){
 // logic＝遊戲規則一格；visuals＝畫面一格。暫停（對白中）只停 logic。驗收探針也直接呼叫這兩個。
 function logic(dt){
   for(let i=timers.length-1;i>=0;i--){timers[i].t-=dt;if(timers[i].t<=0){const f=timers[i].fn;timers.splice(i,1);f()}}
-  updatePlayer(dt);updateEnemies(dt);updateShocks(dt);updateProjs(dt);updateMeteors(dt);updateBurns(dt);updateRites(dt);updateLoot(dt);ambient(dt);updateStory(dt);
+  updatePlayer(dt);updateEnemies(dt);updateShocks(dt);updateProjs(dt);updateMeteors(dt);updateBurns(dt);updateRites(dt);updateLoot(dt);updateTerrain(dt);ambient(dt);updateStory(dt);
   if(!story.on&&player.alive&&!enemies.some(e=>e.alive)){if(waveTimer<=0){waveTimer=2.5;toast(`第 ${wave} 波清空`)}else{waveTimer-=dt;if(waveTimer<=0){wave++;spawnWave(50+wave*5);toast(`第 ${wave} 波來了`);waveTimer=0}}}}
-function visuals(dt){updateTowers(dt);ADD.update(dt);SMOKE.update(dt);updateLights(dt);updateCamera(dt);updateTexts(dt);updateDialog(dt);updateHud(dt)}
+function visuals(dt){updateTowers(dt);flushTerrain();ADD.update(dt);SMOKE.update(dt);updateLights(dt);updateCamera(dt);updateTexts(dt);updateDialog(dt);updateHud(dt)}
 const clock=new THREE.Clock();
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);time+=dt;shared.uTime.value=time;
   if(running&&!paused)logic(dt);visuals(dt);renderer.render(scene,camera)}

@@ -27,7 +27,7 @@ rows.push(['e2e', run('tests/e2e.mjs', url ? [url] : [])]);
 rows.push(['checks', run('tests/checks.mjs', url ? [url] : [])]);
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant three defects in a scratch copy; the suites must notice
+  // plant four defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -35,7 +35,10 @@ if (!args.includes('--skip-mutation') && !url) {
     let h = readFileSync(f, 'utf8');
     h = h.replace(/^<!doctype html>\n/i, '')                                         // 1. drop doctype (the quirks-mode bug from P0)
       .replace("if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}", '') // 2. lose the spell lock
-      .replace('A*=ss(.47,.4,', 'A*=ss(.5,.42,');                                    // 3. reintroduce atlas edge bleed
+      .replace('A*=ss(.47,.4,', 'A*=ss(.5,.42,')                                     // 3. reintroduce atlas edge bleed
+      .replace('if(Math.random()<spreadP(nt))ch.push(', 'if(false)ch.push(');            // 4. fire stops spreading (P2 terrain)
+    for (const needle of ['<!doctype html>', "if(!story.unlocked.has(id))", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push('])
+      if (readFileSync(f, 'utf8').includes(needle) && h.includes(needle)) throw new Error('mutation did not apply: ' + needle);
     writeFileSync(f, h);
     const env = { EG_ROOT: dir };
     const u = run('tests/unit.mjs', [], env), c = run('tests/checks.mjs', [], env);
