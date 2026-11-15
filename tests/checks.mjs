@@ -27,7 +27,7 @@ function staticChecks() {
   const notice = readFileSync(join(ROOT, 'NOTICE.md'), 'utf8');
   rep.ok(existsSync(join(ROOT, 'assets', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');
   // relative links in markdown
-  const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md', 'docs/SCREENS.md', 'docs/DEVLOG.md'];
+  const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md', 'docs/SCREENS.md', 'docs/DEVLOG.md', 'docs/VOICE.md'];
   let broken = [];
   for (const f of mds) { const t = readFileSync(join(ROOT, f), 'utf8');
     for (const m of t.matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)) { const l = m[1]; if (/^https?:|^mailto:/.test(l)) continue; const p = resolve(ROOT, dirname(f), decodeURIComponent(l)); if (!existsSync(p)) broken.push(`${f} -> ${l}`); } }

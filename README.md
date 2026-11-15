@@ -268,7 +268,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P0 ✅ | Public repo, GitHub Pages, smoke harness, diagrams |
 | P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
-| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d voice test |
+| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d ✅ voice test ([report](docs/VOICE.md)) |
 | P4 | Touch controls for phones |
 | P5 | Port the fireball emitters to Godot and compare |
 
@@ -396,7 +396,7 @@ npm test
 | P0 ✅ | 公開 repo、GitHub Pages、驗收工具、架構圖與流程圖 |
 | P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
-| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d 語音實測 |
+| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d ✅ 語音實測（[報告](docs/VOICE.md)） |
 | P4 | 手機觸控操作 |
 | P5 | 把火球發射器移植到 Godot 並排比較 |
 
