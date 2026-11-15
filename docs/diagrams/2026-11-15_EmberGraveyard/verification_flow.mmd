@@ -1,0 +1,61 @@
+%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph DEV[✏️ 本機修改]
+    EDIT([改程式或內容]):::input
+    FIX[修正<br/>功能真壞就修功能<br/>不准為了過而放寬閘門]:::worker
+  end
+
+  %% col=1 row=0
+  subgraph LOCAL[🧪 本機 npm test]
+    SMOKE[/靜態閘門＋整合探針<br/>四招・故事全程/]:::pipeline
+    SELF[/閘門自我測試<br/>弄壞的副本必須變紅/]:::pipeline
+    UNITT[/單元測試 37 項/]:::pipeline
+    E2ET[/端對端 30 項<br/>真實鍵盤滑鼠/]:::pipeline
+    CHK[/其他驗證 23 項<br/>效能・洩漏・手機<br/>無障礙・連結・圖源/]:::pipeline
+    MUTT[/突變測試<br/>埋 3 個缺陷<br/>單元與驗證都要變紅/]:::pipeline
+  end
+
+  %% col=2 row=0
+  subgraph GATE[🛡️ 守門]
+    GREEN[全綠？]:::safety
+    ASK[推送前先問使用者]:::safety
+  end
+
+  %% col=3 row=0
+  subgraph REMOTE[☁️ GitHub]
+    PUSH([git push]):::input
+    ACTIONS[/GitHub Actions<br/>雲端 Chrome 重跑全部/]:::pipeline
+    PAGES[(GitHub Pages 部署)]:::output
+  end
+
+  %% col=4 row=0
+  subgraph LIVE[🌐 線上驗收]
+    LIVET[/npm run test:live<br/>對線上網址重跑/]:::pipeline
+    DONE[(才算上線完成)]:::output
+  end
+
+  EDIT --> SMOKE
+  SMOKE --> SELF
+  SELF --> UNITT
+  UNITT --> E2ET
+  E2ET --> CHK
+  CHK --> MUTT
+  MUTT --> GREEN
+  GREEN -. 有紅燈 .-> FIX
+  FIX -. 重跑 .-> EDIT
+  GREEN --> ASK
+  ASK --> PUSH
+  PUSH --> ACTIONS
+  ACTIONS --> PAGES
+  ACTIONS -. 雲端紅燈 .-> FIX
+  PAGES --> LIVET
+  LIVET --> DONE
+  LIVET -. 線上紅燈 .-> FIX
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000

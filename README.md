@@ -50,41 +50,60 @@ Everything — textures, rune circle, rock, sounds — is generated in code. No 
 ```mermaid
 flowchart LR
   subgraph INPUT[👤 Player input]
-    KEYS([Keyboard · WASD, 1-4, I]):::input
+    KEYS([Keyboard · WASD, 1-4, I, Space]):::input
     MOUSE([Mouse · aim, left, right]):::input
     UPLOAD([Upload 4×4 black-background sheet]):::input
   end
   subgraph UI[🖥️ UI layer]
-    LAB[Lab panel · texture route, basic or upgraded]:::ui
-    HUD[Status, skill bar, health]:::ui
-    INV[Inventory · 10×6 shaped grid, 7 slots]:::ui
-    FXL[Overlay · damage numbers, health bars]:::ui
+    MODE[Start menu · story or free play]:::ui
+    LAB[Lab panel · texture route, tier, voice]:::ui
+    HUD[Objective, boss bar, skills, health]:::ui
+    DLGUI[Dialogue box · portrait, typewriter, skip]:::ui
+    INV[Inventory · shaped grid, 7 slots]:::ui
   end
-  subgraph LOGIC[⚙️ Game logic]
-    LOOP[/Main loop · dt ≤ 0.05 s/]:::pipeline
-    CAST[/Casting · cooldown, gesture, release/]:::pipeline
-    SPELLS[/Four spells/]:::pipeline
-    ENEMY[/Monster AI · chase, separate, bite/]:::pipeline
+  subgraph STORY[📖 Story layer]
+    ACTS[/Act state machine · talk, clear, go, ignite, unlock/]:::pipeline
+    TOWER[(Four lighthouses)]:::model
+    BOSS[/Boss AI · shockwave, summons, darkness/]:::pipeline
+    VOICE[Browser text-to-speech]:::worker
+  end
+  subgraph LOGIC[⚙️ Game logic · logic dt]
+    CAST[/Casting · unlocks, cooldowns, gestures/]:::pipeline
+    SPELLS[/Four spells · tier from progress/]:::pipeline
+    ENEMY[/Monster AI/]:::pipeline
     LOOT[/Loot and stats/]:::pipeline
   end
-  subgraph VFX[🔥 Three building blocks]
-    ATLAS[(Flipbook atlas 1024² · 4 sheets × 16 frames)]:::model
+  subgraph VFX[🔥 Three building blocks · visuals dt]
+    ATLAS[(Flipbook atlas 1024²)]:::model
     SHADER[/Shader modes · atlas, procedural, quads/]:::pipeline
-    PSYS[Particle system · 12000 additive + 3000 smoke, camera-facing quads]:::worker
-    LIGHTS[Light pool · 10 lights]:::worker
-    MESH[(Procedural meshes · meteor, monsters, loot)]:::model
+    PSYS[Particle system · camera-facing quads]:::worker
+    LIGHTS[Light pool 10 + 4 lighthouse lights]:::worker
+    MESH[(Procedural meshes)]:::model
   end
   subgraph OUT[🖼️ Output]
     CANVAS[(WebGL canvas · Three.js r128)]:::output
-    SND[(WebAudio synthesized sound)]:::output
+    SND[(Synth sound + voice)]:::output
+  end
+  subgraph VERIFY[✅ Verification layer]
+    STATIC[Static gates · size, hosts, compile, privacy]:::safety
+    UNIT[Unit · 37 tests on page functions]:::safety
+    E2E[End-to-end · 30 checks with real input]:::safety
+    CHECKS[Checks · 23 for perf, leaks, phone, a11y]:::safety
+    MUT[Mutation · planted defects must turn red]:::safety
+    CI[(GitHub Actions on every push)]:::output
   end
   KEYS --> CAST
   MOUSE --> CAST
   UPLOAD --> ATLAS
+  MODE --> ACTS
   LAB -. route .-> SHADER
-  LAB -. tier .-> SPELLS
-  LOOP --> CAST
-  LOOP --> HUD
+  ACTS --> DLGUI
+  DLGUI --> VOICE
+  ACTS --> TOWER
+  TOWER -. unlock .-> CAST
+  ACTS --> BOSS
+  BOSS --> ENEMY
+  ACTS --> HUD
   CAST --> SPELLS
   SPELLS --> PSYS
   SPELLS --> LIGHTS
@@ -93,16 +112,24 @@ flowchart LR
   ENEMY --> LOOT
   LOOT --> INV
   INV -. stats .-> CAST
-  ENEMY -. hit .-> FXL
   ATLAS --> SHADER
   SHADER --> PSYS
   PSYS --> CANVAS
   LIGHTS --> CANVAS
   MESH --> CANVAS
-  SPELLS -. impact .-> SND
+  VOICE --> SND
+  UNIT -. tests .-> LOGIC
+  E2E -. tests .-> UI
+  CHECKS -. tests .-> OUT
+  MUT -. tests the tests .-> UNIT
+  STATIC --> CI
+  UNIT --> CI
+  E2E --> CI
+  CHECKS --> CI
   classDef input fill:#74c7ec,stroke:#1e6091,color:#000
   classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
   classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
   classDef model fill:#a6e3a1,stroke:#1e6f1a,color:#000
   classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
   classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
@@ -112,16 +139,17 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  START([Open page]):::input --> BUILD[/Draw flipbook atlas in code/]:::pipeline --> INTRO[Intro · Enter the graveyard]:::ui
-  INTRO --> SPAWN[/Spawn wave · 50 monsters/]:::pipeline --> FIGHT[Fight]:::worker
-  FIGHT --> PRESS([Key or mouse]):::input --> CD[/Cooldown check/]:::pipeline --> POSE[/Spell-specific gesture/]:::pipeline --> RELEASE[/Release · spawn spell/]:::pipeline
-  RELEASE --> FLY[/Flight · core quads, 240 trail quads/s, travelling light/]:::pipeline --> HIT[/Impact · explosion flipbook, 40 sparks, smoke/]:::pipeline
-  HIT --> AFTER[/Aftermath · burning ground, lightning chain/]:::pipeline
-  HIT --> DMG[/Damage · 12% crit ×1.8/]:::pipeline
-  AFTER --> DMG --> KILL[Kill]:::worker --> DROP[(Loot drop)]:::output --> PICK[/Walk over to pick up/]:::pipeline --> EQUIP[/Equip · stats recalculated/]:::pipeline
-  EQUIP -. damage, cooldown, health .-> CD
-  KILL -. wave cleared .-> CLEAR[/Next wave in 2.5 s · +5 monsters, +25% HP/]:::pipeline -.-> SPAWN
-  FIGHT -. health reaches 0 .-> DEAD([Fallen · try again]):::safety -.-> SPAWN
+  START([Open page]):::input --> BUILD[/Draw flipbook atlas in code/]:::pipeline --> PICK[Choose story or free play]:::ui
+  PICK --> TALK[Dialogue with voice · game paused]:::ui --> CLEAR[/Clear the wave · 18, 24, 28, 30 monsters/]:::pipeline --> GOTO[/Follow the arrow and beam to the lighthouse/]:::pipeline
+  GOTO --> IGNITE[/Stand under it 3 s · an ambush of 6 arrives/]:::pipeline --> UNLOCK[Learn a spell]:::worker
+  UNLOCK -. next act .-> TALK
+  UNLOCK -. fourth lighthouse lit .-> LORD[Lord of the Unlit appears]:::worker --> SHOCK[/Shockwave every 5 s · step outside or hug the boss/]:::pipeline --> PHASE[/Summons at 66% and 33% · darkness at 50%/]:::pipeline --> END[(Ending screen · time and kills)]:::output
+  PICK --> SPAWN[/Free play · waves of 50, +5 each wave/]:::pipeline
+  CLEAR -. while fighting .-> PRESS([Key or mouse]):::input
+  SPAWN -. while fighting .-> PRESS
+  PRESS --> CD[/Unlock and cooldown check/]:::pipeline --> FLY[/Flight, impact, aftermath/]:::pipeline --> DMG[/Damage · 12% crit/]:::pipeline --> DROP[(Loot → inventory → equip)]:::output
+  DROP -. stats change .-> CD
+  PRESS -. health reaches 0 .-> DEAD([Retry the current act]):::safety -.-> TALK
   classDef input fill:#74c7ec,stroke:#1e6091,color:#000
   classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
   classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
@@ -130,7 +158,23 @@ flowchart TD
   classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
 ```
 
-Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html) locally (works offline).
+## Verification flow
+
+```mermaid
+flowchart LR
+  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 37/]:::pipeline --> E2ET[/End-to-end · 30/]:::pipeline --> CHK[/Checks · 23/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
+  GREEN -. any red .-> FIX[Fix the feature, never loosen a gate]:::worker -.-> EDIT
+  GREEN --> ASK[Ask before pushing]:::safety --> PUSH([git push]):::input --> ACTIONS[/GitHub Actions re-runs everything/]:::pipeline --> PAGES[(GitHub Pages deploy)]:::output --> LIVE[/npm run test:live against the site/]:::pipeline --> DONE[(Released)]:::output
+  ACTIONS -. red in CI .-> FIX
+  LIVE -. red online .-> FIX
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
+```
+
+Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) locally (works offline). The first snapshot from launch day is kept in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
 
 ## Method notes and parameters
 
@@ -145,10 +189,21 @@ python -m http.server 8794
 Then open `http://localhost:8794`. Opening `index.html` directly also works.
 
 ```bash
-node scripts/smoke.mjs --browser
+npm test
 ```
 
-Static gates (size, allowed hosts, script compiles, privacy scan) plus a headless Chrome probe that casts all four spells, checks damage, particle peak, GL errors in all three texture routes, equipment stats and console errors, then plays story mode from the opening to the ending (four lighthouses lit, four spells unlocked, boss shockwave and darkness phase, ending screen). `--selftest` proves the gates turn red on a poisoned copy; `--url=<site>` probes a deployed copy. Needs Node 18+ and Chrome (or set `CHROME_PATH`).
+Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs every suite, about 80 seconds:
+
+| Suite | Command | What it proves |
+|---|---|---|
+| Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
+| Unit | `npm run test:unit` | 37 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave |
+| End-to-end | `npm run test:e2e` | 30 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel |
+| Checks | `npm run test:checks` | Performance budget under load, no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync |
+| Mutation | part of `npm test` | Copies the project, plants three known defects and requires the unit and check suites to turn red |
+| Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
+
+GitHub Actions runs `npm test` on every push and pull request.
 
 ## Roadmap
 
@@ -210,7 +265,7 @@ Static gates (size, allowed hosts, script compiles, privacy scan) plus a headles
 
 ### 架構圖與流程圖
 
-上方兩張 mermaid 圖在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)，下載後離線開啟即可。
+上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，下載後離線開啟即可；上線第一天的版本保留在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
 
 ### 方法與參數
 
@@ -225,10 +280,21 @@ python -m http.server 8794
 開 `http://localhost:8794`；直接雙擊 `index.html` 也可以。
 
 ```bash
-node scripts/smoke.mjs --browser
+npm test
 ```
 
-靜態閘門（大小、外連網域、程式可編譯、隱私掃描）加上無頭 Chrome 探針：四招各施放一次並確認造成傷害，同時檢查粒子峰值、三條路線無繪圖錯誤、穿裝後數值、主控台錯誤數；再把故事模式從開場跑到結局（四座塔全亮、四招全解鎖、首領衝擊波與黑暗階段、結局畫面）。加 `--selftest` 會用一份故意弄壞的副本證明閘門會變紅；加 `--url=<網址>` 可直接測線上版。需要 Node 18 以上與 Chrome（或設定 `CHROME_PATH`）。
+不需安裝任何套件，只要 Node 22 以上與 Chrome（或設定 `CHROME_PATH`）。一個指令跑完全部，約 80 秒：
+
+| 測試組 | 指令 | 驗什麼 |
+|---|---|---|
+| 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
+| 單元測試 | `npm run test:unit` | 37 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波 |
+| 端對端 | `npm run test:e2e` | 30 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台 |
+| 其他驗證 | `npm run test:checks` | 高負載效能預算、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步 |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋三個已知缺陷，單元與其他驗證必須變紅 |
+| 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
+
+每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。
 
 ### 階段規劃
 

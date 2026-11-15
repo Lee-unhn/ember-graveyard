@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>燼語墓園</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap">
 <style>
@@ -286,7 +287,7 @@ function buildAtlas(){
           else A=Math.exp(-r*r*40)+Math.max(Math.exp(-Math.abs(u)*40)*Math.exp(-v*v*25),Math.exp(-Math.abs(v)*40)*Math.exp(-u*u*25));
           A=clamp(A,0,1);R=G=B=1;
         }
-        A*=ss(.5,.42,Math.max(Math.abs(u),Math.abs(v)));
+        A*=ss(.47,.4,Math.max(Math.abs(u),Math.abs(v)));  // 外圈約 4 像素必為全透明，線性取樣才不會滲到隔壁格
         const k=((cy+py)*S+cx+px)*4;D[k]=R*255;D[k+1]=G*255;D[k+2]=B*255;D[k+3]=A*255;
       }
     }
@@ -342,7 +343,7 @@ void main(){
     else{float a=exp(-r*r*28.)+exp(-r*r*400.)*.5;
       if(vD.x>7.5)a=exp(-r*r*40.)+max(exp(-abs(p.x)*40.)*exp(-p.y*p.y*25.),exp(-abs(p.y)*40.)*exp(-p.x*p.x*25.));
       o=vec4(1.,1.,1.,clamp(a,0.,1.));}
-    o.a*=smoothstep(.5,.42,max(abs(p.x),abs(p.y)));
+    o.a*=smoothstep(.47,.4,max(abs(p.x),abs(p.y)));
   }else{
     float e=max(abs(vUv.x-.5),abs(vUv.y-.5));o=vec4(1.,1.,1.,mix(.07,.95,step(.44,e)));
   }
@@ -852,8 +853,9 @@ for(const el of document.querySelectorAll('.sk'))el.addEventListener('click',()=
 function toggleInv(){const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
 $('#invClose').onclick=toggleInv;
 
-function tryCast(id){if(!running||paused||!player.alive||player.cast||cds[id]>0)return;
+function tryCast(id){if(!running||paused||!player.alive)return;
   if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}
+  if(player.cast||cds[id]>0)return;
   const s=SPELLS[id],cs=castMul();
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
   player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);

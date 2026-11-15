@@ -185,7 +185,7 @@ async function browserProbe(root, liveUrl) {
       out.unlocked = [...story.unlocked].sort().join(','); out.fireTier = tierOf('fire');
       out.bossSpawned = !!(story.boss && story.boss.alive); out.phaseAtBoss = story.phase;
       if (story.boss) { player.pos.set(0, 0, 10); step(400); out.shocksSeen = shocks.length > 0 || story.boss.shockT < 5.2;
-        dealDamage(story.boss, story.boss.hp * 0.6, 'fire'); step(5); skip(); out.darkTriggered = !!story.boss.flags.dark;
+        story.boss.hp = story.boss.maxhp * 0.45; step(5); skip(); out.darkTriggered = !!story.boss.flags.dark; // set HP directly: dealDamage can crit and kill outright
         dealDamage(story.boss, story.boss.hp + 1, 'fire'); step(240); skip(); step(5); }
       out.ending = !document.querySelector('#ending').hidden; out.phaseEnd = story.phase;
       return out; })()`);

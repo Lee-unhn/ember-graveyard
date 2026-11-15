@@ -1,0 +1,33 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Also test the deployed GitHub Pages site"
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Chrome version
+        run: google-chrome --version
+      - name: All suites (smoke, unit, e2e, checks, mutation)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node tests/run-all.mjs
+      - name: Deployed site
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.live }}
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node tests/run-all.mjs --url=https://lee-unhn.github.io/ember-graveyard/
