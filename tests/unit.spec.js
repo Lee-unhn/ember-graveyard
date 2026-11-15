@@ -401,6 +401,44 @@ window.__runUnit = async (only) => {
     const s0 = EGChar.state.failed; try { EGChar.attach(fake, THREE); ok(!fake.skinned, 'not skinned'); ok(EGChar.state.failed, 'marked failed'); }
     finally { window.MAGE_GLB = keep; EGChar.state.failed = s0; }
   });
+  // ---------------------------------------------------------------- P4: key remapping and touch
+  // dispatch from the page like a real key press (window capture -> element -> bubble to window); dispatching on window
+  // itself runs same-target listeners in registration order, which no real key press does
+  const key = (code) => document.body.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+  const keyUp = (code) => document.body.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+  const resetKeys = () => { Object.assign(KB, KB_DEFAULT); try { localStorage.removeItem('eg-keys'); } catch (e) {} };
+  test('a remapped skill key casts that spell, the old key no longer does', () => {
+    fresh(); resetKeys(); KB.bolt = 'KeyQ';
+    key('Digit2'); keyUp('Digit2'); eq(player.cast, null, 'old key does nothing');
+    key('KeyQ'); keyUp('KeyQ'); ok(player.cast && player.cast.id === 'bolt', 'new key casts chain lightning');
+    resetKeys(); fresh();
+  });
+  test('settings key rows: pick a row, press a key; a taken key swaps, reserved keys are refused', () => {
+    fresh(); resetKeys(); openSub('settings', 'intro');
+    const btn = (k) => document.querySelector(`.keybtn[data-k=${k}]`);
+    ok(document.querySelectorAll('.keybtn').length === 9, 'nine rows');
+    btn('fire').click(); key('Digit2'); // 2 belongs to chain lightning
+    eq(KB.fire, 'Digit2'); eq(KB.bolt, 'Digit1', 'chain lightning took the old key');
+    eq(JSON.parse(localStorage.getItem('eg-keys')).fire, 'Digit2', 'saved');
+    btn('meteor').click(); key('Space'); eq(KB.meteor, 'Digit3', 'Space is reserved'); key('Escape'); // Esc cancels the wait
+    ok(!document.querySelector('#settings').hidden, 'Esc while waiting does not close settings');
+    document.querySelector('#kReset').click(); eq(KB.fire, 'Digit1'); eq(KB.bolt, 'Digit2');
+    backSub('settings'); resetKeys(); fresh();
+  });
+  test('touch joystick sets the movement keys by direction, with a dead zone', () => {
+    fresh(); resetKeys(); const m = () => ['up', 'down', 'left', 'right'].filter((n) => keys[KB[n]]).join(',');
+    EGControls.setMove(5, -4); eq(m(), '', 'inside the dead zone');
+    EGControls.setMove(0, -40); eq(m(), 'up');
+    EGControls.setMove(30, 30); eq(m(), 'down,right', 'diagonal');
+    EGControls.joyEnd(); eq(m(), '', 'release clears');
+  });
+  test('touch aim assist points at the nearest monster in range', () => {
+    fresh(); spawnEnemy('lizard', 6, 0, 1); spawnEnemy('lizard', -12, 0, 1); for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0 });
+    const was = EGControls.touch; if (!was) EGControls.enableTouch();
+    camSnap = true; updateCamera(1 / 60); EGControls.aimNow(); ray.setFromCamera(mouse, camera); ray.ray.intersectPlane(gplane, aim);
+    near(aim.x, 6, 0.6, 'aims at the lizard 6 units away'); near(aim.z, 0, 0.6);
+    fresh();
+  });
   test('soft terrain jitter table: every pixel samples itself or a direct neighbour', () => {
     let self = 0; for (let q = 0; q < NBC.length; q++) { ok(NBC[q] <= 8, 'code in range'); if (NBC[q] === 4) self++; }
     const f = self / NBC.length; ok(f > .55 && f < .95, `share of pixels sampling their own cell ${f.toFixed(2)}`);

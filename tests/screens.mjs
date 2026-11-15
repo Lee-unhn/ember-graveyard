@@ -32,6 +32,7 @@ const SCENES = [
   ['pause-confirm', `$('#pTitle').click()`, '#pause', `$('#pNo').click()`],
   ['result', `togglePause(false);story.actT0=time-95;story.actKills0=player.kills-23;story.actTk0=terrainKills-6;story.actLoot0=pickups-2;story.bestChain=3;showResult(0,null)`, '#result', `closeResult()`],
   ['dead', `caAcc=0;player.hp=1;hurtPlayer(5,'熔岩')`, '#dead'],
+  ['touch-play', `document.querySelector('#dead').hidden=true;EGControls.enableTouch();startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0})`, null],
 ];
 
 const LAYOUT = (sel) => `(() => {
@@ -39,6 +40,9 @@ const LAYOUT = (sel) => `(() => {
   const onTitle = !document.querySelector('#intro').hidden; // judge by what is on screen, not by the class the page sets
   const titleHud = onTitle ? [...document.querySelectorAll('.hud')].filter((e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width * r.height > 0; }).length : 0;
   out.titleHud = titleHud;
+  // touch mode: every on-screen touch control is at least 44 px and fully inside the screen
+  out.smallTouch = document.body.classList.contains('touch') ? [...document.querySelectorAll('#touchBtns button, .sk')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect())
+    .filter((r) => r.width < 44 || r.height < 44 || r.left < 0 || r.right > vw + 1 || r.bottom > vh + 1).length : 0;
   if (${JSON.stringify(sel)}) {
     const o = document.querySelector(${JSON.stringify(sel)}); out.visible = !!o && !o.hidden && getComputedStyle(o).display !== 'none';
     const card = o && o.querySelector('.card'); const b = card && card.getBoundingClientRect();
@@ -69,6 +73,7 @@ for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
       const bad = [];
       if (L.sideScroll) bad.push('page scrolls sideways');
       if (L.titleHud) bad.push(`${L.titleHud} battle HUD panels behind the title`);
+      if (L.smallTouch) bad.push(`${L.smallTouch} touch controls under 44 px or off screen`);
       if (sel) {
         if (!L.visible) bad.push(sel + ' not visible');
         if (!L.cardInside) bad.push('card leaves the viewport');

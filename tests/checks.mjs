@@ -119,7 +119,7 @@ async function phoneChecks() {
       goVisible: (() => { const b = document.querySelector('#goStory').getBoundingClientRect(); return b.width > 0 && b.right <= innerWidth + 1; })() })`);
     rep.ok(r.sw <= 375, `no horizontal scroll at 375 px (scrollWidth ${r.sw})`);
     rep.ok(r.goVisible, 'start button fits the phone screen');
-    rep.ok(/鍵盤與滑鼠/.test(r.note), 'touch-only devices are told keyboard and mouse are needed');
+    rep.ok(/手機操作/.test(r.note), 'touch-only devices get the touch controls explained on the title screen (P4)');
     rep.ok(p.errors.length === 0, 'phone checks: no console errors', p.errors.slice(0, 3));
   } finally { await p.close(); }
 }

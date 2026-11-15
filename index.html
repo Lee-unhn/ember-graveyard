@@ -367,6 +367,7 @@ body.on-title .hud{display:none!important}
 <!-- 人偶模型延後載入：遊戲先能玩，1.2 MB 的模型下載完才換上（不擋畫面，DEVLOG #40） -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>
 <script src="assets/character.js" defer></script>
+<script src="assets/controls.js" defer></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);
@@ -1205,12 +1206,14 @@ const sfx={cast:()=>nz(.22,1800,500,'bandpass',.22,1.2),whoosh:()=>nz(.18,2500,7
   blood:()=>{tone(140,55,.9,'sine',.25);nz(.8,300,1200,'bandpass',.08,3)}};
 
 /* ---------- 操作 ---------- */
+const KB_DEFAULT={up:'KeyW',left:'KeyA',down:'KeyS',right:'KeyD',fire:'Digit1',bolt:'Digit2',meteor:'Digit3',blood:'Digit4',inv:'KeyI'};
+const KB=Object.assign({},KB_DEFAULT);try{const k=JSON.parse(localStorage.getItem('eg-keys')||'{}');for(const n in KB_DEFAULT)if(typeof k[n]==='string')KB[n]=k[n]}catch(e){}
 const keys={},mouse=new THREE.Vector2(),aim=new V3(),ray=new THREE.Raycaster(),gplane=new THREE.Plane(new V3(0,1,0),0);let lmb=false;
 addEventListener('keydown',e=>{keys[e.code]=true;
   if(e.code==='Space'){e.preventDefault();if(dlg)nextLine();else if(!$('#result').hidden)closeResult();return}
-  if(e.code==='Tab'){e.preventDefault();toggleInv()}if(e.code==='KeyI')toggleInv();
+  if(e.code==='Tab'){e.preventDefault();toggleInv()}if(e.code===KB.inv)toggleInv();
   if(e.code==='KeyR'&&!$('#dead').hidden)restart();
-  const m={Digit1:'fire',Digit2:'bolt',Digit3:'meteor',Digit4:'blood'}[e.code];if(m)tryCast(m);
+  const m=['fire','bolt','meteor','blood'].find(s=>KB[s]===e.code);if(m)tryCast(m);
   if(e.code==='Escape'||e.code==='KeyP'){if(!$('#settings').hidden)backSub('settings');else if(!$('#help').hidden)backSub('help');else if(!$('#credits').hidden)backSub('credits');
     else if(!$('#inv').hidden)toggleInv();else if(!$('#result').hidden)closeResult();else togglePause()}});
 addEventListener('keyup',e=>{keys[e.code]=false});
@@ -1247,7 +1250,7 @@ function updatePlayer(dt){
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
   if(player.alive){
     if(lmb)tryCast('fire');
-    let mx=(keys.KeyD?1:0)-(keys.KeyA?1:0),mz=(keys.KeyS?1:0)-(keys.KeyW?1:0);const l=Math.hypot(mx,mz);
+    let mx=(keys[KB.right]?1:0)-(keys[KB.left]?1:0),mz=(keys[KB.down]?1:0)-(keys[KB.up]?1:0);const l=Math.hypot(mx,mz);
     const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);
     if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a,'熔岩')}}
     if(l){player.pos.x+=mx/l*sp*dt;player.pos.z+=mz/l*sp*dt;player.walk+=dt*10*root}

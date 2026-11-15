@@ -190,7 +190,40 @@ async function menusFlow() {
   } finally { await p.close(); }
 }
 
-try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); }
+async function touchFlow() {
+  // a landscape phone with touch emulation; every action under test is a real touch event
+  const p = await openPage(url + (url.includes('?') ? '&' : '?') + 'touch=1', { width: 844, height: 390, mobile: true });
+  try {
+    rep.ok(await p.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled && window.EGControls && EGControls.touch`, 60000), 'touch mode switches on for ?touch=1');
+    rep.ok(await p.evaluate(`/手機操作/.test(document.querySelector('#introNote').textContent)`), 'title screen explains the touch controls');
+    await p.evaluate(`startFree(); player.maxhp = player.hp = 1e9; for (const e of enemies) { e.pos.set(30, 0, 30); e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); }`); // setup
+    // joystick: drag up on the left half
+    const z0 = await p.evaluate('player.pos.z');
+    await p.touch('touchStart', [[150, 250]]); await p.touch('touchMove', [[150, 190]]);
+    const moved = await p.waitFor(`player.pos.z < ${z0} - 1.5`, 8000);
+    await p.touch('touchEnd');
+    rep.ok(moved, 'dragging up on the left half walks the mage north');
+    rep.ok(await p.waitFor(`!keys[KB.up] && !keys[KB.down] && !keys[KB.left] && !keys[KB.right]`, 2000), 'lifting the finger stops the mage');
+    // tap a skill: auto-aim at the nearest monster
+    await p.evaluate(`spawnEnemy('lizard', player.pos.x + 6, player.pos.z, 1); enemies[enemies.length - 1].T = Object.assign({}, enemies[enemies.length - 1].T, { speed: 0, dmg: 0 }); cds.bolt = 0`); // setup
+    await p.tapSel('.sk.bolt');
+    rep.ok(await p.waitFor(`cds.bolt > 0`, 5000), 'tapping the chain lightning tile casts it');
+    rep.ok(await p.evaluate(`Math.abs(Math.sin(player.face) - 1) < 0.2`), 'the cast faces the nearest monster (east)');
+    // hold the fireball tile: keeps firing until released
+    await p.evaluate(`cds.fire = 0`);
+    const fb = await p.evaluate(`(() => { const b = document.querySelector('.sk.fire').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()`);
+    await p.touch('touchStart', [fb]);
+    rep.ok(await p.waitFor(`lmb && (projs.some((q) => q.kind === 'fire') || cds.fire > 0)`, 5000), 'holding the fireball tile fires');
+    await p.touch('touchEnd');
+    rep.ok(await p.waitFor(`!lmb`, 2000), 'releasing the tile stops firing');
+    // pause button
+    await p.tapSel('#tPause');
+    rep.ok(await p.waitFor(`!document.querySelector('#pause').hidden`, 3000), 'the pause button pauses');
+    rep.ok(p.errors.length === 0, 'touch flow: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

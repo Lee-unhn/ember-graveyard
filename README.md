@@ -49,6 +49,10 @@ The block-built mage is replaced by the Mannequin from Quaternius' **Universal A
 
 The monster pack chosen for P3b (Quaternius' Ultimate Monsters, CC0) is only published through a Google Drive folder that was over its download quota on 2026-11-15, so the monsters are still the block-built ones.
 
+## Phones and key remapping (P4)
+
+On a touch-only device the game switches to touch controls: drag anywhere on the left half to move (a joystick appears under your finger), tap a skill tile to cast it at the nearest monster within range, hold the fireball tile to keep firing, and use the bag and pause buttons in the top right. Landscape gives the widest view. Add `?touch=1` to the address to force touch mode on a desktop. On a keyboard, every movement and spell key can be remapped in Settings; pressing a key that is already used swaps the two.
+
 ## What it demonstrates
 
 | Idea | How it shows up in the game |
@@ -281,7 +285,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
 | P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d ✅ voice test ([report](docs/VOICE.md)) |
-| P4 | Touch controls for phones |
+| P4 ✅ | Touch controls for phones (joystick, tap-to-cast with auto-aim) and key remapping |
 | P5 | Port the fireball emitters to Godot and compare |
 
 ## Credits
@@ -334,6 +338,10 @@ P3 換皮的第一步，是整理市面遊戲的整套畫面類型做成檢核�
 原本用方塊拼的法師，換成 Quaternius〈Universal Animation Library〉的人偶（CC0，免費的 Standard 版）。`scripts/slim_glb.py` 只留模型、骨架與七個動作（待機、慢跑、施法起手／持續／放出、受擊、死亡），拿掉貼圖座標與整段不動的骨骼軌道，從 7.6 MB 縮到 0.9 MB，以 base64 存在 `assets/mage-model.js`，所以直接開檔也能玩。原本的帽子和法杖跟著頭與右手的骨頭走。每招法術各配一段動作（焰核彈與鏈雷是放出、星墜先起手再放出、血環是持續），播放速度對齊遊戲本身的施法時間。載入器或模型載不到時，維持原本的方塊法師。
 
 P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Google Drive 資料夾發布，2026-11-15 當天超過下載上限，怪物暫時還是方塊拼的。
+
+### 手機操作與按鍵重設（P4）
+
+只有觸控螢幕的裝置會自動切換成觸控操作：左半邊任意處拖曳移動（手指落點會出現搖桿）；點下方技能施放，會自動瞄準範圍內最近的怪物；按住焰核彈連發；右上角是行囊與暫停。橫放手機視野最大。在電腦上想試，可以在網址後面加 `?touch=1`。用鍵盤時，移動與四招的按鍵都能在「設定」裡重設；按到已經有用途的鍵，兩個會互換。
 
 ### 看得到的重點
 
@@ -409,7 +417,7 @@ npm test
 | P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
 | P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d ✅ 語音實測（[報告](docs/VOICE.md)） |
-| P4 | 手機觸控操作 |
+| P4 ✅ | 手機觸控操作（搖桿、點技能自動瞄準）與按鍵重設 |
 | P5 | 把火球發射器移植到 Godot 並排比較 |
 
 ### 致謝與授權
