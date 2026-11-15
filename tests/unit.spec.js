@@ -379,6 +379,28 @@ window.__runUnit = async (only) => {
     const want = new THREE.Vector3(player.pos.x, 0, player.pos.z).add(new THREE.Vector3(0, 18.5 * zoom, 11 * zoom));
     near(camPos.distanceTo(want), 0, 1e-6, 'camera on target after one frame');
   });
+  // ---------------------------------------------------------------- P3b: skinned mage
+  test('the CC0 mage model loads, replaces the block body and keeps hat and staff', async () => {
+    for (let k = 0; k < 50 && !EGChar.state.ready && !EGChar.state.failed; k++) await new Promise((r) => setTimeout(r, 100));
+    ok(EGChar.state.ready && P.skinned, 'skinned mage ready');
+    eq(Object.keys(EGChar.state.actions).sort().join(','), 'cast,castUp,channel,death,hit,idle,run');
+    ok(P.hatGroup.visible && P.staffGroup.parent === P.g, 'hat and staff kept');
+    ok(P.g.children.filter((o) => o.isMesh).every((o) => !o.visible), 'block body hidden');
+  });
+  test('each player state plays the matching animation', () => {
+    fresh(); const S = EGChar.state, cur = () => S.cur.getClip().name, tick = () => EGChar.update(1 / 60, player, THREE);
+    player.moving = false; player.cast = null; player.hurtT = 0; S.cur = null; tick(); eq(cur(), 'idle');
+    player.moving = true; tick(); eq(cur(), 'run'); player.moving = false;
+    for (const [id, k, want] of [['fire', 0, 'cast'], ['bolt', 0, 'cast'], ['meteor', 0.2, 'castUp'], ['meteor', 0.8, 'cast'], ['blood', 0.5, 'channel']]) {
+      player.cast = { id, t: k * .4, dur: .4 }; tick(); eq(cur(), want, `${id} at ${k}`); }
+    player.cast = null; player.hurtT = .25; tick(); eq(cur(), 'hit');
+    player.hurtT = 0; player.alive = false; tick(); eq(cur(), 'death'); fresh();
+  });
+  test('without the model data the block mage stays (offline fallback)', () => {
+    const keep = window.MAGE_GLB, fake = { g: new THREE.Group() }; window.MAGE_GLB = undefined;
+    const s0 = EGChar.state.failed; try { EGChar.attach(fake, THREE); ok(!fake.skinned, 'not skinned'); ok(EGChar.state.failed, 'marked failed'); }
+    finally { window.MAGE_GLB = keep; EGChar.state.failed = s0; }
+  });
   test('soft terrain jitter table: every pixel samples itself or a direct neighbour', () => {
     let self = 0; for (let q = 0; q < NBC.length; q++) { ok(NBC[q] <= 8, 'code in range'); if (NBC[q] === 4) self++; }
     const f = self / NBC.length; ok(f > .55 && f < .95, `share of pixels sampling their own cell ${f.toFixed(2)}`);

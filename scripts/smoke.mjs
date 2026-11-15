@@ -15,7 +15,7 @@ import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BYTES = 150 * 1024;
-const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
+const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const SKIP_FILES = new Set(['scripts/private-terms.txt']);

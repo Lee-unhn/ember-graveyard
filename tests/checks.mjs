@@ -23,6 +23,9 @@ function staticChecks() {
   // a second `function name(){}` silently replaces the first one everywhere (hoisting): P3a's terrain noise broke the atlas tiling this way
   const fns = [...html.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]); const dupFn = [...new Set(fns.filter((v, i) => fns.indexOf(v) !== i))];
   rep.ok(dupFn.length === 0, `no function declared twice among ${fns.length}`, dupFn);
+  // every third-party asset shipped in assets/ is credited in NOTICE.md and the in-game credits
+  const notice = readFileSync(join(ROOT, 'NOTICE.md'), 'utf8');
+  rep.ok(existsSync(join(ROOT, 'assets', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');
   // relative links in markdown
   const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md', 'docs/SCREENS.md', 'docs/DEVLOG.md'];
   let broken = [];

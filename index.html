@@ -322,7 +322,8 @@ body.on-title .hud{display:none!important}
       <dt>地形設計參考</dt><dd>作者的另一個作品 The-Waste-Land</dd>
       <dt>繪圖引擎</dt><dd>Three.js r128（MIT 授權）</dd>
       <dt>字型</dt><dd>Noto Sans TC、Noto Serif TC（SIL Open Font License）</dd>
-      <dt>貼圖、模型、地形</dt><dd>全部由程式即時產生</dd>
+      <dt>主角模型與動作</dt><dd>Quaternius〈Universal Animation Library〉（CC0 公眾領域）</dd>
+      <dt>貼圖、怪物、地形</dt><dd>由程式即時產生</dd>
       <dt>音樂、音效、語音</dt><dd>瀏覽器即時合成；語音為瀏覽器內建朗讀</dd>
     </dl>
     <p class="note">完整授權說明見原始碼的 NOTICE 與 README。</p>
@@ -363,6 +364,9 @@ body.on-title .hud{display:none!important}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="assets/mage-model.js"></script>
+<script src="assets/character.js"></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);
@@ -826,16 +830,19 @@ const P={g:new THREE.Group()};
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.2,.55,1.35,12),robe);body.position.y=.68;P.g.add(body);
   const belt=new THREE.Mesh(new THREE.TorusGeometry(.29,.035,6,16),trim);belt.rotation.x=Math.PI/2;belt.position.y=1.0;P.g.add(belt);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.23,14,10),skin);head.position.y=1.56;P.g.add(head);
-  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.04,18),robe);brim.position.y=1.72;P.g.add(brim);
-  const hat=new THREE.Mesh(new THREE.ConeGeometry(.3,.8,14),robe);hat.position.y=2.1;hat.rotation.z=-.15;P.g.add(hat);
+  P.hatGroup=new THREE.Group();P.g.add(P.hatGroup);
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.04,18),robe);brim.position.y=1.72;P.hatGroup.add(brim);
+  const hat=new THREE.Mesh(new THREE.ConeGeometry(.3,.8,14),robe);hat.position.y=2.1;hat.rotation.z=-.15;P.hatGroup.add(hat);
   const mkArm=s=>{const piv=new THREE.Group();piv.position.set(.3*s,1.32,0);const arm=new THREE.Mesh(new THREE.BoxGeometry(.13,.62,.13),robe);arm.position.y=-.3;piv.add(arm);
     const hand=new THREE.Mesh(new THREE.SphereGeometry(.08,8,6),skin);hand.position.y=-.64;piv.add(hand);P.g.add(piv);return piv};
   P.armR=mkArm(-1);P.armL=mkArm(1);
   const staff=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.6,6),new THREE.MeshLambertMaterial({color:0x4a3220}));staff.position.set(0,-.62,.0);staff.rotation.x=Math.PI/2;
   const gem=new THREE.Mesh(new THREE.OctahedronGeometry(.1),new THREE.MeshBasicMaterial({color:0xff9a4a}));gem.position.set(0,.85,0);staff.add(gem);
-  const stg=new THREE.Group();stg.add(staff);stg.position.y=-.02;P.armR.add(stg);staff.position.set(0,-.64,.25);staff.rotation.x=1.25;
+  const stg=new THREE.Group();stg.add(staff);stg.position.y=-.02;P.armR.add(stg);P.staffGroup=stg;staff.position.set(0,-.64,.25);staff.rotation.x=1.25;
   const sh=new THREE.Mesh(new THREE.CircleGeometry(.6,20),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.45,depthWrite:false}));sh.rotation.x=-Math.PI/2;sh.position.y=.02;P.shadow=sh;scene.add(sh);
-  scene.add(P.g)}
+  scene.add(P.g);
+  // P3b：有人偶模型就換上（assets/character.js），載入失敗就維持程式拼出來的方塊法師
+  if(window.EGChar)EGChar.attach(P,THREE)}
 function handPos(){const f=player.face;return new V3(player.pos.x+Math.sin(f)*.6,1.15+player.float,player.pos.z+Math.cos(f)*.6)}
 
 /* ---------- 狀態與數值 ---------- */
@@ -1259,9 +1266,10 @@ function updatePlayer(dt){
     P.armR.rotation.set(a[0],0,a[1]);P.armL.rotation.set(a[2],0,a[3]);
     player.float+=(fl-player.float)*Math.min(1,dt*6);
     P.g.rotation.set(0,player.face,0);
-  }else{P.g.rotation.x=Math.min(Math.PI/2,P.g.rotation.x+dt*3)}
+    player.moving=!!l;player.speedK=sp/6.2;
+  }else if(!P.skinned){P.g.rotation.x=Math.min(Math.PI/2,P.g.rotation.x+dt*3)}
   P.g.position.set(player.pos.x,player.float+(player.cast?0:Math.abs(Math.sin(player.walk))*.04),player.pos.z);
-  P.shadow.position.set(player.pos.x,.02,player.pos.z);P.shadow.scale.setScalar(1-player.float*.4);
+  P.shadow.position.set(player.pos.x,.02,player.pos.z);P.shadow.scale.setScalar(1-player.float*.4);if(P.skinned)EGChar.update(dt,player,THREE);
   if(player.hurtT>0){player.hurtT-=dt;if(player.hurtT<=0)$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,0)'}
 }
 

@@ -12,6 +12,8 @@ The MIT License in `LICENSE` covers the source code, diagrams and documentation 
 |---|---|---|---|
 | Three.js r128 | WebGL rendering | MIT | https://github.com/mrdoob/three.js (loaded from cdnjs.cloudflare.com) |
 | Noto Sans TC, Noto Serif TC | UI typefaces | SIL Open Font License 1.1 | Google Fonts |
+| Three.js GLTFLoader (r128) | Loads the mage model | MIT | three@0.128.0 examples, loaded from cdn.jsdelivr.net |
+| Universal Animation Library [Standard] by Quaternius | Mage body (Mannequin mesh and skeleton) and 7 animations: idle, jog, spell enter / idle / shoot, hit, death | CC0 1.0 (public domain) | https://quaternius.itch.io/universal-animation-library (free Standard download, 2026-11-15). Slimmed by `scripts/slim_glb.py` into `assets/mage-model.js` (UVs and unchanging bone tracks removed, colours restyled) |
 
 ## Reference · 參考
 

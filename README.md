@@ -41,6 +41,14 @@ P3 (new skin) starts with a checklist of the screen types commercial games ship 
 - **Terrain look**: borders between terrain types are ragged instead of square (each pixel samples a jittered position), and only the changed strips of the ground texture are re-uploaded to the GPU.
 - **Screen self-check**: `npm run test:screens` photographs 11 screens at desktop and phone size and checks the layout rules (card inside the screen, no sideways scroll, buttons at least 24 px, nothing behind the title screen, one overlay at a time). Shots for this phase: [`docs/screens/p3a/`](docs/screens/p3a/).
 
+## Animated mage (P3b)
+
+![The CC0 mannequin as the fire mage, casting](docs/screens/p3b/mage-cast.jpg)
+
+The block-built mage is replaced by the Mannequin from Quaternius' **Universal Animation Library** (CC0, free Standard download). `scripts/slim_glb.py` keeps the mesh, the skeleton and seven animations (idle, jog, spell enter / channel / shoot, hit, death), drops texture coordinates and every bone track that never moves, and repacks it from 7.6 MB to 0.9 MB, stored as base64 in `assets/mage-model.js` so the page still works when opened from disk. The old hat and staff follow the head and right-hand bones. Each spell picks a clip (fireball and chain lightning shoot, meteor raises then shoots, the blood rune channels) and the clip is time-scaled to the game's own cast timing. If the loader or the model cannot load, the block mage stays.
+
+The monster pack chosen for P3b (Quaternius' Ultimate Monsters, CC0) is only published through a Google Drive folder that was over its download quota on 2026-11-15, so the monsters are still the block-built ones.
+
 ## What it demonstrates
 
 | Idea | How it shows up in the game |
@@ -117,9 +125,9 @@ flowchart LR
   end
   subgraph VERIFY[✅ Verification layer]
     STATIC[Static gates · size, hosts, compile, privacy]:::safety
-    UNIT[Unit · 65 tests incl. every terrain reaction]:::safety
+    UNIT[Unit · 68 tests incl. every terrain reaction]:::safety
     E2E[End-to-end · 55 checks with real input]:::safety
-    CHECKS[Checks · 52 for perf, leaks, phone, a11y]:::safety
+    CHECKS[Checks · 53 for perf, leaks, phone, a11y]:::safety
     MUT[Mutation · 7 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
@@ -205,7 +213,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 65/]:::pipeline --> E2ET[/End-to-end · 55/]:::pipeline --> CHK[/Checks · 52/]:::pipeline --> SCR[/Screens · 26/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
+  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 68/]:::pipeline --> E2ET[/End-to-end · 55/]:::pipeline --> CHK[/Checks · 53/]:::pipeline --> SCR[/Screens · 26/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
   GREEN -. any red .-> FIX[Fix the feature, never loosen a gate]:::worker -.-> EDIT
   GREEN --> ASK[Ask before pushing]:::safety --> PUSH([git push]):::input --> ACTIONS[/GitHub Actions re-runs everything/]:::pipeline --> PAGES[(GitHub Pages deploy)]:::output --> LIVE[/npm run test:live against the site/]:::pipeline --> DONE[(Released)]:::output
   ACTIONS -. red in CI .-> FIX
@@ -244,7 +252,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | Suite | Command | What it proves |
 |---|---|---|
 | Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
-| Unit | `npm run test:unit` | 65 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi; save slot, settings, pause, act results, death causes, hit-stop, soft terrain edges and strip uploads |
+| Unit | `npm run test:unit` | 68 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi; save slot, settings, pause, act results, death causes, hit-stop, soft terrain edges and strip uploads |
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
 | Checks | `npm run test:checks` | Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
@@ -260,7 +268,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P0 ✅ | Public repo, GitHub Pages, smoke harness, diagrams |
 | P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
-| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b low-poly characters with animation · P3c image-model flipbooks compared side by side · P3d voice test |
+| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d voice test |
 | P4 | Touch controls for phones |
 | P5 | Port the fireball emitters to Godot and compare |
 
@@ -306,6 +314,14 @@ P3 換皮的第一步，是整理市面遊戲的整套畫面類型做成檢核�
 - **打擊感**：爆炸與爆擊時短暫停格，怪物受擊時壓扁抖動。
 - **地形外觀**：地形交界從方格改成不規則邊緣（每個像素抖動取樣位置），地面貼圖只把變動的橫條重新送上顯示卡。
 - **截圖自查**：`npm run test:screens` 在桌機與手機尺寸各拍 11 個畫面，並檢查版面規則（卡片在畫面內、頁面不左右捲動、按鈕至少 24 像素、標題畫面後面沒有戰鬥介面、同時只開一個覆蓋層）。本階段截圖在 [`docs/screens/p3a/`](docs/screens/p3a/)。
+
+### 會動的法師（P3b）
+
+![CC0 人偶當火術師施法](docs/screens/p3b/mage-cast.jpg)
+
+原本用方塊拼的法師，換成 Quaternius〈Universal Animation Library〉的人偶（CC0，免費的 Standard 版）。`scripts/slim_glb.py` 只留模型、骨架與七個動作（待機、慢跑、施法起手／持續／放出、受擊、死亡），拿掉貼圖座標與整段不動的骨骼軌道，從 7.6 MB 縮到 0.9 MB，以 base64 存在 `assets/mage-model.js`，所以直接開檔也能玩。原本的帽子和法杖跟著頭與右手的骨頭走。每招法術各配一段動作（焰核彈與鏈雷是放出、星墜先起手再放出、血環是持續），播放速度對齊遊戲本身的施法時間。載入器或模型載不到時，維持原本的方塊法師。
+
+P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Google Drive 資料夾發布，2026-11-15 當天超過下載上限，怪物暫時還是方塊拼的。
 
 ### 看得到的重點
 
@@ -364,7 +380,7 @@ npm test
 | 測試組 | 指令 | 驗什麼 |
 |---|---|---|
 | 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
-| 單元測試 | `npm run test:unit` | 65 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳 |
+| 單元測試 | `npm run test:unit` | 68 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳 |
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
@@ -380,7 +396,7 @@ npm test
 | P0 ✅ | 公開 repo、GitHub Pages、驗收工具、架構圖與流程圖 |
 | P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
-| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 附動畫的低多邊形角色・P3c 用繪圖模型畫的翻頁圖並排實測・P3d 語音實測 |
+| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d 語音實測 |
 | P4 | 手機觸控操作 |
 | P5 | 把火球發射器移植到 Godot 並排比較 |
 
