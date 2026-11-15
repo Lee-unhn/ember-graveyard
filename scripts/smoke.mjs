@@ -139,10 +139,7 @@ async function browserProbe(root, liveUrl) {
     if (!ready) return;
 
     const result = await evaluate(`(async () => {
-      const step = (n, dt = 1/60) => { for (let k = 0; k < n; k++) { time += dt; shared.uTime.value = time;
-        for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
-        updatePlayer(dt); updateEnemies(dt); updateProjs(dt); updateMeteors(dt); updateBurns(dt); updateRites(dt); updateLoot(dt);
-        ADD.update(dt); SMOKE.update(dt); updateLights(dt); updateCamera(dt); updateTexts(dt); } renderer.render(scene, camera); };
+      const step = window.__step = (n, dt = 1/60) => { for (let k = 0; k < n; k++) { time += dt; shared.uTime.value = time; logic(dt); visuals(dt); } renderer.render(scene, camera); };
       document.querySelector('#go').click();   // whole probe runs synchronously, so the page's own frame loop cannot interleave
       const out = { spells: {}, peakParticles: 0, glErrors: [] };
       // freeze every monster so the probe measures spells, not a lost fight; park all but nine far away
@@ -171,6 +168,33 @@ async function browserProbe(root, liveUrl) {
     result.glErrors.length === 0 ? ok('all three texture routes render without GL errors') : bad('GL errors ' + result.glErrors.join(','));
     result.equipDelta === 30 ? ok('equipping +30 HP armour raises max HP by 30') : bad(`equip delta ${result.equipDelta}`);
     result.killsTotal > 0 ? ok(`total kills ${result.killsTotal}, loot on ground ${result.lootOnGround}`) : bad('no kills');
+    // ---- story mode: opening -> four towers -> boss -> ending
+    const st = await evaluate(`(() => {
+      const step = window.__step, skip = () => { while (dlg) endDialog(); };
+      startStory(); player.maxhp = player.hp = 1e9;
+      const out = { acts: [], lockedAtStart: [...['bolt','meteor','blood']].filter(id => !story.unlocked.has(id)).length, fireTierAtStart: tierOf('fire') };
+      skip();
+      for (let a = 0; a < 4; a++) {
+        if (story.phase !== 'fight') { out.acts.push('act ' + a + ' not in fight: ' + story.phase); break; }
+        for (const e of enemies) if (e.alive) killEnemy(e);
+        step(2);
+        const T = TOWERS[a]; player.pos.set(T.x + 1, 0, T.z + 1); player.hp = player.maxhp;
+        step(230); skip(); step(70); skip();
+        out.acts.push(T.name + ':' + (T.lit ? 'lit' : 'dark'));
+      }
+      out.unlocked = [...story.unlocked].sort().join(','); out.fireTier = tierOf('fire');
+      out.bossSpawned = !!(story.boss && story.boss.alive); out.phaseAtBoss = story.phase;
+      if (story.boss) { player.pos.set(0, 0, 10); step(400); out.shocksSeen = shocks.length > 0 || story.boss.shockT < 5.2;
+        dealDamage(story.boss, story.boss.hp * 0.6, 'fire'); step(5); skip(); out.darkTriggered = !!story.boss.flags.dark;
+        dealDamage(story.boss, story.boss.hp + 1, 'fire'); step(240); skip(); step(5); }
+      out.ending = !document.querySelector('#ending').hidden; out.phaseEnd = story.phase;
+      return out; })()`);
+    st.lockedAtStart === 3 && st.fireTierAtStart === 0 ? ok('story starts with basic fireball only') : bad(`story start state wrong: ${JSON.stringify(st)}`);
+    st.acts.length === 4 && st.acts.every((s) => s.endsWith(':lit')) ? ok('all four towers lit: ' + st.acts.join(' ')) : bad('towers: ' + st.acts.join(' | '));
+    st.unlocked === 'blood,bolt,fire,meteor' && st.fireTier === 1 ? ok('all four spells unlocked, fireball upgraded') : bad(`unlocks ${st.unlocked} tier ${st.fireTier}`);
+    st.bossSpawned ? ok('boss spawned after the fourth tower') : bad('boss missing, phase ' + st.phaseAtBoss);
+    st.shocksSeen && st.darkTriggered ? ok('boss shockwave and darkness phase triggered') : bad(`boss mechanics shock=${st.shocksSeen} dark=${st.darkTriggered}`);
+    st.ending ? ok('ending screen shown') : bad('ending not shown, phase ' + st.phaseEnd);
     errors.length === 0 ? ok('console errors 0') : bad('console errors: ' + errors.slice(0, 5).join(' | '));
     ws.close();
   } catch (e) { bad('probe crashed: ' + e.message); }

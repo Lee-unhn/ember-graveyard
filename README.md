@@ -12,6 +12,11 @@ A single-file WebGL prototype that rebuilds four top-down 3D spells — fireball
 |---|
 | ![Flipbook atlas vs procedural shader vs quads only](docs/media/routes.jpg) |
 
+## Two ways to play
+
+- **Story mode · Chapter 1** (about 15 minutes) — you are an apprentice fire mage keeping a graveyard whose four lighthouses have gone dark. Clear each wave, stand under the next lighthouse to relight it, and every lighthouse teaches you one spell. Dialogue between waves has portraits and browser text-to-speech. The chapter ends with a boss, the Lord of the Unlit, who sends out expanding shockwaves, summons the dead and plunges the graveyard into darkness at half health.
+- **Free play** — all four spells unlocked, endless waves, and the Lab panel to switch texture routes and basic/upgraded spells.
+
 ## What it demonstrates
 
 | Idea | How it shows up in the game |
@@ -38,6 +43,7 @@ Everything — textures, rune circle, rock, sounds — is generated in code. No 
 | `4` | Blood rune barrage |
 | `I` | Inventory (left click equip, right click discard) |
 | Wheel | Zoom |
+| `Space` / click | Next dialogue line |
 
 ## Architecture
 
@@ -142,17 +148,18 @@ Then open `http://localhost:8794`. Opening `index.html` directly also works.
 node scripts/smoke.mjs --browser
 ```
 
-Static gates (size, allowed hosts, script compiles, privacy scan) plus a headless Chrome probe that casts all four spells, checks damage, particle peak, GL errors in all three texture routes, equipment stats and console errors. `--selftest` proves the gates turn red on a poisoned copy. Needs Node 18+ and Chrome (or set `CHROME_PATH`).
+Static gates (size, allowed hosts, script compiles, privacy scan) plus a headless Chrome probe that casts all four spells, checks damage, particle peak, GL errors in all three texture routes, equipment stats and console errors, then plays story mode from the opening to the ending (four lighthouses lit, four spells unlocked, boss shockwave and darkness phase, ending screen). `--selftest` proves the gates turn red on a poisoned copy; `--url=<site>` probes a deployed copy. Needs Node 18+ and Chrome (or set `CHROME_PATH`).
 
 ## Roadmap
 
 | Phase | Scope |
 |---|---|
 | P0 ✅ | Public repo, GitHub Pages, smoke harness, diagrams |
-| P1 | Measure the texture routes with real image-model atlases side by side |
-| P2 | One new gameplay piece (a boss or a second map) |
-| P3 | Touch controls for phones |
-| P4 | Port the fireball emitters to Godot and compare |
+| P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
+| P2 | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
+| P3 | New skin: low-poly characters with animation, image-model flipbooks compared side by side, better voices |
+| P4 | Touch controls for phones |
+| P5 | Port the fireball emitters to Godot and compare |
 
 ## Credits
 
@@ -167,6 +174,11 @@ Static gates (size, allowed hosts, script compiles, privacy scan) plus a headles
 **瀏覽器直接玩 → https://lee-unhn.github.io/ember-graveyard/**（需要鍵盤與滑鼠）
 
 單一 HTML 檔的 WebGL 試玩：用同一套拆解法做出四招俯視角 3D 法術（焰核彈、鏈雷、星墜、血環）。核心觀念是**整段特效影片不能直接放進 3D 遊戲**：每招都要拆成翻頁圖、程式控制的粒子與燈光、3D 模型三種零件，再由程式決定何時射、往哪飛、在哪炸。遊戲內的「拆解台」可以即時切換三條貼圖路線，並排比較效果。
+
+### 兩種玩法
+
+- **故事模式・第一章**（約 15 分鐘）：你是見習火術師，墓園的四座燈塔全熄了，亡者醒了過來。每一幕先清掉一波怪，再站到下一座燈塔下把它點亮，每點亮一座就學會一招法術。波次之間有附頭像的對白，並用瀏覽器內建語音朗讀。最後的首領是「無燈之主」：會放往外擴散的衝擊波、召喚亡者，血量剩一半時讓整座墓園陷入黑暗。
+- **自由試玩**：四招全開、波次無限，可以用拆解台切換貼圖路線與基礎／升級法術。
 
 ### 看得到的重點
 
@@ -194,6 +206,7 @@ Static gates (size, allowed hosts, script compiles, privacy scan) plus a headles
 | `4` | 血環 |
 | `I` | 行囊（左鍵穿上、右鍵丟掉） |
 | 滾輪 | 鏡頭遠近 |
+| `空白鍵`／點一下 | 下一句對白 |
 
 ### 架構圖與流程圖
 
@@ -215,17 +228,18 @@ python -m http.server 8794
 node scripts/smoke.mjs --browser
 ```
 
-靜態閘門（大小、外連網域、程式可編譯、隱私掃描）加上無頭 Chrome 探針：四招各施放一次並確認造成傷害，同時檢查粒子峰值、三條路線無繪圖錯誤、穿裝後數值、主控台錯誤數。加 `--selftest` 會用一份故意弄壞的副本證明閘門會變紅。需要 Node 18 以上與 Chrome（或設定 `CHROME_PATH`）。
+靜態閘門（大小、外連網域、程式可編譯、隱私掃描）加上無頭 Chrome 探針：四招各施放一次並確認造成傷害，同時檢查粒子峰值、三條路線無繪圖錯誤、穿裝後數值、主控台錯誤數；再把故事模式從開場跑到結局（四座塔全亮、四招全解鎖、首領衝擊波與黑暗階段、結局畫面）。加 `--selftest` 會用一份故意弄壞的副本證明閘門會變紅；加 `--url=<網址>` 可直接測線上版。需要 Node 18 以上與 Chrome（或設定 `CHROME_PATH`）。
 
 ### 階段規劃
 
 | 階段 | 內容 |
 |---|---|
 | P0 ✅ | 公開 repo、GitHub Pages、驗收工具、架構圖與流程圖 |
-| P1 | 用真的繪圖模型畫圖集，三條路線並排實測 |
-| P2 | 加一項新玩法（首領或第二張地圖） |
-| P3 | 手機觸控操作 |
-| P4 | 把火球發射器移植到 Godot 並排比較 |
+| P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
+| P2 | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
+| P3 | 換皮：附動畫的低多邊形角色、用繪圖模型畫的翻頁圖並排實測、更好的語音 |
+| P4 | 手機觸控操作 |
+| P5 | 把火球發射器移植到 Godot 並排比較 |
 
 ### 致謝與授權
 
