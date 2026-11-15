@@ -3,6 +3,7 @@
 //   node scripts/smoke.mjs            static gates (size, hosts, syntax, privacy)
 //   node scripts/smoke.mjs --browser  static gates + headless Chrome gameplay probe
 //   node scripts/smoke.mjs --selftest prove the gates turn red on bad input
+//   node scripts/smoke.mjs --url=https://lee-unhn.github.io/ember-graveyard/   probe the deployed site
 // Exit code 0 = all green. Any failed gate exits 1 (fail-loud, no silent skip).
 import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, extname, relative } from 'node:path';
@@ -97,12 +98,13 @@ function serve(root) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function browserProbe(root) {
+async function browserProbe(root, liveUrl) {
   console.log('[browser] headless gameplay probe');
   const chrome = findChrome();
   if (!chrome) { bad('no Chrome/Chromium found (set CHROME_PATH)'); return; }
   const srv = await serve(root);
-  const url = `http://127.0.0.1:${srv.address().port}/index.html`;
+  const url = liveUrl || `http://127.0.0.1:${srv.address().port}/index.html`;
+  console.log('  probing ' + url);
   const prof = mkdtempSync(join(tmpdir(), 'eg-probe-'));
   const proc = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
     '--window-size=1280,800', '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -190,6 +192,10 @@ function selftest() {
 
 const args = process.argv.slice(2);
 if (args.includes('--selftest')) selftest();
-else { staticGates(ROOT); if (args.includes('--browser')) await browserProbe(ROOT); }
+else {
+  const live = (args.find((a) => a.startsWith('--url=')) || '').slice(6);
+  staticGates(ROOT);
+  if (args.includes('--browser') || live) await browserProbe(ROOT, live || null);
+}
 console.log(failures ? `\nRED: ${failures} gate(s) failed` : '\nGREEN: all gates passed');
 process.exit(failures ? 1 : 0);
