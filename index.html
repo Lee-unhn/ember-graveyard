@@ -364,9 +364,9 @@ body.on-title .hud{display:none!important}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="assets/mage-model.js"></script>
-<script src="assets/character.js"></script>
+<!-- 人偶模型延後載入：遊戲先能玩，1.2 MB 的模型下載完才換上（不擋畫面，DEVLOG #40） -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>
+<script src="assets/character.js" defer></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);
@@ -842,7 +842,7 @@ const P={g:new THREE.Group()};
   const sh=new THREE.Mesh(new THREE.CircleGeometry(.6,20),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.45,depthWrite:false}));sh.rotation.x=-Math.PI/2;sh.position.y=.02;P.shadow=sh;scene.add(sh);
   scene.add(P.g);
   // P3b：有人偶模型就換上（assets/character.js），載入失敗就維持程式拼出來的方塊法師
-  if(window.EGChar)EGChar.attach(P,THREE)}
+  window.EGP=P;if(window.EGChar)EGChar.start()}
 function handPos(){const f=player.face;return new V3(player.pos.x+Math.sin(f)*.6,1.15+player.float,player.pos.z+Math.cos(f)*.6)}
 
 /* ---------- 狀態與數值 ---------- */

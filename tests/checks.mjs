@@ -23,6 +23,10 @@ function staticChecks() {
   // a second `function name(){}` silently replaces the first one everywhere (hoisting): P3a's terrain noise broke the atlas tiling this way
   const fns = [...html.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]); const dupFn = [...new Set(fns.filter((v, i) => fns.indexOf(v) !== i))];
   rep.ok(dupFn.length === 0, `no function declared twice among ${fns.length}`, dupFn);
+  // a plain <script src> blocks parsing until it has downloaded: a 1.2 MB model loaded that way kept the live page in "loading" for 15 s+ (DEVLOG #40)
+  const blocking = [...html.matchAll(/<script\s+([^>]*)>/g)].map((m) => m[1]).filter((a) => !/\b(defer|async)\b/.test(a))
+    .map((a) => (a.match(/src="([^"]+)"/) || [])[1]).filter((s) => s && !/^https?:/.test(s)).filter((s) => statSync(join(ROOT, s)).size > 100 * 1024);
+  rep.ok(blocking.length === 0, 'no local script over 100 KB loads in a way that blocks the page', blocking);
   // every third-party asset shipped in assets/ is credited in NOTICE.md and the in-game credits
   const notice = readFileSync(join(ROOT, 'NOTICE.md'), 'utf8');
   rep.ok(existsSync(join(ROOT, 'assets', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');

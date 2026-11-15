@@ -78,5 +78,20 @@
     if (hand) { hand.getWorldPosition(tmp.v); P.g.worldToLocal(tmp.v); P.staffGroup.position.copy(tmp.v); }
   }
 
-  window.EGChar = { attach, update, state: S };
+  // The page loads this file with `defer` and never waits for the 1.2 MB model: the game is playable at once with the
+  // block mage, and the skinned mage swaps in when assets/mage-model.js has arrived. A blocking <script> for the model
+  // kept the live page in "loading" for over 15 s on GitHub Pages (DEVLOG #40).
+  function start() {
+    if (S.ready || S.loading || !window.EGP || !window.THREE) return;
+    if (window.MAGE_GLB) { attach(window.EGP, window.THREE); return; }
+    S.loading = true;
+    const s = document.createElement('script');
+    s.src = 'assets/mage-model.js'; s.async = true;
+    s.onload = () => { S.loading = false; attach(window.EGP, window.THREE); };
+    s.onerror = () => { S.loading = false; S.failed = true; };
+    document.head.appendChild(s);
+  }
+
+  window.EGChar = { attach, update, start, state: S };
+  start();
 })();

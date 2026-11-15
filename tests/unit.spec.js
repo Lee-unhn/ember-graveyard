@@ -381,7 +381,7 @@ window.__runUnit = async (only) => {
   });
   // ---------------------------------------------------------------- P3b: skinned mage
   test('the CC0 mage model loads, replaces the block body and keeps hat and staff', async () => {
-    for (let k = 0; k < 50 && !EGChar.state.ready && !EGChar.state.failed; k++) await new Promise((r) => setTimeout(r, 100));
+    for (let k = 0; k < 300 && !EGChar.state.ready && !EGChar.state.failed; k++) await new Promise((r) => setTimeout(r, 100)); // the model loads after the page, up to 30 s
     ok(EGChar.state.ready && P.skinned, 'skinned mage ready');
     eq(Object.keys(EGChar.state.actions).sort().join(','), 'cast,castUp,channel,death,hit,idle,run');
     ok(P.hatGroup.visible && P.staffGroup.parent === P.g, 'hat and staff kept');
