@@ -373,7 +373,7 @@ flowchart LR
     E2E[端對端 55 項<br/>真實鍵盤滑鼠事件]:::safety
     CHECKS[其他驗證 54 項<br/>效能・洩漏・授權・不擋載入]:::safety
     SCRQA[截圖自查 26 項<br/>11 畫面 × 桌機與手機]:::safety
-    MUT[突變測試<br/>埋 7 個缺陷必須變紅]:::safety
+    MUT[突變測試<br/>埋 8 個缺陷必須變紅]:::safety
     CI[(GitHub Actions<br/>每次推送自動跑)]:::output
   end
 
@@ -552,7 +552,7 @@ flowchart LR
     E2ET[/端對端 55 項<br/>真實鍵盤滑鼠<br/>一律等條件成立/]:::pipeline
     CHK[/其他驗證 54 項<br/>效能・洩漏・授權<br/>大檔不擋載入・圖源/]:::pipeline
     SCRT[/截圖自查 26 項<br/>11 畫面 × 桌機與手機/]:::pipeline
-    MUTT[/突變測試<br/>埋 7 個缺陷<br/>單元與驗證都要變紅/]:::pipeline
+    MUTT[/突變測試<br/>埋 8 個缺陷<br/>單元與驗證都要變紅/]:::pipeline
     LEFT[/不得殘留無頭 Chrome/]:::pipeline
   end
 
@@ -630,7 +630,7 @@ const MINDMAP_SRC = String.raw`mindmap
       端對端 55 項
       其他驗證 54 項
       截圖自查 26 項
-      突變測試 7 個缺陷
+      突變測試 8 個缺陷
     🔥 特效拆解法
       影片不能直接用
       三零件

@@ -139,7 +139,7 @@ flowchart LR
     E2E[End-to-end · 55 checks with real input]:::safety
     CHECKS[Checks · 54 for perf, leaks, licences, no blocking loads]:::safety
     SCRQA[Screens · 26 checks, 11 screens at desktop and phone size]:::safety
-    MUT[Mutation · 7 planted defects must turn red]:::safety
+    MUT[Mutation · 8 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
   KEYS --> CAST
@@ -272,7 +272,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
 | Checks | `npm run test:checks` | 54 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
-| Mutation | part of `npm test` | Copies the project, plants seven known defects and requires the unit and check suites to turn red |
+| Mutation | part of `npm test` | Copies the project, plants eight known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
 
 GitHub Actions runs `npm test` on every push and pull request.
@@ -286,7 +286,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
 | P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d ✅ voice test ([report](docs/VOICE.md)) |
 | P4 ✅ | Touch controls for phones (joystick, tap-to-cast with auto-aim) and key remapping |
-| P5 🟡 | Fireball emitters ported to Godot 4.7 and compared side by side ([report](docs/GODOT.md)); explosion and spark sizes still differ |
+| P5 ✅ | Fireball emitters ported to Godot 4.7 and compared side by side ([report](docs/GODOT.md)); sizes match after keeping particle scale on billboards; remaining gaps come from linear-light blending and are measured in the report |
 
 ## Credits
 
@@ -404,7 +404,7 @@ npm test
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
-| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋七個已知缺陷，單元與其他驗證必須變紅 |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋八個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 
 每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。
@@ -418,7 +418,7 @@ npm test
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
 | P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d ✅ 語音實測（[報告](docs/VOICE.md)） |
 | P4 ✅ | 手機觸控操作（搖桿、點技能自動瞄準）與按鍵重設 |
-| P5 🟡 | 火球發射器已移植到 Godot 4.7 並排比較（[報告](docs/GODOT.md)）；爆炸與火星大小仍有差 |
+| P5 ✅ | 火球發射器已移植到 Godot 4.7 並排比較（[報告](docs/GODOT.md)）；保留粒子大小後尺寸一致，剩下的差異來自線性光相加，報告裡有量測數字 |
 
 ### 致謝與授權
 

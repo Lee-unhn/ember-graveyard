@@ -27,6 +27,9 @@ function staticChecks() {
   const blocking = [...html.matchAll(/<script\s+([^>]*)>/g)].map((m) => m[1]).filter((a) => !/\b(defer|async)\b/.test(a))
     .map((a) => (a.match(/src="([^"]+)"/) || [])[1]).filter((s) => s && !/^https?:/.test(s)).filter((s) => statSync(join(ROOT, s)).size > 100 * 1024);
   rep.ok(blocking.length === 0, 'no local script over 100 KB loads in a way that blocks the page', blocking);
+  // Godot port: billboarded particles drop their own scale unless the material keeps it; every quad then drew at 1 unit (DEVLOG #45)
+  const gd = readFileSync(join(ROOT, 'godot', 'main.gd'), 'utf8');
+  rep.ok(!/BILLBOARD_PARTICLES/.test(gd) || /billboard_keep_scale\s*=\s*true/.test(gd), 'Godot particle materials keep each particle\'s own scale');
   // every third-party asset shipped in assets/ is credited in NOTICE.md and the in-game credits
   const notice = readFileSync(join(ROOT, 'NOTICE.md'), 'utf8');
   rep.ok(existsSync(join(ROOT, 'assets', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');

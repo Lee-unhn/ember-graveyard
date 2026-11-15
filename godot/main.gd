@@ -28,10 +28,29 @@ var exploded := false
 func _ready() -> void:
 	for n in ["flame", "explosion", "smoke", "glow"]:
 		# load the PNG directly so the project runs without an editor import step
-		tex[n] = ImageTexture.create_from_image(Image.load_from_file("res://textures/%s.png" % n))
+		var img := Image.load_from_file("res://textures/%s.png" % n)
+		if n != "smoke":
+			_web_additive(img)
+		tex[n] = ImageTexture.create_from_image(img)
 	_world()
 	_build_ball()
 	_build_blast()
+
+
+## Godot adds additive particles in linear light and converts to sRGB at the end; the web page (Three.js r128,
+## no colour management) adds the raw sRGB numbers. Faint edges (alpha 0.05-0.2) therefore come out several times
+## brighter in Godot and the glow looks bigger. Folding alpha into the colour (rgb x a, alpha 1) makes one layer
+## over black come out the same as on the web. Measured in docs/GODOT.md. Smoke uses normal blending and is left as is.
+func _web_additive(img: Image) -> void:
+	img.convert(Image.FORMAT_RGBA8)
+	var d := img.get_data()
+	for i in range(0, d.size(), 4):
+		var a: int = d[i + 3]
+		d[i] = d[i] * a / 255
+		d[i + 1] = d[i + 1] * a / 255
+		d[i + 2] = d[i + 2] * a / 255
+		d[i + 3] = 255
+	img.set_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, d)
 
 
 func _world() -> void:
@@ -66,6 +85,8 @@ func _mat(name: String, col: Color, additive := true) -> StandardMaterial3D:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if additive else BaseMaterial3D.BLEND_MODE_MIX
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES   # camera-facing quads, like the web PSys
+	m.billboard_keep_scale = true   # without this, billboarding drops each particle's scale and every quad draws at 1 unit
+	m.disable_fog = true            # the web particle shader has no fog (ShaderMaterial without fog: true)
 	m.particles_anim_h_frames = 4                           # the 4x4 flipbook
 	m.particles_anim_v_frames = 4
 	m.particles_anim_loop = true
