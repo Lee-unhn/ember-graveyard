@@ -52,6 +52,16 @@ if (!args.includes('--skip-mutation') && !url) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+// every suite must close its headless Chrome completely: leftovers slowed local runs from about 2 to 8 minutes (DEVLOG #32, #34)
+if (process.platform === 'win32') {
+  // taskkill returns before every child has exited, so give the tree up to 5 s to disappear before judging
+  const count = () => parseInt(spawnSync('powershell', ['-NoProfile', '-Command', "@(Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -match 'remote-debugging-port=0' -and $_.CommandLine -match 'headless' }).Count"], { encoding: 'utf8' }).stdout, 10);
+  let left = count();
+  for (let k = 0; k < 10 && left; k++) { spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); left = count(); }
+  rows.push(['no leftover headless Chrome', { code: left === 0 ? 0 : 1, secs: '0.0' }]);
+  if (left) console.log(`  ${left} headless Chrome processes are still running after the suites`);
+}
+
 console.log('\n=== summary ===');
 for (const [name, r] of rows) console.log(`${r.code === 0 ? 'PASS' : 'FAIL'}  ${name.padEnd(24)} ${r.secs}s`);
 const failed = rows.filter(([, r]) => r.code !== 0).length;

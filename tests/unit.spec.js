@@ -373,6 +373,12 @@ window.__runUnit = async (only) => {
     eq(terrStats.partial - s0.partial, 1, 'one partial upload'); eq(terrStats.full - s0.full, 0, 'no full upload');
     eq(terrStats.px - s0.px, 3 * 3 * TPX * TPX, 'uploads only the 3x3 block (three strips of three cells)');
   });
+  test('leaving the title screen snaps the camera behind the mage (aim is right on the first frame)', () => {
+    fresh(); running = false; for (let k = 0; k < 30; k++) updateCamera(1 / 60);
+    running = true; updateCamera(1 / 60);
+    const want = new THREE.Vector3(player.pos.x, 0, player.pos.z).add(new THREE.Vector3(0, 18.5 * zoom, 11 * zoom));
+    near(camPos.distanceTo(want), 0, 1e-6, 'camera on target after one frame');
+  });
   test('soft terrain jitter table: every pixel samples itself or a direct neighbour', () => {
     let self = 0; for (let q = 0; q < NBC.length; q++) { ok(NBC[q] <= 8, 'code in range'); if (NBC[q] === 4) self++; }
     const f = self / NBC.length; ok(f > .55 && f < .95, `share of pixels sampling their own cell ${f.toFixed(2)}`);

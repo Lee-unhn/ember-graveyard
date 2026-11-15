@@ -9,7 +9,7 @@ import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFile
 import { join, dirname, extname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import http from 'node:http';
 import vm from 'node:vm';
 
@@ -198,7 +198,8 @@ async function browserProbe(root, liveUrl) {
     errors.length === 0 ? ok('console errors 0') : bad('console errors: ' + errors.slice(0, 5).join(' | '));
     ws.close();
   } catch (e) { bad('probe crashed: ' + e.message); }
-  finally { proc.kill(); srv.close(); await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} }
+  // Windows: proc.kill() leaves Chrome's child processes running and they slow every later suite (DEVLOG #32, #34)
+  finally { if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); srv.close(); await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} }
 }
 
 // ---------------------------------------------------------------- self-test

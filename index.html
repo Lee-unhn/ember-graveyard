@@ -1404,10 +1404,12 @@ $('#btnVoice').onclick=()=>{voiceOn=!voiceOn;$('#btnVoice').textContent='語音�
 
 /* ---------- 鏡頭、介面、主迴圈 ---------- */
 const camPos=new V3(0,15,11);
+let camSnap=false;
 function updateCamera(dt){
   // 標題畫面：鏡頭繞著墓園慢慢轉
-  if(!running){const a=time*.06,w=new V3(Math.cos(a)*26,16,Math.sin(a)*26);camPos.lerp(w,Math.min(1,dt*2));camera.position.copy(camPos);camera.lookAt(0,0,0);return}
-  const off=new V3(0,18.5*zoom,11*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);camPos.lerp(want,Math.min(1,dt*6));
+  if(!running){const a=time*.06,w=new V3(Math.cos(a)*26,16,Math.sin(a)*26);camPos.lerp(w,Math.min(1,dt*2));camera.position.copy(camPos);camera.lookAt(0,0,0);camSnap=true;return}
+  // 離開標題後第一格直接跳到角色身後，不從環繞位置滑回來（滑行中瞄準點會偏，DEVLOG #36）
+  const off=new V3(0,18.5*zoom,11*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);if(camSnap){camPos.copy(want);camSnap=false}else camPos.lerp(want,Math.min(1,dt*6));
   camera.position.copy(camPos);if(shakeAmt>.001){camera.position.x+=rand(-1,1)*shakeAmt;camera.position.y+=rand(-1,1)*shakeAmt;camera.position.z+=rand(-1,1)*shakeAmt;shakeAmt*=Math.exp(-dt*9)}
   camera.lookAt(camPos.x,0,camPos.z-11*zoom+.0001)}
 let ambAcc={};

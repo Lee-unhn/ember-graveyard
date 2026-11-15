@@ -179,7 +179,9 @@ async function menusFlow() {
     await p.key('Space', ' ', ' ');
     rep.ok(await p.evaluate(`window.__next === 1 && document.querySelector('#result').hidden`), 'Space closes the act result and continues the story');
     // death by lava: cause + tip, then back to title
-    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.hp = 1; setT(cellOf(player.pos.x, player.pos.z), TER.LAVA, 30)`); // setup: lava needs a lifetime or it cools at once
+    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.hp = 1;
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) setT(cellOf(player.pos.x + dx, player.pos.z + dz), TER.LAVA, 30)`);
+    // setup: a 5x5 lava patch with a lifetime; a single cell cools at once (no lifetime) or hardens on a neighbouring puddle before the damage adds up (DEVLOG #33, #35)
     rep.ok(await p.waitFor(shown('#dead'), 10000), 'standing in lava at 1 HP ends in the death screen');
     rep.ok(await p.evaluate(`/熔岩/.test(document.querySelector('#deadCause').textContent) && /熔岩/.test(document.querySelector('#deadTip').textContent)`), 'death screen names lava and gives the lava tip');
     await p.clickSel('#deadTitle');
