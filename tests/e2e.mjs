@@ -42,7 +42,8 @@ async function storyFlow() {
     await p.mouse('mousePressed', W / 2 + 120, H / 2 - 160); // start another fireball so the press lands mid-cast
     await p.mouse('mouseReleased', W / 2 + 120, H / 2 - 160);
     await p.key('Digit2', '2', '2'); await sleep(80);
-    rep.ok(await p.evaluate(`document.querySelector('#msg').textContent.includes('還沒學會') && getComputedStyle(document.querySelector('#msg')).opacity === '1' && player.cast?.id !== 'bolt'`),
+    // read the target opacity the game sets, not the computed one: the 0.3 s fade-in makes computed values timing-dependent on slow CI machines
+    rep.ok(await p.waitFor(`document.querySelector('#msg').textContent.includes('還沒學會') && document.querySelector('#msg').style.opacity === '1' && player.cast?.id !== 'bolt'`, 2000),
       'pressing 2 before the thunder lighthouse shows "not learned yet", even mid-cast');
 
     // inventory: open with I, click an item, it gets equipped
@@ -81,7 +82,9 @@ async function freeFlow() {
     await p.clickSel('#segTier button[data-v="0"]'); rep.ok(await p.evaluate(`document.querySelector('#mfire').textContent === '單發'`), 'Lab: "basic" relabels the fireball');
     await p.clickSel('#segTier button[data-v="1"]');
     // right click = chain lightning
-    await p.evaluate(`(() => { for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); })()`); // setup
+    // setup: freeze monsters and park nine of them where the cursor aims, so "spells kill" does not depend on random spawn spots
+    await p.evaluate(`(() => { const al = enemies.filter(e => e.alive); al.forEach((e, i) => { e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
+      if (i < 9) e.pos.set(player.pos.x - 2.4 + (i % 3) * 1.6, 0, player.pos.z - 5 - Math.floor(i / 3) * 1.4); }); })()`);
     await p.mouse('mouseMoved', W / 2, H / 2 - 150); await p.mouse('mousePressed', W / 2, H / 2 - 150, 'right'); await p.mouse('mouseReleased', W / 2, H / 2 - 150, 'right');
     rep.ok(await p.waitFor(`projs.some(q => q.kind === 'bolt') || cds.bolt > 0`, 3000), 'right click casts chain lightning');
     // keys 3 and 4

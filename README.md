@@ -176,6 +176,10 @@ flowchart LR
 
 Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) locally (works offline). The first snapshot from launch day is kept in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
 
+## Development log
+
+[`docs/DEVLOG.md`](docs/DEVLOG.md) records every request, decision, bug (symptom, how it was found, root cause, fix, the test that now guards it) and the release loop, as raw material for a course on building games with an AI coding assistant.
+
 ## Method notes and parameters
 
 [`docs/METHOD.md`](docs/METHOD.md) — the full breakdown: building blocks, every number used (emitter rates, lifetimes, sizes, gravity), the three texture routes with cost notes, and image-model prompts for drawing your own 4×4 sheets.
@@ -266,6 +270,10 @@ GitHub Actions runs `npm test` on every push and pull request.
 ### 架構圖與流程圖
 
 上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，下載後離線開啟即可；上線第一天的版本保留在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
+
+### 開發紀錄
+
+[`docs/DEVLOG.md`](docs/DEVLOG.md) 記錄每一個需求、決定、bug（症狀、怎麼發現、根因、修法、現在由哪個測試防止再犯）與上線流程，是之後做「用 AI 寫遊戲」課程的素材。
 
 ### 方法與參數
 

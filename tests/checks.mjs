@@ -34,6 +34,13 @@ function staticChecks() {
     for (const mmd of readdirSync(dir).filter((f) => f.endsWith('.mmd'))) rep.ok(viewer.includes(readFileSync(join(dir, mmd), 'utf8')), `${folder}/${mmd} embedded verbatim in its viewer`);
   }
   rep.ok(/```mermaid/.test(readFileSync(join(ROOT, 'README.md'), 'utf8')), 'README has mermaid diagrams GitHub can render');
+  // development log: the change / fix record kept for the course
+  const log = existsSync(join(ROOT, 'docs', 'DEVLOG.md')) ? readFileSync(join(ROOT, 'docs', 'DEVLOG.md'), 'utf8') : '';
+  const sec = (h) => { const a = log.indexOf(h); if (a < 0) return ''; const b = log.indexOf('\n## ', a + 1); return log.slice(a, b < 0 ? undefined : b); };
+  const rows = (s) => s.split('\n').filter((l) => /^\| \d+ \|/.test(l)).length;
+  rep.ok(rows(sec('## 4.')) >= 13, `DEVLOG timeline has an entry per change (${rows(sec('## 4.'))} rows)`);
+  rep.ok(rows(sec('## 5.')) >= 13 && sec('## 5.').split('\n').filter((l) => /^\| \d+ \|/.test(l)).every((l) => l.split('|').length >= 8), `DEVLOG fix table: every bug has symptom, discovery, root cause, fix and guard (${rows(sec('## 5.'))} rows)`);
+  rep.ok(readFileSync(join(ROOT, 'README.md'), 'utf8').includes('docs/DEVLOG.md'), 'README links the development log');
 }
 
 // ---------------------------------------------------------------- browser checks
