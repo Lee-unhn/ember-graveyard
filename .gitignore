@@ -7,3 +7,5 @@ node_modules/
 Thumbs.db
 .screens/
 *.tmp.mjs
+godot/.godot/
+godot/out/

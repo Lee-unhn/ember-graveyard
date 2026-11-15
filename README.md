@@ -286,7 +286,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
 | P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d ✅ voice test ([report](docs/VOICE.md)) |
 | P4 ✅ | Touch controls for phones (joystick, tap-to-cast with auto-aim) and key remapping |
-| P5 | Port the fireball emitters to Godot and compare |
+| P5 🟡 | Fireball emitters ported to Godot 4.7 and compared side by side ([report](docs/GODOT.md)); explosion and spark sizes still differ |
 
 ## Credits
 
@@ -418,7 +418,7 @@ npm test
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
 | P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d ✅ 語音實測（[報告](docs/VOICE.md)） |
 | P4 ✅ | 手機觸控操作（搖桿、點技能自動瞄準）與按鍵重設 |
-| P5 | 把火球發射器移植到 Godot 並排比較 |
+| P5 🟡 | 火球發射器已移植到 Godot 4.7 並排比較（[報告](docs/GODOT.md)）；爆炸與火星大小仍有差 |
 
 ### 致謝與授權
 

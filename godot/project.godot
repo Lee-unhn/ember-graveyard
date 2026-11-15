@@ -1,0 +1,20 @@
+; Ember Graveyard - fireball port (P5). Godot 4.7 project; open this folder in the editor, or render with
+; Movie Maker: godot --path godot --write-movie out/frame.png --fixed-fps 30 --quit-after 90
+config_version=5
+
+[application]
+
+config/name="Ember Graveyard - Fireball Port"
+config/description="The web fireball's four emitters rebuilt with GPUParticles3D, same parameters, same flipbook frames."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/stretch/mode="disabled"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2

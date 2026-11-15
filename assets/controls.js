@@ -130,7 +130,10 @@ body.touch #lab{display:none}`;
   }
 
   buildKeyRows(); refreshSkillKeys();
-  const wantTouch = /[?&]touch=1\b/.test(location.search) || (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches);
+  // touch-only = a coarse pointer, no fine pointer, AND real touch points: a machine with no pointing device at all
+  // (a headless test runner) must not be mistaken for a phone
+  const wantTouch = /[?&]touch=1\b/.test(location.search)
+    || (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches && (navigator.maxTouchPoints || 0) > 0);
   if (wantTouch) enableTouch();
   requestAnimationFrame(aimAssist);
   window.EGControls = { enableTouch, get touch() { return touchOn; }, setMove, joyEnd, label, aimNow };

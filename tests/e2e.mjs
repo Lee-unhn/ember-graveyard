@@ -14,6 +14,7 @@ async function storyFlow() {
   const p = await openPage(url, { width: W, height: H });
   try {
     rep.ok(await p.waitFor(`!document.querySelector('#goStory').disabled`), 'story button becomes enabled after the atlas is drawn');
+    rep.ok(await p.waitFor(`window.EGControls && !EGControls.touch`, 5000), 'a desktop browser is not mistaken for a touch device (P4)');
     await p.clickSel('#goStory');
     rep.ok(await p.evaluate(`document.querySelector('#intro').hidden && !document.querySelector('#dialog').hidden`), 'click "story mode" -> intro closes, dialogue opens');
     rep.ok((await p.evaluate(`document.querySelector('#dWho').textContent`)) === '灰翁', 'first speaker is the elder');
@@ -119,7 +120,7 @@ async function terrainFlow() {
     await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]);
     const cast = await p.waitFor(`projs.some(q => q.kind === 'fire') || cds.fire > 0`, 10000); await p.mouse('mouseReleased', aim[0], aim[1]);
     const diag = () => p.evaluate(`(() => { let fire = 0, ash = 0; for (let i = 0; i < TT.length; i++) { if (TT[i] === TER.FIRE) fire++; if (TT[i] === TER.ASH) ash++; }
-      return { fireballs: projs.filter(q => q.kind === 'fire').length, cdFire: +cds.fire.toFixed(2), fireCells: fire, ashCells: ash, terrainKills, kills: player.kills, fps: document.querySelector('#sFps').textContent, gameTime: +time.toFixed(1) }; })()`);
+      return { fireballs: projs.filter(q => q.kind === 'fire').length, cdFire: +cds.fire.toFixed(2), fireCells: fire, ashCells: ash, terrainKills, kills: player.kills, fps: document.querySelector('#sFps').textContent, gameTime: +time.toFixed(1), touch: !!(window.EGControls && EGControls.touch), aim: [+aim.x.toFixed(1), +aim.z.toFixed(1)] }; })()`);
     rep.ok(cast, 'holding the left button casts a fireball at the grass', cast ? undefined : await diag());
     const lit = await p.waitFor(`(() => { let n = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE) n++; return n >= 3; })()`, 30000);
     rep.ok(lit, 'the fireball sets the dry grass on fire', lit ? undefined : await diag());
