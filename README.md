@@ -87,7 +87,9 @@ flowchart LR
     UPLOAD([Upload 4×4 black-background sheet]):::input
   end
   subgraph UI[🖥️ UI layer]
-    MODE[Start menu · story or free play]:::ui
+    MODE[Title screen · continue, new game, free play, settings]:::ui
+    MENUS[Pause, settings, act results, death cause, credits]:::ui
+    SAVE[(Browser save · act reached, settings)]:::model
     LAB[Lab panel · texture route, tier, voice]:::ui
     HUD[Objective, boss bar, skills, health]:::ui
     DLGUI[Dialogue box · portrait, typewriter, skip]:::ui
@@ -119,15 +121,20 @@ flowchart LR
     LIGHTS[Light pool 10 + 4 lighthouse lights]:::worker
     MESH[(Procedural meshes)]:::model
   end
+  subgraph CHAR[🧍 Character layer · P3b]
+    MAGEGLB[(CC0 mannequin · 7 clips, loaded after the page)]:::model
+    ANIM[/Animation states · idle, run, 3 casts, hit, death/]:::pipeline
+  end
   subgraph OUT[🖼️ Output]
     CANVAS[(WebGL canvas · Three.js r128)]:::output
-    SND[(Synth sound + voice)]:::output
+    SND[(Music, effects, voice · separate volumes)]:::output
   end
   subgraph VERIFY[✅ Verification layer]
     STATIC[Static gates · size, hosts, compile, privacy]:::safety
     UNIT[Unit · 68 tests incl. every terrain reaction]:::safety
     E2E[End-to-end · 55 checks with real input]:::safety
-    CHECKS[Checks · 53 for perf, leaks, phone, a11y]:::safety
+    CHECKS[Checks · 54 for perf, leaks, licences, no blocking loads]:::safety
+    SCRQA[Screens · 26 checks, 11 screens at desktop and phone size]:::safety
     MUT[Mutation · 7 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
@@ -135,6 +142,11 @@ flowchart LR
   MOUSE --> CAST
   UPLOAD --> ATLAS
   MODE --> ACTS
+  SAVE -. continue act N .-> MODE
+  ACTS -. act result .-> MENUS
+  MAGEGLB --> ANIM
+  CAST -. cast state .-> ANIM
+  ANIM --> CANVAS
   LAB -. route .-> SHADER
   ACTS --> DLGUI
   DLGUI --> VOICE
@@ -213,7 +225,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 68/]:::pipeline --> E2ET[/End-to-end · 55/]:::pipeline --> CHK[/Checks · 53/]:::pipeline --> SCR[/Screens · 26/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
+  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 68/]:::pipeline --> E2ET[/End-to-end · 55/]:::pipeline --> CHK[/Checks · 54/]:::pipeline --> SCR[/Screens · 26/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
   GREEN -. any red .-> FIX[Fix the feature, never loosen a gate]:::worker -.-> EDIT
   GREEN --> ASK[Ask before pushing]:::safety --> PUSH([git push]):::input --> ACTIONS[/GitHub Actions re-runs everything/]:::pipeline --> PAGES[(GitHub Pages deploy)]:::output --> LIVE[/npm run test:live against the site/]:::pipeline --> DONE[(Released)]:::output
   ACTIONS -. red in CI .-> FIX
@@ -225,7 +237,7 @@ flowchart LR
   classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
 ```
 
-Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html) locally (works offline). Earlier snapshots are kept: [P1 story + verification](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) and the launch-day baseline in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
+Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html`](docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html) locally (works offline). Earlier snapshots are kept: [P2 terrain](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html), [P1 story + verification](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) and the launch-day baseline in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
 
 ## Development log
 
@@ -254,7 +266,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
 | Unit | `npm run test:unit` | 68 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi; save slot, settings, pause, act results, death causes, hit-stop, soft terrain edges and strip uploads |
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
-| Checks | `npm run test:checks` | Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
+| Checks | `npm run test:checks` | 54 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
 | Mutation | part of `npm test` | Copies the project, plants seven known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
@@ -353,7 +365,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 
 ### 架構圖與流程圖
 
-上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html)，下載後離線開啟即可；先前的版本都保留：[P1 故事＋驗收](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，以及上線第一天的版本在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
+上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html`](docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html)，下載後離線開啟即可；先前的版本都保留：[P2 地形](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html)、[P1 故事＋驗收](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，以及上線第一天的版本在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
 
 ### 開發紀錄
 

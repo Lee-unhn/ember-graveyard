@@ -1,0 +1,141 @@
+%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph INPUT[👤 玩家輸入]
+    KEYS([鍵盤<br/>WASD・1-4・I・空白鍵]):::input
+    MOUSE([滑鼠<br/>瞄準・左鍵・右鍵]):::input
+    UPLOAD([上傳黑底 4×4 翻頁圖]):::input
+  end
+
+  %% col=1 row=0
+  subgraph UI[🖥️ 介面層]
+    MODE[標題畫面 P3a<br/>繼續・新遊戲・自由試玩・設定]:::ui
+    MENUS[暫停・設定・操作說明<br/>階段結算・死因提示・製作群]:::ui
+    SAVE[(瀏覽器本機存檔<br/>幕數・設定)]:::model
+    LAB[拆解台<br/>貼圖路線・基礎／升級・語音]:::ui
+    HUD[目標提示・首領血條<br/>技能列・地形連鎖跳字]:::ui
+    DLGUI[對白框<br/>頭像・逐字・跳過]:::ui
+    INV[行囊<br/>照形狀占格・7 裝備欄]:::ui
+  end
+
+  %% col=2 row=0
+  subgraph STORY[📖 故事層]
+    ACTS[/幕次狀態機<br/>對白→清怪→前往→點燃→解鎖/]:::pipeline
+    TOWER[(四座燈塔<br/>焰・雷・星・血)]:::model
+    BOSS[/首領 AI<br/>衝擊波・召喚・黑暗/]:::pipeline
+    VOICE[瀏覽器內建語音<br/>三種音高・P3d 本機模型實測]:::worker
+  end
+
+  %% col=3 row=0
+  subgraph LOGIC[⚙️ 遊戲邏輯 logic dt]
+    CAST[/施法系統<br/>解鎖・冷卻・手勢/]:::pipeline
+    SPELLS[/四招法術<br/>依進度決定強度/]:::pipeline
+    ENEMY[/怪物 AI<br/>追擊・推開・地形減速/]:::pipeline
+    LOOT[/掉寶與數值<br/>稀有度加形狀標記/]:::pipeline
+    FEEL[打擊感<br/>停格・受擊抖動・可關閉]:::worker
+  end
+
+  %% col=3 row=1
+  subgraph TERRAIN[🪨 地形層 P2]
+    REACT[/反應表<br/>火・雷・星墜・血 → 改地形/]:::pipeline
+    GRID[(地形網格 88×88<br/>15 種地形)]:::model
+    TKILL[/地形殺<br/>持續傷害・連鎖 ×N・多掉寶/]:::pipeline
+    PROPS[可破壞物<br/>倒下壓怪・燒倒・撞斷・裂開]:::worker
+    SEED[(固定種子世界<br/>墓碑 46・枯樹 12・石棺 6)]:::model
+    CA[/自動演變 每 0.2 秒<br/>蔓延・流動・冷卻・連鎖爆炸/]:::pipeline
+  end
+
+  %% col=4 row=0
+  subgraph VFX[🔥 特效三零件 visuals dt]
+    ATLAS[(翻頁圖集 1024²<br/>4 張 × 16 格)]:::model
+    SHADER[/著色器三模式/]:::pipeline
+    PSYS[粒子系統<br/>方塊永遠面向鏡頭]:::worker
+    LIGHTS[燈光池 10 盞<br/>＋燈塔 4 盞]:::worker
+    GTEX[地面貼圖兩張<br/>柔和邊緣・只上傳變動橫條]:::worker
+  end
+
+  %% col=4 row=1
+  subgraph CHAR[🧍 角色層 P3b]
+    MAGEGLB[(人偶模型 CC0<br/>7 段動作・延後載入)]:::model
+    ANIM[/動作狀態機<br/>待機・跑・三種施法・受擊・死亡/]:::pipeline
+    BLOCK[方塊法師<br/>模型載不到時的備案]:::worker
+  end
+
+  %% col=5 row=0
+  subgraph OUT[🖼️ 輸出]
+    CANVAS[(WebGL 畫面<br/>Three.js r128)]:::output
+    SND[(音樂・音效・語音<br/>分軌音量)]:::output
+  end
+
+  %% col=6 row=0
+  subgraph VERIFY[✅ 驗收層]
+    STATIC[靜態閘門<br/>大小・外連・編譯・隱私]:::safety
+    UNIT[單元測試 68 項<br/>地形・存檔・動作狀態]:::safety
+    E2E[端對端 55 項<br/>真實鍵盤滑鼠事件]:::safety
+    CHECKS[其他驗證 54 項<br/>效能・洩漏・授權・不擋載入]:::safety
+    SCRQA[截圖自查 26 項<br/>11 畫面 × 桌機與手機]:::safety
+    MUT[突變測試<br/>埋 7 個缺陷必須變紅]:::safety
+    CI[(GitHub Actions<br/>每次推送自動跑)]:::output
+  end
+
+  KEYS --> CAST
+  MOUSE --> CAST
+  UPLOAD --> ATLAS
+  MODE --> ACTS
+  SAVE -. 繼續第 N 幕 .-> MODE
+  ACTS -. 點燈後結算 .-> MENUS
+  MENUS -. 設定 .-> SAVE
+  MAGEGLB --> ANIM
+  CAST -. 施法狀態 .-> ANIM
+  ANIM --> CANVAS
+  BLOCK -. 備案 .-> CANVAS
+  SPELLS --> FEEL
+  LAB -. 切換路線 .-> SHADER
+  ACTS --> DLGUI
+  DLGUI --> VOICE
+  ACTS --> TOWER
+  TOWER -. 點亮解鎖 .-> CAST
+  ACTS --> BOSS
+  BOSS --> ENEMY
+  CAST --> SPELLS
+  SPELLS --> PSYS
+  SPELLS --> LIGHTS
+  SPELLS --> ENEMY
+  SPELLS --> REACT
+  REACT --> GRID
+  CA --> GRID
+  GRID --> TKILL
+  TKILL --> ENEMY
+  SEED --> PROPS
+  PROPS -. 壓怪 .-> TKILL
+  BOSS -. 衝擊波推倒 .-> PROPS
+  GRID --> GTEX
+  ENEMY --> LOOT
+  LOOT --> INV
+  INV -. 換裝改數值 .-> CAST
+  TKILL -. 連鎖跳字 .-> HUD
+  ATLAS --> SHADER
+  SHADER --> PSYS
+  PSYS --> CANVAS
+  LIGHTS --> CANVAS
+  GTEX --> CANVAS
+  VOICE --> SND
+  UNIT -. 驗 .-> TERRAIN
+  E2E -. 驗 .-> UI
+  SCRQA -. 驗 .-> UI
+  CHECKS -. 驗 .-> OUT
+  MUT -. 驗測試本身 .-> UNIT
+  STATIC --> CI
+  UNIT --> CI
+  E2E --> CI
+  CHECKS --> CI
+  SCRQA --> CI
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef model fill:#a6e3a1,stroke:#1e6f1a,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
