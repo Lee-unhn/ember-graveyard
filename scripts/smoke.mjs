@@ -170,7 +170,7 @@ async function browserProbe(root, liveUrl) {
     result.killsTotal > 0 ? ok(`total kills ${result.killsTotal}, loot on ground ${result.lootOnGround}`) : bad('no kills');
     // ---- story mode: opening -> four towers -> boss -> ending
     const st = await evaluate(`(() => {
-      const step = window.__step, skip = () => { while (dlg) endDialog(); };
+      const step = window.__step, skip = () => { for (let k = 0; k < 50 && (dlg || !document.querySelector('#result').hidden); k++) { if (dlg) endDialog(); else closeResult(); } };
       startStory(); player.maxhp = player.hp = 1e9;
       const out = { acts: [], lockedAtStart: [...['bolt','meteor','blood']].filter(id => !story.unlocked.has(id)).length, fireTierAtStart: tierOf('fire') };
       skip();

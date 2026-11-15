@@ -4,6 +4,7 @@
 //   unit      37+ in-page unit tests                             (tests/unit.mjs)
 //   e2e       real keyboard/mouse flows                          (tests/e2e.mjs)
 //   checks    performance, leaks, phone width, a11y, docs, diagrams (tests/checks.mjs)
+//   screens   every menu/result screen at desktop + phone size: screenshot + layout rules (tests/screens.mjs)
 //   mutation  copy the project, plant defects, require the suites to turn red
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -25,9 +26,10 @@ rows.push(['smoke selftest', run('scripts/smoke.mjs', ['--selftest'])]);
 rows.push(['unit', run('tests/unit.mjs', url ? [url] : [])]);
 rows.push(['e2e', run('tests/e2e.mjs', url ? [url] : [])]);
 rows.push(['checks', run('tests/checks.mjs', url ? [url] : [])]);
+rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant five defects in a scratch copy; the suites must notice
+  // plant seven defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -37,8 +39,11 @@ if (!args.includes('--skip-mutation') && !url) {
       .replace("if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}", '') // 2. lose the spell lock
       .replace('A*=ss(.47,.4,', 'A*=ss(.5,.42,')                                     // 3. reintroduce atlas edge bleed
       .replace('if(Math.random()<spreadP(nt))ch.push(', 'if(false)ch.push(')             // 4. fire stops spreading (P2 terrain)
-      .replace('Math.random=mulberry32(20261115);', '');                                // 5. world props no longer seeded
-    for (const needle of ['<!doctype html>', "if(!story.unlocked.has(id))", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push(', 'Math.random=mulberry32(20261115);'])
+      .replace('Math.random=mulberry32(20261115);', '')                                 // 5. world props no longer seeded
+      .replace('if(!running||paused||menuOpen||!player.alive)return;', 'if(!running||paused||!player.alive)return;') // 6. spells cast behind the pause menu (P3a)
+      .replace('function tnoise(x,y){', 'function vnoise(x,y){').replace(/tnoise\(/g, 'vnoise(');         // 7. terrain noise shadows the atlas noise (P3a bug)
+    for (const needle of ['<!doctype html>', "if(!story.unlocked.has(id))", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push(', 'Math.random=mulberry32(20261115);',
+      'if(!running||paused||menuOpen||!player.alive)return;', 'function tnoise(x,y){'])
       if (readFileSync(f, 'utf8').includes(needle) && h.includes(needle)) throw new Error('mutation did not apply: ' + needle);
     writeFileSync(f, h);
     const env = { EG_ROOT: dir };

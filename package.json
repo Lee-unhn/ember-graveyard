@@ -1,6 +1,6 @@
 {
   "name": "ember-graveyard",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Spell VFX decomposition prototype (WebGL) with a story chapter. Zero runtime and zero test dependencies.",
   "license": "MIT",
@@ -12,6 +12,7 @@
     "test:unit": "node tests/unit.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:checks": "node tests/checks.mjs",
+    "test:screens": "node tests/screens.mjs",
     "test:live": "node tests/run-all.mjs --url=https://lee-unhn.github.io/ember-graveyard/",
     "serve": "python -m http.server 8794"
   }

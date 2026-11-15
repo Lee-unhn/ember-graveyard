@@ -133,7 +133,62 @@ async function terrainFlow() {
   } finally { await p.close(); }
 }
 
-try { await storyFlow(); await freeFlow(); await terrainFlow(); }
+async function menusFlow() {
+  const p = await openPage(url, { width: W, height: H });
+  const ready = () => p.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled`, 60000);
+  const shown = (sel) => `!document.querySelector('${sel}').hidden`;
+  try {
+    rep.ok(await ready(), 'loading screen goes away once the atlas is drawn');
+    rep.ok(await p.evaluate(`getComputedStyle(document.querySelector('#bottom')).display === 'none' && getComputedStyle(document.querySelector('#lab')).display === 'none'`), 'title screen hides the battle HUD');
+    // settings: keyboard on the first slider, value is saved
+    await p.clickSel('#btnSettings');
+    rep.ok(await p.evaluate(`${shown('#settings')} && document.activeElement.id === 'sMaster'`), 'settings opens with focus on the first slider');
+    await p.key('ArrowLeft', 'ArrowLeft');
+    rep.ok(await p.waitFor(`SET.master === .75 && JSON.parse(localStorage.getItem('eg-settings')).master === .75`, 3000), 'arrow key lowers master volume and the value is saved');
+    await p.key('Escape', 'Escape');
+    rep.ok(await p.evaluate(`document.querySelector('#settings').hidden && ${shown('#intro')}`), 'Esc returns from settings to the title');
+    // story start, skip the opening
+    await p.clickSel('#goStory');
+    for (let k = 0; k < 20 && await p.evaluate(shown('#dialog')); k++) { await p.key('Space', ' ', ' '); await sleep(60); }
+    rep.ok(await p.waitFor(`story.phase === 'fight'`, 5000), 'story reaches the first fight');
+    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 })`); // setup: harmless monsters
+    // pause really stops the game: holding W while paused does not move the mage
+    await p.key('Escape', 'Escape');
+    rep.ok(await p.evaluate(`${shown('#pause')} && menuOpen`), 'Esc pauses the game');
+    const z0 = await p.evaluate('player.pos.z');
+    await p.keyDown('KeyW'); await sleep(700); await p.keyUp('KeyW');
+    rep.ok(Math.abs(await p.evaluate('player.pos.z') - z0) < 1e-6, 'holding W while paused does not move the mage');
+    await p.key('KeyP', 'p');
+    rep.ok(await p.evaluate(`document.querySelector('#pause').hidden && !menuOpen`), 'P resumes');
+    await p.keyDown('KeyW'); const moved = await p.waitFor(`player.pos.z < ${z0} - 1`, 5000); await p.keyUp('KeyW');
+    rep.ok(moved, 'after resuming, W moves the mage again');
+    // back to title through the confirmation
+    await p.key('Escape', 'Escape'); await p.clickSel('#pTitle');
+    rep.ok(await p.evaluate(shown('#pConfirm')), 'leaving asks for confirmation first');
+    await p.clickSel('#pYes');
+    rep.ok(await p.evaluate(`${shown('#intro')} && !running && ${shown('#goContinue')} && /第 1 幕/.test(document.querySelector('#goContinue').textContent)`), 'confirm -> title with a "continue act 1" button');
+    // continue after a reload, from act 3
+    await p.evaluate(`writeSave(2)`); // setup: pretend two towers were already lit
+    await p.send('Page.reload'); await sleep(300);
+    rep.ok(await ready() && await p.evaluate(`${shown('#goContinue')} && /第 3 幕/.test(document.querySelector('#goContinue').textContent)`), 'after a reload the title offers "continue act 3"');
+    await p.clickSel('#goContinue');
+    for (let k = 0; k < 20 && await p.evaluate(shown('#dialog')); k++) { await p.key('Space', ' ', ' '); await sleep(60); }
+    rep.ok(await p.evaluate(`story.act === 2 && TOWERS[0].lit && TOWERS[1].lit && !TOWERS[2].lit && story.unlocked.has('bolt')`), 'continue resumes act 3 with towers 1-2 lit and their spells learnt');
+    // result screen: Space continues
+    await p.evaluate(`showResult(2, () => { window.__next = 1 })`); // setup: the tower-lighting sequence itself is covered by the smoke probe
+    await p.key('Space', ' ', ' ');
+    rep.ok(await p.evaluate(`window.__next === 1 && document.querySelector('#result').hidden`), 'Space closes the act result and continues the story');
+    // death by lava: cause + tip, then back to title
+    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.hp = 1; setT(cellOf(player.pos.x, player.pos.z), TER.LAVA, 30)`); // setup: lava needs a lifetime or it cools at once
+    rep.ok(await p.waitFor(shown('#dead'), 10000), 'standing in lava at 1 HP ends in the death screen');
+    rep.ok(await p.evaluate(`/熔岩/.test(document.querySelector('#deadCause').textContent) && /熔岩/.test(document.querySelector('#deadTip').textContent)`), 'death screen names lava and gives the lava tip');
+    await p.clickSel('#deadTitle');
+    rep.ok(await p.evaluate(`${shown('#intro')} && document.querySelector('#dead').hidden && getComputedStyle(document.querySelector('#bottom')).display === 'none'`), '"back to title" from the death screen');
+    rep.ok(p.errors.length === 0, 'menus flow: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

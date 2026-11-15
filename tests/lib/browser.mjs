@@ -3,7 +3,7 @@ import { readFileSync, existsSync, statSync, mkdtempSync, rmSync } from 'node:fs
 import { join, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import http from 'node:http';
 
 // EG_ROOT lets the mutation test point every suite at a deliberately broken copy.
@@ -81,10 +81,14 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
     if (!r) throw new Error('no element ' + sel); await click(r[0], r[1]); return r;
   };
   const screenshot = async () => Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64');
-  const close = async () => { try { ws.close(); } catch {} proc.kill(); await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} };
+  // proc.kill() only ends Chrome's launcher process on Windows; its renderer/GPU children survive and keep the CPU busy,
+  // which slowed (and stalled) the next Chrome a suite opened. Kill the whole tree instead.
+  const close = async () => { try { ws.close(); } catch {}
+    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill();
+    await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} };
   return { send, evaluate, waitFor, key, keyDown, keyUp, mouse, click, clickSel, screenshot, errors, close };
 }
-const VK = { KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyI: 73, KeyR: 82, Space: 32, Digit1: 49, Digit2: 50, Digit3: 51, Digit4: 52, Escape: 27, Tab: 9 };
+const VK = { KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyI: 73, KeyR: 82, Space: 32, Digit1: 49, Digit2: 50, Digit3: 51, Digit4: 52, Escape: 27, Tab: 9, KeyP: 80, ArrowLeft: 37, ArrowRight: 39 };
 
 /** Tiny reporter shared by every suite: fail-loud, counts, exit code. */
 export function reporter(title) {

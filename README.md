@@ -28,6 +28,19 @@ The graveyard floor is an 88×88 grid of 15 terrain types (dry grass, grave soil
 - **Terrain kills**: fire, lava, charged water, blood pools, steam and explosions hurt monsters; only lava hurts you. Monsters killed by terrain drop extra loot 60% of the time, and terrain kills within 1.2 s build a **terrain chain ×N**.
 - **Destructibles**: tombstones topple away from a blast and crush whatever is in their path, dead trees burn for 6 s and fall, fence sections break, sarcophagi crack open and release two ghosts plus a guaranteed drop. The Lord of the Unlit takes heavy damage standing in lava, and its shockwave knocks tombstones over.
 
+## Screens and game feel (P3a)
+
+![Title screen with the camera circling the graveyard](docs/screens/p3a/desktop-01-title.jpg)
+
+P3 (new skin) starts with a checklist of the screen types commercial games ship ([`docs/SCREENS.md`](docs/SCREENS.md)): only the kinds of screens and their elements are compared, never the look of a specific game. P3a fills every gap that needs no outside assets:
+
+- **Screens**: loading screen with progress and a gameplay tip; title screen with a slowly circling camera, continue / new game / free play / settings / controls / credits and a version tag; pause (Esc or P, and automatically when the tab is hidden) with restart and a confirmed return to title; an act result after each lighthouse (time, kills, terrain kills, best terrain chain, loot picked up); a death screen that names what killed you and gives the matching tip; credits.
+- **Continue**: the browser remembers which act you reached, so the title offers "continue · act N". No accounts.
+- **Settings**: master, music, effects and voice volume; particle density; subtitle size; reduce shake and hit-stop; shape marks on loot rarity (not colour alone). Saved in the browser.
+- **Game feel**: a short hit-stop on explosions and critical hits, and monsters squash when hit.
+- **Terrain look**: borders between terrain types are ragged instead of square (each pixel samples a jittered position), and only the changed strips of the ground texture are re-uploaded to the GPU.
+- **Screen self-check**: `npm run test:screens` photographs 11 screens at desktop and phone size and checks the layout rules (card inside the screen, no sideways scroll, buttons at least 24 px, nothing behind the title screen, one overlay at a time). Shots for this phase: [`docs/screens/p3a/`](docs/screens/p3a/).
+
 ## What it demonstrates
 
 | Idea | How it shows up in the game |
@@ -104,10 +117,10 @@ flowchart LR
   end
   subgraph VERIFY[✅ Verification layer]
     STATIC[Static gates · size, hosts, compile, privacy]:::safety
-    UNIT[Unit · 52 tests incl. every terrain reaction]:::safety
-    E2E[End-to-end · 36 checks with real input]:::safety
-    CHECKS[Checks · 43 for perf, leaks, phone, a11y]:::safety
-    MUT[Mutation · 5 planted defects must turn red]:::safety
+    UNIT[Unit · 64 tests incl. every terrain reaction]:::safety
+    E2E[End-to-end · 55 checks with real input]:::safety
+    CHECKS[Checks · 52 for perf, leaks, phone, a11y]:::safety
+    MUT[Mutation · 7 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
   KEYS --> CAST
@@ -192,7 +205,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 52/]:::pipeline --> E2ET[/End-to-end · 36/]:::pipeline --> CHK[/Checks · 43/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
+  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 64/]:::pipeline --> E2ET[/End-to-end · 55/]:::pipeline --> CHK[/Checks · 52/]:::pipeline --> SCR[/Screens · 26/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
   GREEN -. any red .-> FIX[Fix the feature, never loosen a gate]:::worker -.-> EDIT
   GREEN --> ASK[Ask before pushing]:::safety --> PUSH([git push]):::input --> ACTIONS[/GitHub Actions re-runs everything/]:::pipeline --> PAGES[(GitHub Pages deploy)]:::output --> LIVE[/npm run test:live against the site/]:::pipeline --> DONE[(Released)]:::output
   ACTIONS -. red in CI .-> FIX
@@ -226,15 +239,16 @@ Then open `http://localhost:8794`. Opening `index.html` directly also works.
 npm test
 ```
 
-Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs every suite, about 80 seconds:
+Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs every suite, about 8 minutes:
 
 | Suite | Command | What it proves |
 |---|---|---|
 | Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
-| Unit | `npm run test:unit` | 52 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi |
-| End-to-end | `npm run test:e2e` | 36 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill |
-| Checks | `npm run test:checks` | Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync |
-| Mutation | part of `npm test` | Copies the project, plants five known defects and requires the unit and check suites to turn red |
+| Unit | `npm run test:unit` | 64 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi; save slot, settings, pause, act results, death causes, hit-stop, soft terrain edges and strip uploads |
+| End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
+| Checks | `npm run test:checks` | Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
+| Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
+| Mutation | part of `npm test` | Copies the project, plants seven known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
 
 GitHub Actions runs `npm test` on every push and pull request.
@@ -246,7 +260,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P0 ✅ | Public repo, GitHub Pages, smoke harness, diagrams |
 | P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
-| P3 | New skin: low-poly characters with animation, image-model flipbooks compared side by side, better voices |
+| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b low-poly characters with animation · P3c image-model flipbooks compared side by side · P3d voice test |
 | P4 | Touch controls for phones |
 | P5 | Port the fireball emitters to Godot and compare |
 
@@ -279,6 +293,19 @@ GitHub Actions runs `npm test` on every push and pull request.
 - **地形自己演變**：每 0.2 秒掃一次玩家附近，火會蔓延、燒完變灰燼；熔岩流進坑洞，碰到水凝成黑曜石牆；積水流進坑洞；磷火墳會連鎖爆炸。
 - **地形殺**：火、熔岩、帶電水、血沼、蒸氣與爆炸會傷怪物，只有熔岩會傷玩家。被地形殺死的怪物有 60% 機率多掉一件裝備，1.2 秒內連續地形擊殺累積「地形連鎖 ×N」。
 - **可破壞物**：墓碑朝爆炸反方向倒下，壓死路徑上的怪物；枯樹著火燒 6 秒後倒下；柵欄可分段撞斷；石棺裂開會放出兩隻殘魂並必掉一件裝備。無燈之主站在熔岩上會受重傷，牠的衝擊波會推倒墓碑。
+
+### 畫面與手感（P3a）
+
+![標題畫面：鏡頭繞著墓園慢慢轉](docs/screens/p3a/desktop-01-title.jpg)
+
+P3 換皮的第一步，是整理市面遊戲的整套畫面類型做成檢核表（[`docs/SCREENS.md`](docs/SCREENS.md)），只比對畫面類型與元素，不照抄任何一款遊戲的外觀。P3a 先補齊不需要外部素材的部分：
+
+- **畫面**：讀取畫面（進度條＋一則玩法提示）；標題畫面（鏡頭繞著墓園轉，繼續／新遊戲／自由試玩／設定／操作說明／製作群，附版本號）；暫停（Esc 或 P，切到別的分頁會自動暫停；可重來這一幕，回標題前先確認）；每點亮一座燈塔的階段結算（用時、擊倒、地形擊殺、最高地形連鎖、撿到裝備）；失敗畫面寫出死因並給對應提示；製作群。
+- **繼續遊戲**：瀏覽器記住玩到第幾幕，標題出現「繼續・第 N 幕」。不做帳號。
+- **設定**：總音量、音樂、音效、語音分開調；粒子密度；字幕大小；減少震動與停格；掉寶稀有度加形狀標記（不只靠顏色分辨）。設定存在瀏覽器裡。
+- **打擊感**：爆炸與爆擊時短暫停格，怪物受擊時壓扁抖動。
+- **地形外觀**：地形交界從方格改成不規則邊緣（每個像素抖動取樣位置），地面貼圖只把變動的橫條重新送上顯示卡。
+- **截圖自查**：`npm run test:screens` 在桌機與手機尺寸各拍 11 個畫面，並檢查版面規則（卡片在畫面內、頁面不左右捲動、按鈕至少 24 像素、標題畫面後面沒有戰鬥介面、同時只開一個覆蓋層）。本階段截圖在 [`docs/screens/p3a/`](docs/screens/p3a/)。
 
 ### 看得到的重點
 
@@ -332,15 +359,16 @@ python -m http.server 8794
 npm test
 ```
 
-不需安裝任何套件，只要 Node 22 以上與 Chrome（或設定 `CHROME_PATH`）。一個指令跑完全部，約 80 秒：
+不需安裝任何套件，只要 Node 22 以上與 Chrome（或設定 `CHROME_PATH`）。一個指令跑完全部，約 8 分鐘：
 
 | 測試組 | 指令 | 驗什麼 |
 |---|---|---|
 | 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
-| 單元測試 | `npm run test:unit` | 52 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺 |
-| 端對端 | `npm run test:e2e` | 36 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物 |
-| 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步 |
-| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋五個已知缺陷，單元與其他驗證必須變紅 |
+| 單元測試 | `npm run test:unit` | 64 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳 |
+| 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
+| 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次 |
+| 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋七個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 
 每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。
@@ -352,7 +380,7 @@ npm test
 | P0 ✅ | 公開 repo、GitHub Pages、驗收工具、架構圖與流程圖 |
 | P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
-| P3 | 換皮：附動畫的低多邊形角色、用繪圖模型畫的翻頁圖並排實測、更好的語音 |
+| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 附動畫的低多邊形角色・P3c 用繪圖模型畫的翻頁圖並排實測・P3d 語音實測 |
 | P4 | 手機觸控操作 |
 | P5 | 把火球發射器移植到 Godot 並排比較 |
 

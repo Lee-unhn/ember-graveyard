@@ -16,6 +16,7 @@ window.__runUnit = async (only) => {
     for (const k in cds) cds[k] = 0;
     inv.length = 0; for (const k in equipped) delete equipped[k]; recalc();
     setTier(1); setRoute(0);
+    Object.assign(SET, SET_DEFAULT); applySettings(); hitStop = 0; shakeAmt = 0; for (const id of MENUS) document.querySelector('#' + id).hidden = true; syncMenu();
   };
   const atlasPx = (x, y) => [...atlas.getContext('2d').getImageData(x, y, 1, 1).data];
   const cellAlpha = (sheet, f, px, py) => { const sx = (sheet % 2) * 512 + (f % 4) * 128, sy = Math.floor(sheet / 2) * 512 + Math.floor(f / 4) * 128; return atlasPx(sx + px, sy + py)[3]; };
@@ -291,6 +292,90 @@ window.__runUnit = async (only) => {
     fresh(); put(.5, .5, TER.LAVA); const t = props.find((p) => p.kind === 'tomb'); breakProp(t, new THREE.Vector3(t.x - 1, 0, t.z)); terrainKills = 5;
     clearWorld(); let same = true; for (let i = 0; i < TT.length; i++) if (TT[i] !== TT0[i]) { same = false; break; }
     ok(same, 'terrain back to the initial map'); eq(t.state, 'up'); eq(t.ob.r, t.ob.r0); eq(terrainKills, 0);
+  });
+
+  // ---------------------------------------------------------------- P3a: screens, settings, game feel, soft terrain
+  test('particle density setting thins out loose particles but never trailing ones', () => {
+    fresh(); SET.particles = 'low'; applySettings(); eq(DENSITY, .4, 'low = 40%');
+    const base = { x: 0, y: 1, z: 0, kind: 0, fm: 0, life: .5, s0: .5, s1: .1, r: 1, g: 1, b: 1, a0: 1, a1: 0 };
+    eq(withRandom(.9, () => ADD.emit({ ...base })), null, 'a roll above the density is dropped');
+    ok(withRandom(.1, () => ADD.emit({ ...base })) !== null, 'a roll below the density is kept');
+    SET.particles = 'high'; applySettings(); eq(DENSITY, 1);
+    ok(withRandom(.99, () => ADD.emit({ ...base })) !== null, 'high keeps everything');
+  });
+  test('reduce-shake setting turns off screen shake and hit-stop', () => {
+    fresh(); shakeAmt = 0; hitStop = 0; shake(.8); freezeFrame(.05); ok(shakeAmt >= .8 && hitStop >= .05, 'on by default');
+    shakeAmt = 0; hitStop = 0; SET.reduceShake = true; shake(.8); freezeFrame(.05); eq(shakeAmt, 0); eq(hitStop, 0);
+  });
+  test('hits make the monster flinch; critical hits add a short hit-stop', () => {
+    fresh(); hitStop = 0; spawnEnemy('lizard', 3, 3, 1); const e = enemies[0]; e.hp = e.maxhp = 1e6;
+    withRandom(.99, () => dealDamage(e, 5, 'fire')); ok(e.flinch > 0, 'flinch timer set'); eq(hitStop, 0, 'normal hit: no stop');
+    withRandom(.0, () => dealDamage(e, 5, 'fire')); ok(hitStop > 0, 'critical hit: hit-stop');
+  });
+  test('settings survive a reload through localStorage; broken values fall back to defaults', () => {
+    fresh(); SET.music = .25; SET.particles = 'mid'; saveSettings();
+    const s = JSON.parse(localStorage.getItem('eg-settings')); eq(s.music, .25); eq(s.particles, 'mid');
+    Object.assign(SET, SET_DEFAULT); saveSettings();
+  });
+  test('save slot: only a valid act number is accepted', () => {
+    fresh(); clearSave(); eq(readSave(), null, 'empty');
+    writeSave(2); eq(readSave().act, 2);
+    for (const bad of ['{"v":1,"act":9}', '{"v":2,"act":1}', '{"v":1,"act":1.5}', 'not json']) { localStorage.setItem('eg-save', bad); eq(readSave(), null, 'rejects ' + bad); }
+    clearSave(); refreshTitle(); ok(document.querySelector('#goContinue').hidden, 'no save -> no continue button');
+    writeSave(1); refreshTitle(); ok(!document.querySelector('#goContinue').hidden && /第 2 幕/.test(document.querySelector('#goContinue').textContent), 'save -> continue button names the act');
+    clearSave();
+  });
+  test('continuing from act 3 lights the first two towers and unlocks their spells', () => {
+    fresh(); startStory(2); while (dlg) endDialog();
+    eq(story.act, 2); ok(TOWERS[0].lit && TOWERS[1].lit && !TOWERS[2].lit && !TOWERS[3].lit, 'towers 1-2 lit');
+    eq(story.tier.fire, 1, 'fireball upgraded by tower 1'); ok(story.unlocked.has('bolt') && !story.unlocked.has('meteor'), 'bolt yes, meteor not yet');
+    ok(story.seen.has('intro'), 'opening dialogue is not replayed'); eq(readSave().act, 2, 'beginAct writes the save');
+    clearSave(); story.on = false;
+  });
+  test('act result screen pauses play and hands control back to the story', () => {
+    fresh(); story.actT0 = time - 65; story.actKills0 = player.kills - 7; story.actTk0 = terrainKills - 3; story.actLoot0 = pickups - 1; story.bestChain = 4;
+    let next = 0; showResult(1, () => next++);
+    ok(menuOpen, 'menu flag blocks the game loop'); eq(document.querySelector('#rTitle').textContent, '雷之塔點亮了');
+    const cells = [...document.querySelectorAll('#rTab td')].map((td) => td.textContent);
+    eq(cells[1], '1 分 05 秒'); eq(cells[3], '7 隻'); eq(cells[5], '3 隻'); eq(cells[7], '×4'); eq(cells[9], '1 件');
+    tryCast('fire'); eq(player.cast, null, 'no casting behind the result screen');
+    closeResult(); eq(next, 1, 'continuation called once'); ok(!menuOpen); closeResult(); eq(next, 1, 'second close is a no-op');
+  });
+  test('pause opens only during play and freezes casting', () => {
+    fresh(); togglePause(true); ok(!document.querySelector('#pause').hidden && menuOpen, 'paused');
+    tryCast('fire'); eq(player.cast, null, 'no casting while paused'); togglePause(false); ok(document.querySelector('#pause').hidden && !menuOpen, 'resumed');
+    running = false; togglePause(true); ok(document.querySelector('#pause').hidden, 'no pause on the title screen'); running = true;
+  });
+  test('death screen names the cause and gives the matching tip', () => {
+    fresh(); hurtPlayer(1e9, '熔岩'); ok(!player.alive);
+    ok(/熔岩/.test(document.querySelector('#deadCause').textContent), 'cause'); ok(document.querySelector('#deadTip').textContent.includes(DEATH_TIPS['熔岩']), 'lava tip');
+    fresh(); hurtPlayer(1e9, '食屍鬼'); ok(document.querySelector('#deadTip').textContent.includes(DEFAULT_TIP), 'monster -> general tip');
+    fresh();
+  });
+  test('loot rarity shape marks follow the setting', () => {
+    fresh(); SET.lootShapes = true; eq(rarMark(RAR[3]), '◆ '); SET.lootShapes = false; eq(rarMark(RAR[3]), ''); SET.lootShapes = true;
+  });
+  test('soft terrain edges: a changed cell bleeds into its 8 neighbours only', () => {
+    fresh(); flushTerrain();
+    let c = -1; // a cell whose 5x5 block has no glowing terrain, so the glow layer shows exactly what the new cell paints
+    for (let gz = 20; gz < GN - 20 && c < 0; gz++) for (let gx = 20; gx < GN - 20 && c < 0; gx++) {
+      let clean = true; for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (TP[TT[(gz + dz) * GN + gx + dx]].glow) clean = false;
+      if (clean) c = gz * GN + gx; }
+    ok(c >= 0, 'found a quiet cell');
+    const lit = (gx, gz) => { let n = 0; const px0 = gx * TPX, py0 = (GN - 1 - gz) * TPX; for (let y = 0; y < TPX; y++) for (let x = 0; x < TPX; x++) if (gData[((py0 + y) * TW + px0 + x) * 4 + 3]) n++; return n; };
+    const before = gData.slice(), s0 = { ...terrStats }; setT(c, TER.LAVA); flushTerrain();
+    const gx = c % GN, gz = (c / GN) | 0; let ring1 = 0, ring2 = 0;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (dx || dz) ring1 += lit(gx + dx, gz + dz);
+    for (let q = 0; q < TW * TW; q++) if (gData[q * 4 + 3] !== before[q * 4 + 3]) { const cx = (q % TW) / TPX | 0, cz = GN - 1 - ((q / TW | 0) / TPX | 0); if (Math.max(Math.abs(cx - gx), Math.abs(cz - gz)) > 1) ring2++; }
+    const own = lit(gx, gz);
+    ok(own > TPX * TPX * .5, `most of the cell itself glows (${own}/${TPX * TPX})`); ok(own < TPX * TPX, 'but not all of it (ragged edge)');
+    ok(ring1 > 0, `some lava pixels spill into neighbours (${ring1})`); eq(ring2, 0, 'no pixel outside the 3x3 block changed');
+    eq(terrStats.partial - s0.partial, 1, 'one partial upload'); eq(terrStats.full - s0.full, 0, 'no full upload');
+    eq(terrStats.px - s0.px, 3 * 3 * TPX * TPX, 'uploads only the 3x3 block (three strips of three cells)');
+  });
+  test('soft terrain jitter table: every pixel samples itself or a direct neighbour', () => {
+    let self = 0; for (let q = 0; q < NBC.length; q++) { ok(NBC[q] <= 8, 'code in range'); if (NBC[q] === 4) self++; }
+    const f = self / NBC.length; ok(f > .55 && f < .95, `share of pixels sampling their own cell ${f.toFixed(2)}`);
   });
 
   // ---------------------------------------------------------------- run

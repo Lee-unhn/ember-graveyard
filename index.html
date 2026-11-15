@@ -22,6 +22,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--
 button{font-family:inherit;color:inherit}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .hud{position:fixed;pointer-events:none;z-index:5}
+body.on-title .hud{display:none!important}
 .hud *{pointer-events:auto}
 #status{top:calc(12px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));font-size:13px;color:var(--dim);display:flex;flex-direction:column;gap:2px;pointer-events:none;white-space:nowrap}
 #status b{color:var(--ink);font-weight:700}
@@ -86,6 +87,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .it{position:absolute;display:flex;align-items:center;justify-content:center;border:1px solid;border-radius:3px;cursor:pointer;background:rgba(20,18,15,.92);box-sizing:border-box}
 .it svg{width:80%;height:80%}
 .it:hover{filter:brightness(1.35)}
+.it .rmark{position:absolute;top:1px;right:3px;font-size:10px;line-height:1}
 .sheet{min-width:170px;font-size:13px;line-height:1.9}
 .sheet h4{margin:0 0 4px;font-family:var(--f-head);color:var(--gold);letter-spacing:.1em;font-weight:600}
 .sheet .v{float:right;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -107,7 +109,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #dialog .portrait{width:84px;height:84px;flex:none;border:1px solid var(--line);border-radius:4px;background:#0b0a09}
 #dialog .txt{min-width:0;flex:1}
 #dialog .who{font-family:var(--f-head);font-size:16px;letter-spacing:.12em;margin-bottom:4px;min-height:22px}
-#dialog .line{font-size:15.5px;line-height:1.7;min-height:52px}
+#dialog .line{font-size:calc(15.5px * var(--sub,1));line-height:1.7;min-height:52px}
 #dialog .next{font-size:11px;color:var(--dim);text-align:right;margin-top:4px}
 #dialog .skip{position:absolute;top:8px;right:10px;background:none;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-size:11px;padding:2px 8px;cursor:pointer}
 .sk.locked{opacity:.32;filter:grayscale(1)}
@@ -117,6 +119,33 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @keyframes chainPop{0%{transform:translateX(-50%) scale(1.5)}100%{transform:translateX(-50%) scale(1)}}
 @media (prefers-reduced-motion:reduce){#chainTag.pop{animation:none}}
 .go.alt{background:#151821;border-color:#4c5568;color:#cfd6e6}
+.overlay.title{background:linear-gradient(90deg,rgba(5,6,10,.92) 0%,rgba(5,6,10,.7) 40%,rgba(5,6,10,.15) 100%);justify-content:flex-start}
+.overlay.title .card{max-width:560px}
+.menu{display:flex;flex-direction:column;gap:10px;align-items:stretch;max-width:340px;margin:6px 0 18px}
+.menu .go{width:100%}
+.menu-row{display:flex;gap:8px;flex-wrap:wrap}
+.about{margin:0 0 12px;font-size:13px;color:var(--dim)}
+.about summary{cursor:pointer;color:var(--gold);letter-spacing:.08em;margin-bottom:10px}
+.ver{font-size:11px;color:var(--dim);letter-spacing:.1em;margin-top:10px}
+.panel{max-width:540px;box-sizing:border-box;background:var(--panel2);border:1px solid #5a4a32;border-radius:6px;padding:22px 24px}
+.panel h2{font-family:var(--f-head);letter-spacing:.2em;color:var(--gold);margin:0 0 14px;font-size:22px}
+.confirm{border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:#d6cdb9}
+.srow{display:grid;grid-template-columns:130px 1fr 52px;gap:10px;align-items:center;margin:8px 0;font-size:14px}
+.srow output{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px;text-align:right}
+.srow .hintc{grid-column:2 / 4;font-size:11px;color:var(--dim)}
+.srow input,.srow select{min-width:0;width:100%;box-sizing:border-box}
+@media (max-width:480px){.panel{padding:18px 14px}.srow{grid-template-columns:92px 1fr 38px;gap:8px;font-size:13px}}
+.credits dl{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:13.5px;margin:0 0 12px}
+.credits dt{color:var(--dim)}.credits dd{margin:0}
+.rtab{margin:6px auto 18px;border-collapse:collapse;font-size:15px;min-width:280px}
+.rtab td{padding:6px 14px;border-bottom:1px solid var(--line)}.rtab td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--gold)}
+#loading{z-index:30;background:#07080c}
+.ld{max-width:420px;text-align:center}
+.ldname{font-family:var(--f-head);font-size:34px;letter-spacing:.3em;color:var(--ink);margin-bottom:22px}
+.ldbar{height:4px;background:#1a1712;border-radius:2px;overflow:hidden}
+.ldbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7a2a10,#ff8a3a);transition:width .25s}
+.ldstep{font-size:12px;color:var(--dim);margin-top:8px;letter-spacing:.08em}
+.ldtip{font-size:13.5px;color:#d6cdb9;margin-top:26px;line-height:1.7;min-height:46px}
 @media (max-width:760px){
   .steps{grid-template-columns:1fr}
   #lab{width:auto;left:calc(12px + env(safe-area-inset-left,0px));top:auto;bottom:170px}
@@ -206,33 +235,120 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <p class="invhint">左鍵：穿上／卸下　右鍵：丟掉　物品照形狀占格：法杖 1×4、頭盔 2×2、胸甲 2×3、戒指 1×1</p>
 </div>
 
-<div class="overlay" id="intro">
+<div class="overlay" id="loading">
+  <div class="card ld">
+    <div class="ldname">燼語墓園</div>
+    <div class="ldbar"><i id="ldfill"></i></div>
+    <div class="ldstep" id="ldstep">擺設墓園與地形…</div>
+    <p class="ldtip" id="ldtip"></p>
+  </div>
+</div>
+<div class="overlay title" id="intro">
   <div class="card">
     <h1>燼語墓園</h1>
-    <div class="sub">法術特效拆解・試玩原型</div>
-    <div class="steps">
-      <div class="step"><span class="no">做法一</span><b>整段影片不能直接用</b>平面短片放進斜上俯視的 3D 場景會穿幫。每招法術拆成三種零件：翻頁圖、程式控制的粒子與燈光、立體模型，再由程式決定何時射、往哪飛、在哪炸。</div>
-      <div class="step"><span class="no">做法二</span><b>方塊永遠面向鏡頭</b>火球其實是幾片疊在一起、永遠轉向鏡頭的方塊，貼上 16 格翻頁火焰。飛行時每秒甩出 240 片小方塊當尾焰，每片 0.1 秒內縮小熄滅，命中炸出 40 顆火星。</div>
-      <div class="step"><span class="no">做法三</span><b>貼圖三條路線對照</b>右上「拆解台」可即時切換：預先畫好的 4×4 翻頁圖、程式即時算出的火焰、只看方塊骨架。這版的翻頁圖由程式畫成，零花費。</div>
-    </div>
-    <div class="ctrl">
-      <span><kbd>WASD</kbd>移動</span><span><kbd>左鍵</kbd>焰核彈</span><span><kbd>右鍵</kbd>鏈雷</span><span><kbd>3</kbd>星墜（落在游標處）</span><span><kbd>4</kbd>血環</span><span><kbd>I</kbd>行囊</span>
-    </div>
-    <div class="gobox">
-      <button class="go" id="goStory" type="button" disabled>故事模式・第一章</button>
+    <div class="sub">法術特效拆解・試玩</div>
+    <div class="menu">
+      <button class="go" id="goContinue" type="button" hidden>繼續</button>
+      <button class="go" id="goStory" type="button" disabled>故事模式・新遊戲</button>
       <button class="go alt" id="go" type="button" disabled>準備圖集中…</button>
+      <div class="menu-row">
+        <button class="btn" id="btnSettings" type="button">設定</button>
+        <button class="btn" id="btnHelp" type="button">操作說明</button>
+        <button class="btn" id="btnCredits" type="button">製作群</button>
+      </div>
     </div>
+    <details class="about">
+      <summary>這個作品在做什麼</summary>
+      <div class="steps">
+        <div class="step"><span class="no">做法一</span><b>整段影片不能直接用</b>平面短片放進斜上俯視的 3D 場景會穿幫。每招法術拆成三種零件：翻頁圖、程式控制的粒子與燈光、立體模型，再由程式決定何時射、往哪飛、在哪炸。</div>
+        <div class="step"><span class="no">做法二</span><b>方塊永遠面向鏡頭</b>火球其實是幾片疊在一起、永遠轉向鏡頭的方塊，貼上 16 格翻頁火焰。飛行時每秒甩出 240 片小方塊當尾焰，每片 0.1 秒內縮小熄滅，命中炸出 40 顆火星。</div>
+        <div class="step"><span class="no">做法三</span><b>貼圖三條路線對照</b>右上「拆解台」可即時切換：預先畫好的 4×4 翻頁圖、程式即時算出的火焰、只看方塊骨架。這版的翻頁圖由程式畫成，零花費。</div>
+      </div>
+    </details>
     <p class="note" id="introNote">故事模式約 15 分鐘：點亮四座燈塔、學會四招法術，最後對上無燈之主。自由試玩：四招全開，可切換拆解台。需要鍵盤與滑鼠；怪物死後會掉裝備，走過去自動撿起，按 I 穿上。</p>
+    <div class="ver" id="ver"></div>
+  </div>
+</div>
+<div class="overlay" id="pause" hidden>
+  <div class="card panel">
+    <h2>暫停</h2>
+    <div class="menu">
+      <button class="go" id="pResume" type="button">繼續（Esc）</button>
+      <div class="menu-row">
+        <button class="btn" id="pSettings" type="button">設定</button>
+        <button class="btn" id="pHelp" type="button">操作說明</button>
+        <button class="btn" id="pRestart" type="button">重來這一幕</button>
+        <button class="btn" id="pTitle" type="button">回標題</button>
+      </div>
+      <div class="confirm" id="pConfirm" hidden>
+        <p>回到標題會中斷這一局。故事模式會從這一幕的開頭繼續。</p>
+        <div class="menu-row"><button class="btn" id="pYes" type="button">確定回標題</button><button class="btn" id="pNo" type="button">取消</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="settings" hidden>
+  <div class="card panel">
+    <h2>設定</h2>
+    <div class="srow"><label for="sMaster">總音量</label><input id="sMaster" type="range" min="0" max="100" step="5"><output id="oMaster" for="sMaster"></output></div>
+    <div class="srow"><label for="sMusic">音樂</label><input id="sMusic" type="range" min="0" max="100" step="5"><output id="oMusic" for="sMusic"></output></div>
+    <div class="srow"><label for="sSfx">音效</label><input id="sSfx" type="range" min="0" max="100" step="5"><output id="oSfx" for="sSfx"></output></div>
+    <div class="srow"><label for="sVoice">語音</label><input id="sVoice" type="range" min="0" max="100" step="5"><output id="oVoice" for="sVoice"></output></div>
+    <div class="srow"><label for="sParticles">粒子密度</label><select id="sParticles"><option value="low">低</option><option value="mid">中</option><option value="high">高</option></select><span></span></div>
+    <div class="srow"><label for="sSub">字幕大小</label><input id="sSub" type="range" min="80" max="160" step="10"><output id="oSub" for="sSub"></output></div>
+    <div class="srow"><label for="sShake">減少震動與停格</label><input id="sShake" type="checkbox"><span></span></div>
+    <div class="srow"><label for="sShapes">掉寶加形狀標記</label><input id="sShapes" type="checkbox"><span class="hintc">○ 普通　● 魔法　▲ 稀有　◆ 傳奇</span></div>
+    <div class="menu-row"><button class="btn" id="sReset" type="button">恢復預設</button><button class="go" id="sBack" type="button">返回</button></div>
+  </div>
+</div>
+<div class="overlay" id="help" hidden>
+  <div class="card panel">
+    <h2>操作說明</h2>
+    <div class="ctrl">
+      <span><kbd>WASD</kbd>移動</span><span><kbd>滑鼠</kbd>瞄準</span><span><kbd>左鍵</kbd>焰核彈</span><span><kbd>右鍵</kbd>鏈雷</span><span><kbd>3</kbd>星墜（落在游標處）</span><span><kbd>4</kbd>血環</span>
+      <span><kbd>I</kbd>行囊</span><span><kbd>空白鍵</kbd>下一句對白</span><span><kbd>Esc</kbd>暫停</span><span><kbd>滾輪</kbd>鏡頭遠近</span>
+    </div>
+    <p class="note">地形會改變戰局：枯草會被點燃、積水會被電到帶電、星墜砸出熔岩坑。怪物站在火、熔岩、帶電水上會持續受傷，連續地形擊殺會出現「地形連鎖」。只有熔岩會傷到你。</p>
+    <button class="go" id="hBack" type="button">返回</button>
+  </div>
+</div>
+<div class="overlay" id="credits" hidden>
+  <div class="card panel credits">
+    <h2>製作群</h2>
+    <dl>
+      <dt>製作</dt><dd>JasonLee（GitHub：Lee-unhn）</dd>
+      <dt>開發協作</dt><dd>Claude Code（AI 程式助手）</dd>
+      <dt>方法參考</dt><dd>法術特效拆解示範影片；AI 與遊戲引擎製作 Boss 戰示範影片</dd>
+      <dt>地形設計參考</dt><dd>作者的另一個作品 The-Waste-Land</dd>
+      <dt>繪圖引擎</dt><dd>Three.js r128（MIT 授權）</dd>
+      <dt>字型</dt><dd>Noto Sans TC、Noto Serif TC（SIL Open Font License）</dd>
+      <dt>貼圖、模型、地形</dt><dd>全部由程式即時產生</dd>
+      <dt>音樂、音效、語音</dt><dd>瀏覽器即時合成；語音為瀏覽器內建朗讀</dd>
+    </dl>
+    <p class="note">完整授權說明見原始碼的 NOTICE 與 README。</p>
+    <button class="go" id="cBack" type="button">返回</button>
+  </div>
+</div>
+<div class="overlay" id="result" hidden>
+  <div class="card panel" style="text-align:center">
+    <div class="sub" id="rTitle"></div>
+    <h2 id="rHead"></h2>
+    <table class="rtab" id="rTab"></table>
+    <button class="go" id="rNext" type="button">繼續（空白鍵）</button>
   </div>
 </div>
 <div class="overlay" id="dead" hidden>
   <div class="card" style="text-align:center">
     <h1 style="color:#d6485a">你倒下了</h1>
     <div class="sub" id="deadSub"></div>
-    <button class="go" id="again" type="button">再來一次（R）</button>
+    <p class="note" id="deadCause"></p>
+    <p class="note" id="deadTip"></p>
+    <div class="gobox" style="justify-content:center">
+      <button class="go" id="again" type="button">再來一次（R）</button>
+      <button class="go alt" id="deadTitle" type="button">回標題</button>
+    </div>
   </div>
 </div>
-
 <div class="overlay" id="ending" hidden>
   <div class="card" style="text-align:center">
     <h1>第一章　完</h1>
@@ -241,6 +357,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div class="gobox" style="justify-content:center;margin-top:18px">
       <button class="go" id="endAgain" type="button">再玩一次</button>
       <button class="go alt" id="endFree" type="button">自由試玩</button>
+      <button class="go alt" id="endCredits" type="button">製作群</button>
     </div>
   </div>
 </div>
@@ -368,6 +485,7 @@ class PSys{
   }
   emit(o){
     if(this.list.length>=this.max)return null;
+    if(!o.follow&&DENSITY<1&&Math.random()>DENSITY)return null;  // 設定裡的粒子密度：低／中只發部分方塊
     const q=this.pool.pop()||{};
     q.x=o.x||0;q.y=o.y||0;q.z=o.z||0;q.vx=o.vx||0;q.vy=o.vy||0;q.vz=o.vz||0;q.age=0;q.life=o.life||1;
     q.s0=o.s0??1;q.s1=o.s1??q.s0;q.rot=o.rot??Math.random()*TAU;q.rs=o.rs||0;
@@ -489,7 +607,7 @@ towerObs.forEach(o=>o.r=1.1);
 Math.random=_sysRandom;  // 擺設完成，戰鬥中的亂數恢復正常
 
 /* ---------- 地形網格：每格 1 單位，88×88 格涵蓋整座墓園（參考 The-Waste-Land 的地形破壞＋地形殺） ---------- */
-const GN=88,GH=44,TPX=4;  // 格數、半寬、每格在貼圖上幾像素
+const GN=88,GH=44,TPX=8;  // 格數、半寬、每格在貼圖上幾像素
 const TER={GRASS:0,SOIL:1,PAVE:2,WATER:3,MUD:4,FIRE:5,ASH:6,LAVA:7,CRATER:8,OBSID:9,SHOCK:10,BLOOD:11,WISP:12,BONE:13,STEAM:14};
 // ed＝每秒對怪傷害、pd＝每秒對玩家傷害、em／pm＝怪／玩家移動倍率、col＝地面色、glow＝發光色
 const TP=[
@@ -532,13 +650,27 @@ genTerrain();const TT0=TT.slice();
 const TW=GN*TPX,tData=new Uint8Array(TW*TW*4),gData=new Uint8Array(TW*TW*4);
 const tTex=new THREE.DataTexture(tData,TW,TW,THREE.RGBAFormat),gTex=new THREE.DataTexture(gData,TW,TW,THREE.RGBAFormat);
 for(const tx of [tTex,gTex]){tx.magFilter=THREE.LinearFilter;tx.minFilter=THREE.LinearFilter;tx.generateMipmaps=false}
-let terrDirty=false;
-function paintCell(i){const gx=i%GN,gz=Math.floor(i/GN),t=TT[i],c=TP[t].col,g=TP[t].glow,px0=gx*TPX,py0=(GN-1-gz)*TPX;
-  for(let py=0;py<TPX;py++)for(let px=0;px<TPX;px++){const k=((py0+py)*TW+px0+px)*4,j=.82+.36*h2(px0+px,py0+py);
+// 柔和邊緣：每個像素先用低頻雜訊抖動取樣位置，邊緣的像素會取到隔壁格的地形，交界因此變成不規則的鋸齒狀。
+// 抖動量小於一格，所以一格改變只會影響自己與周圍 3×3。抖動結果只跟像素位置有關，開頁時先算好一張表。
+function tnoise(x,y){const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),
+  a=h2(ix,iy),b=h2(ix+1,iy),c=h2(ix,iy+1),d=h2(ix+1,iy+1);return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy}
+const NBC=new Uint8Array(TW*TW),JB=new Uint8Array(TW*TW),JG=new Uint8Array(TW*TW);
+for(let Y=0;Y<TW;Y++)for(let X=0;X<TW;X++){const q=Y*TW+X,px=X%TPX,py=Y%TPX,
+  jx=(tnoise(X*.3,Y*.3)-.5)*1.15+(h2(X+311,Y)-.5)*.3,jz=(tnoise(X*.3+57,Y*.3+91)-.5)*1.15+(h2(X,Y+733)-.5)*.3,
+  ux=(px+.5)/TPX+Math.max(-.95,Math.min(.95,jx)),uz=1-(py+.5)/TPX+Math.max(-.95,Math.min(.95,jz));
+  NBC[q]=(Math.floor(uz)+1)*3+Math.floor(ux)+1;JB[q]=255*h2(X,Y);JG[q]=255*h2(X+977,Y)}
+const NBX=[-1,0,1,-1,0,1,-1,0,1],NBZ=[-1,-1,-1,0,0,0,1,1,1];
+function paintPx(i){const gx=i%GN,gz=(i/GN)|0,px0=gx*TPX,py0=(GN-1-gz)*TPX;
+  for(let py=0;py<TPX;py++)for(let px=0;px<TPX;px++){const q=(py0+py)*TW+px0+px,k=q*4,n=NBC[q],sx=gx+NBX[n],sz=gz+NBZ[n],
+    t=TT[sx<0||sz<0||sx>=GN||sz>=GN?i:sz*GN+sx],c=TP[t].col,g=TP[t].glow,j=.82+.36*JB[q]/255;
     tData[k]=c[0]*j;tData[k+1]=c[1]*j;tData[k+2]=c[2]*j;tData[k+3]=c[3];
-    if(g){const gj=.7+.6*h2(px0+px+977,py0+py);gData[k]=Math.min(255,g[0]*gj);gData[k+1]=Math.min(255,g[1]*gj);gData[k+2]=Math.min(255,g[2]*gj);gData[k+3]=255}
-    else{gData[k]=gData[k+1]=gData[k+2]=gData[k+3]=0}}
-  terrDirty=true}
+    if(g){const gj=.7+.6*JG[q]/255;gData[k]=Math.min(255,g[0]*gj);gData[k+1]=Math.min(255,g[1]*gj);gData[k+2]=Math.min(255,g[2]*gj);gData[k+3]=255}
+    else{gData[k]=gData[k+1]=gData[k+2]=gData[k+3]=0}}}
+// 改一格只先記下來，等畫面更新時一起重畫（自己加周圍 3×3），再只把變動的橫條送上顯示卡
+const tDirty=new Uint8Array(GN*GN),tDirtyList=[];let terrFull=true;
+const terrStats={full:0,partial:0,strips:0,px:0};
+function paintCell(i){const gx=i%GN,gz=(i/GN)|0;
+  for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){const x=gx+dx,z=gz+dz;if(x<0||z<0||x>=GN||z>=GN)continue;const j=z*GN+x;if(!tDirty[j]){tDirty[j]=1;tDirtyList.push(j)}}}
 for(let i=0;i<GN*GN;i++)paintCell(i);
 const terrMat=new THREE.MeshLambertMaterial({map:tTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
 const glowMat=new THREE.MeshBasicMaterial({map:gTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,polygonOffset:true,polygonOffsetFactor:-2});
@@ -563,7 +695,7 @@ function terrainBlast(pos,r,el){cellsIn(pos,r,i=>applyEl(i,el))}
 function meteorTerrain(pos,r){cellsIn(pos,r,(i,d)=>applyEl(i,d<r*.45?'meteor':'crater'))}
 function boom(i){const p=cellCenter(i);TT[i]=TER.CRATER;TM[i]=0;paintCell(i);
   if(running){for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.x,e.pos.z-p.z)<2+e.radius*.5)dealDamage(e,40,'boom')}
-    if(player.alive&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2)hurtPlayer(8)}
+    if(player.alive&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2)hurtPlayer(8,'磷火爆炸')}
   cellsIn(p,2,(c,d)=>{const t=TT[c];if(t===TER.WISP)queueBoom(c,.1+Math.random()*.12);else if(isFlam(t))setT(c,TER.FIRE,rand(3,5));else if(t===TER.WATER)setT(c,TER.STEAM,2.5);else if(t===TER.OBSID){if(--THP[c]<=0)setT(c,TER.CRATER)}else if(d<1.1&&(t===TER.SOIL||t===TER.ASH))setT(c,TER.CRATER)});
   damageProps(p,2,2,'boom');explode(new V3(p.x,.5,p.z),.9,[.55,.9,1],false);sfx.boom(.7)}
 
@@ -603,7 +735,7 @@ function emitHot(dt){if(!hot.length)return;rate(emitHot,'acc',Math.min(260,hot.l
 let terrainKills=0,chainN=0,chainT=-9;
 const isTerrainKind=k=>k==='terrain'||k==='crush'||k==='boom';
 function onTerrainKill(e){terrainKills++;if(Math.random()<.6)dropLoot(e.pos);
-  chainN=time-chainT<1.2?chainN+1:1;chainT=time;
+  chainN=time-chainT<1.2?chainN+1:1;chainT=time;if(story.on)story.bestChain=Math.max(story.bestChain||0,chainN);
   if(chainN>=2){const el=$('#chainTag');el.textContent=`地形連鎖 ×${chainN}`;el.style.color=chainN>=8?'#ff5a7a':chainN>=4?'#ffe066':'#ffb35c';el.hidden=false;
     el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');tone(440*Math.pow(1.06,Math.min(chainN,20)),440*Math.pow(1.06,Math.min(chainN,20))*1.5,.14,'triangle',.12)}}
 function terrainEffects(e,dt){
@@ -630,8 +762,20 @@ const _q=new THREE.Quaternion();
 function crush(p){for(const e of enemies){if(!e.alive||e.T.float)continue;const rx=e.pos.x-p.x,rz=e.pos.z-p.z,along=rx*p.dir.x+rz*p.dir.z,side=Math.abs(rx*p.dir.z-rz*p.dir.x);
     if(along>-.2&&along<p.len+.3&&side<.55+e.radius)dealDamage(e,80,'crush')}
   for(let k=0;k<12;k++){const a=rand(0,p.len);SMOKE.emit({x:p.x+p.dir.x*a,y:.2,z:p.z+p.dir.z*a,vx:rand(-1,1),vy:rand(.5,1.4),vz:rand(-1,1),kind:2,fm:1,life:rand(.8,1.3),s0:.8,s1:2,r:.45,g:.42,b:.4,a0:.5,a1:0})}
-  shakeAmt=Math.max(shakeAmt,.18);sfx.boom(.5)}
-function flushTerrain(){if(terrDirty){tTex.needsUpdate=true;gTex.needsUpdate=true;terrDirty=false}glowMat.opacity=.85+.15*Math.sin(time*3)}
+  shake(.18);sfx.boom(.5)}
+const upBuf=new Uint8Array(TW*TPX*4),upSrc={isDataTexture:true,image:{data:null,width:0,height:0}},upPos=new THREE.Vector2(),
+  bandLo=new Int16Array(GN),bandHi=new Int16Array(GN);
+function subUpload(tex,data,x,y,w,h){const n=w*4;for(let r=0;r<h;r++){const s=((y+r)*TW+x)*4;upBuf.set(data.subarray(s,s+n),r*n)}
+  upSrc.image.data=upBuf.subarray(0,n*h);upSrc.image.width=w;upSrc.image.height=h;upPos.set(x,y);renderer.copyTextureToTexture(upPos,upSrc,tex)}
+function flushTerrain(){
+  if(tDirtyList.length){bandLo.fill(GN);bandHi.fill(-1);
+    for(const i of tDirtyList){tDirty[i]=0;paintPx(i);const gx=i%GN,gz=(i/GN)|0;if(gx<bandLo[gz])bandLo[gz]=gx;if(gx>bandHi[gz])bandHi[gz]=gx}
+    tDirtyList.length=0;let area=0;for(let z=0;z<GN;z++)if(bandHi[z]>=0)area+=(bandHi[z]-bandLo[z]+1)*TPX*TPX;
+    if(terrFull||area>TW*TW*.35){tTex.needsUpdate=true;gTex.needsUpdate=true;terrFull=false;terrStats.full++;terrStats.px+=TW*TW}
+    else{for(let z=0;z<GN;z++)if(bandHi[z]>=0){const x=bandLo[z]*TPX,y=(GN-1-z)*TPX,w=(bandHi[z]-bandLo[z]+1)*TPX;
+        subUpload(tTex,tData,x,y,w,TPX);subUpload(gTex,gData,x,y,w,TPX);terrStats.strips++}
+      terrStats.partial++;terrStats.px+=area}}
+  glowMat.opacity=.85+.15*Math.sin(time*3)}
 function updateProps(dt){for(const p of props){
   if(p.kind==='tree'&&p.state==='up'&&tileAt(p.x,p.z)===TER.FIRE)igniteTree(p);
   if(p.state==='burning'){p.t-=dt;rate(p.acc,'f',36,dt,()=>ADD.emit({x:p.x+rand(-.3,.3),y:rand(.3,p.len),z:p.z+rand(-.3,.3),vy:rand(1,2),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:0,fm:0,fps:24,life:rand(.4,.7),s0:rand(.6,1),s1:.15,r:1,g:.8,b:.6,a0:.95,a1:0}));
@@ -643,7 +787,7 @@ function updateProps(dt){for(const p of props){
 function resetProps(){for(const p of props){p.state='up';p.t=0;p.hp=p.hp0;if(p.ob)p.ob.r=p.ob.r0;
   if(p.kind==='fence')setFence(p.idx,true);else{p.g.quaternion.copy(p.q0);p.g.position.copy(p.pos0)}
   if(p.kind==='tree')p.mat.color.setHex(0x2a211b);if(p.kind==='sarc'){p.lid.position.copy(p.lid0);p.lid.rotation.set(0,0,0)}}}
-function resetTerrain(){TT.set(TT0);TM.fill(0);THP.fill(0);booms.length=0;hot.length=0;for(let i=0;i<GN*GN;i++)paintCell(i);resetProps();terrainKills=0;chainN=0;chainT=-9;$('#chainTag').hidden=true}
+function resetTerrain(){TT.set(TT0);TM.fill(0);THP.fill(0);booms.length=0;hot.length=0;for(let i=0;i<GN*GN;i++)paintCell(i);terrFull=true;resetProps();terrainKills=0;chainN=0;chainT=-9;$('#chainTag').hidden=true}
 function updateTerrain(dt){caAcc+=dt;if(caAcc>=.2){automata(caAcc);caAcc=0}
   for(let k=booms.length-1;k>=0;k--){booms[k].t-=dt;if(booms[k].t<=0){const b=booms[k];booms.splice(k,1);boom(b.i)}}
   updateProps(dt);emitHot(dt);
@@ -695,7 +839,10 @@ const P={g:new THREE.Group()};
 function handPos(){const f=player.face;return new V3(player.pos.x+Math.sin(f)*.6,1.15+player.float,player.pos.z+Math.cos(f)*.6)}
 
 /* ---------- 狀態與數值 ---------- */
-let routeMode=0,upgraded=true,running=false,wave=1,waveTimer=0,time=0,shakeAmt=0,zoom=1;
+let routeMode=0,upgraded=true,running=false,wave=1,waveTimer=0,time=0,shakeAmt=0,zoom=1,hitStop=0;
+// 鏡頭震動與停格都經過這裡：設定開「減少震動與停格」時一律略過
+function shake(a){if(!SET.reduceShake)shakeAmt=Math.max(shakeAmt,a)}
+function freezeFrame(s){if(!SET.reduceShake)hitStop=Math.max(hitStop,s)}
 const stats={fire:0,spell:0,hp:0,cast:0,move:0};
 const castMul=()=>1+stats.cast/100, spellMul=()=>1+stats.spell/100, fireMul=()=>(1+stats.fire/100)*spellMul();
 const SPELLS={fire:{cd:.36,dur:.3,rel:.5},bolt:{cd:1.05,dur:.38,rel:.45},meteor:{cd:5,dur:.72,rel:.6},blood:{cd:4.5,dur:1.9,rel:.02}};
@@ -752,7 +899,7 @@ function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=buildEnemy(type);b.g.
 function pickType(mix){const r=Math.random();return r<mix[0]?'spider':r<mix[0]+mix[1]?'lizard':'ghost'}
 function spawnWave(n,mix=[.45,.35,.2],hpMul=1+(wave-1)*.25){for(let i=0;i<n;i++){let x,z;do{const a=rand(0,TAU),r=rand(12,40);x=Math.cos(a)*r;z=Math.sin(a)*r}while(Math.hypot(x-player.pos.x,z-player.pos.z)<11);
   spawnEnemy(pickType(mix),x,z,hpMul)}}
-function dealDamage(e,amt,kind){if(!e.alive)return;const crit=Math.random()<.12;if(crit)amt*=1.8;e.hp-=amt;e.flash=.09;e.aggro=true;e.lastKind=kind;
+function dealDamage(e,amt,kind){if(!e.alive)return;const crit=Math.random()<.12;if(crit)amt*=1.8;e.hp-=amt;e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
   const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a',terrain:'#c9e06a',crush:'#e0d6c2',boom:'#7fe0ff'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
   if(!e.hpEl&&e.type!=='lord'){e.hpEl=document.createElement('div');e.hpEl.className='hpb';e.hpEl.innerHTML='<i></i>';fxLayer.appendChild(e.hpEl)}
   if(e.hpEl)e.hpEl.firstChild.style.transform=`scaleX(${Math.max(0,e.hp/e.maxhp)})`;
@@ -769,6 +916,7 @@ function updateEnemies(dt){
   const list=enemies;
   for(let i=list.length-1;i>=0;i--){const e=list[i];
     if(e.dying>=0){e.dying+=dt;const k=e.dying/.55;e.g.scale.set(1+k*.3,Math.max(.01,1-k),1+k*.3);e.g.position.y=-k*.3;if(k>=1){scene.remove(e.g);list.splice(i,1)}continue}
+    if(e.flinch>0){e.flinch=Math.max(0,e.flinch-dt);const k=e.flinch/.14;e.g.scale.set(1+.16*k,1-.12*k,1+.16*k)}else if(e.g.scale.x!==1)e.g.scale.set(1,1,1);  // 受擊抖動
     if(e.flash>0){e.flash-=dt;for(const m of e.mats)m.emissive.setRGB(.85,.75,.7)}else for(const m of e.mats)m.emissive.copy(m.userData.e0);
     const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,d=Math.hypot(dx,dz)||1;let mx=0,mz=0;
     if(player.alive&&(d<24||e.aggro)){e.aggro=true;if(d>e.radius+.55){mx=dx/d;mz=dz/d}}
@@ -785,7 +933,7 @@ function updateEnemies(dt){
     if(e.parts.tail)e.parts.tail.rotation.z=Math.sin(e.ph*.5)*.4;
     if(e.T.float){e.g.position.y=(e.type==='lord'?.35:.25)+Math.sin(time*2.4+e.ph*.1)*.15}
     if(e.type==='lord')bossAI(e,dt);
-    if(player.alive&&pd<e.radius+.95){e.atk-=dt;if(e.atk<=0){e.atk=.9;hurtPlayer(e.T.dmg*(1+(wave-1)*.15))}}
+    if(player.alive&&pd<e.radius+.95){e.atk-=dt;if(e.atk<=0){e.atk=.9;hurtPlayer(e.T.dmg*(1+(wave-1)*.15),e.T.name)}}
     if(e.hpEl){const [x,y,ok]=toScreen(tv.set(e.pos.x,e.T.float?2.4:1.5,e.pos.z));e.hpEl.style.transform=`translate(${x-22}px,${y}px)`;e.hpEl.style.display=ok?'block':'none'}
   }
 }
@@ -818,7 +966,7 @@ function explode(pos,scale=1,tint=[1,1,1],sound=true){
     ADD.emit({x:pos.x,y:pos.y,z:pos.z,vx:d.x*sp,vy:d.y*sp,vz:d.z*sp,kind:3,fm:2,frame:8+randi(0,7),life:rand(.45,.9),s0:.22,s1:.05,grav:16,drag:1.4,r:tint[0],g:.75*tint[1],b:.35*tint[2],a0:1,a1:0})}
   const n=Math.round(6*scale);for(let i=0;i<n;i++)SMOKE.emit({x:pos.x+rand(-.4,.4)*scale,y:pos.y+rand(0,.4),z:pos.z+rand(-.4,.4)*scale,vx:rand(-.6,.6),vy:rand(.6,1.4),vz:rand(-.6,.6),kind:2,fm:1,life:rand(1.1,1.8),s0:1.4*scale,s1:3.6*scale,rs:rand(-.5,.5),r:.5,g:.46,b:.44,a0:.55,a1:0,fadeIn:.08});
   flash(tv.set(pos.x,pos.y+.6,pos.z),tint[1]<.5?0xff2a40:0xff8a3a,4.5*scale,10*scale,.4);
-  shakeAmt=Math.max(shakeAmt,.16*scale);if(sound)sfx.boom(scale);
+  shake(.16*scale);freezeFrame(.035*Math.min(scale,1.6));if(sound)sfx.boom(scale);
 }
 function spawnFireball(origin,dir){
   const p={kind:'fire',pos:origin.clone(),vel:dir.clone().multiplyScalar(19),life:1.3,dead:false,acc:{}};
@@ -893,7 +1041,7 @@ function updateMeteors(dt){
       for(let j=0;j<30;j++){const d=randUnit(),sp=rand(4,9);SMOKE.emit({x:p.x,y:.3,z:p.z,vx:d.x*sp,vy:Math.abs(d.y)*sp+2,vz:d.z*sp,kind:2,fm:2,frame:randi(0,4),life:rand(.6,1),s0:.35,s1:.2,grav:18,r:.2,g:.16,b:.13,a0:.9,a1:.6})}
       aoe(p,2.7*s,60*s*fireMul(),'fire');addBurn(p,2.2*s,3.5);meteorTerrain(p,2.2*s);damageProps(p,2.6*s,3,'meteor');
       m.mesh.position.set(p.x,.15*s,p.z);rocks.push({mesh:m.mesh,t:0});
-      shakeAmt=Math.max(shakeAmt,.38*s)}
+      shake(.38*s)}
   }
   for(let i=rocks.length-1;i>=0;i--){const r=rocks[i];r.t+=dt;r.mesh.material.emissiveIntensity=1.8*Math.max(0,1-r.t/2.2);if(r.t>2.2)r.mesh.position.y-=dt*.6;
     if(r.t>3.4){scene.remove(r.mesh);r.mesh.material.dispose();rocks.splice(i,1)}}
@@ -951,7 +1099,9 @@ const BASES=[
   {type:'amulet',slot:'neck',names:['墓光護符','餘燼墜飾'],w:1,h:1,pool:['spell','fire','hp']}];
 const RANGE={fire:[8,24],spell:[5,14],hp:[15,45],cast:[5,14],move:[4,11]};
 const SLABEL={fire:'火焰傷害',spell:'法術傷害',hp:'生命上限',cast:'施法速度',move:'移動速度'};
-const RAR=[{n:'普通',k:1,mul:1,w:50,c:'#d9d2c3'},{n:'魔法',k:2,mul:1.15,w:32,c:'#6fa8ff'},{n:'稀有',k:3,mul:1.35,w:14,c:'#ffd54a'},{n:'傳奇',k:3,mul:1.8,w:4,c:'#ff8a2a'}];
+// m＝形狀標記：稀有度除了顏色也用形狀分辨（色弱也看得出來）
+const RAR=[{n:'普通',k:1,mul:1,w:50,c:'#d9d2c3',m:'○'},{n:'魔法',k:2,mul:1.15,w:32,c:'#6fa8ff',m:'●'},{n:'稀有',k:3,mul:1.35,w:14,c:'#ffd54a',m:'▲'},{n:'傳奇',k:3,mul:1.8,w:4,c:'#ff8a2a',m:'◆'}];
+const rarMark=r=>SET.lootShapes?r.m+' ':'';
 const PREFIX=['焚夜','靜默','血月','灰燼王的','守墓人的','無名者的'];
 const SLOTS=[{id:'weapon',n:'武器',tall:true},{id:'head',n:'頭部'},{id:'body',n:'身體',tall:true},{id:'neck',n:'頸部'},{id:'hands',n:'手部'},{id:'ring',n:'戒指'},{id:'feet',n:'腳部'}];
 const ICON={
@@ -974,7 +1124,7 @@ function recalc(){for(const k in stats)stats[k]=0;for(const s in equipped){const
 function renderInv(){
   const grid=$('#grid');grid.style.width=COLS*CELL+'px';grid.style.height=ROWS*CELL+'px';grid.innerHTML='';
   for(const it of inv){const d=document.createElement('div');d.className='it';d.style.cssText=`left:${it.x*CELL}px;top:${it.y*CELL}px;width:${it.w*CELL}px;height:${it.h*CELL}px;border-color:${it.rar.c};color:${it.rar.c}`;
-    d.innerHTML=ICON[it.type];d.onclick=()=>equip(it);d.oncontextmenu=e=>{e.preventDefault();inv.splice(inv.indexOf(it),1);hideTip();renderInv();note('丟掉了 '+it.name)};
+    d.innerHTML=ICON[it.type]+(SET.lootShapes?`<span class="rmark">${it.rar.m}</span>`:'');d.onclick=()=>equip(it);d.oncontextmenu=e=>{e.preventDefault();inv.splice(inv.indexOf(it),1);hideTip();renderInv();note('丟掉了 '+it.name)};
     d.onmousemove=e=>showTip(it,e);d.onmouseleave=hideTip;grid.appendChild(d)}
   const eq=$('#equip');eq.innerHTML='';
   for(const s of SLOTS){const d=document.createElement('div');d.className='slot'+(s.tall?' tall':'');const it=equipped[s.id];
@@ -987,7 +1137,7 @@ function equip(it){const old=equipped[it.slot];inv.splice(inv.indexOf(it),1);equ
   hideTip();sfx.pick();recalc()}
 function unequip(slot){const it=equipped[slot];if(!it)return;if(!place(it)){note('行囊滿了');return}delete equipped[slot];hideTip();recalc()}
 function showTip(it,e,eq){const t=$('#tip');t.hidden=false;
-  t.innerHTML=`<div class="t" style="color:${it.rar.c}">${it.name}</div><div class="r">${it.rar.n}・${SLOTS.find(s=>s.id===it.slot).n}・占 ${it.w}×${it.h} 格</div>`+
+  t.innerHTML=`<div class="t" style="color:${it.rar.c}">${rarMark(it.rar)}${it.name}</div><div class="r">${it.rar.n}・${SLOTS.find(s=>s.id===it.slot).n}・占 ${it.w}×${it.h} 格</div>`+
     Object.entries(it.st).map(([k,v])=>`<div>${SLABEL[k]} +${v}${k==='hp'?'':'%'}</div>`).join('')+`<div class="r">${eq?'左鍵卸下':'左鍵穿上・右鍵丟掉'}</div>`;
   t.style.left=Math.min(e.clientX+14,innerWidth-200)+'px';t.style.top=Math.min(e.clientY+14,innerHeight-160)+'px'}
 function hideTip(){$('#tip').hidden=true}
@@ -1001,25 +1151,46 @@ function dropLoot(pos,force){const it=makeItem(force),g=new THREE.Group(),col=ne
   if(it.type==='staff')m.rotation.z=1.1;if(it.type==='gloves'||it.type==='boots'){const m2=m.clone();m2.position.x=.3;g.add(m2)}g.add(m);
   const beam=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial({map:beamTex,color:col,transparent:true,opacity:it.rar.k===1?.18:it.rar.n==='傳奇'?.75:.45,blending:THREE.AdditiveBlending,depthWrite:false}));
   beam.position.y=1.6;g.add(beam);g.position.set(pos.x+rand(-.4,.4),.4,pos.z+rand(-.4,.4));scene.add(g);
-  const el=document.createElement('div');el.className='lootl';el.style.color=it.rar.c;el.textContent=it.name;el.style.display='none';fxLayer.appendChild(el);
+  const el=document.createElement('div');el.className='lootl';el.style.color=it.rar.c;el.textContent=rarMark(it.rar)+it.name;el.style.display='none';fxLayer.appendChild(el);
   loots.push({it,g,m,el,t:0});for(let i=0;i<10;i++){const d=randUnit();ADD.emit({x:g.position.x,y:.5,z:g.position.z,vx:d.x*2,vy:Math.abs(d.y)*3,vz:d.z*2,kind:3,fm:2,frame:8,life:.6,s0:.2,s1:.04,grav:6,r:col.r,g:col.g,b:col.b,a0:1,a1:0})}}
 let fullNoteT=0;
 function updateLoot(dt){fullNoteT-=dt;
   for(let i=loots.length-1;i>=0;i--){const L=loots[i];L.t+=dt;L.m.rotation.y+=dt*1.5;L.g.position.y=.4+Math.sin(L.t*3)*.08;
     const [x,y,ok]=toScreen(tv.set(L.g.position.x,1.1,L.g.position.z));L.el.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`;L.el.style.display=ok?'block':'none';
     if(player.alive&&Math.hypot(L.g.position.x-player.pos.x,L.g.position.z-player.pos.z)<1.3){
-      if(place(L.it)){scene.remove(L.g);L.el.remove();loots.splice(i,1);note('撿到 '+L.it.name+'（按 I 穿上）');sfx.pick();if(!$('#inv').hidden)renderInv()}
+      if(place(L.it)){pickups++;scene.remove(L.g);L.el.remove();loots.splice(i,1);note('撿到 '+L.it.name+'（按 I 穿上）');sfx.pick();if(!$('#inv').hidden)renderInv()}
       else if(fullNoteT<=0){fullNoteT=2;note('行囊滿了，按 I 整理或丟掉')}}}}
 
 /* ---------- 音效（全部即時合成） ---------- */
-let AC=null,master=null,noiseBuf=null,soundOn=true,lastBoom=0;
-function initAudio(){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.45;master.connect(AC.destination);
-  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}catch(e){AC=null}}
-function nz(dur,f0,f1,type,gain,q=1,delay=0){if(!AC||!soundOn)return;const t=AC.currentTime+delay,s=AC.createBufferSource();s.buffer=noiseBuf;const f=AC.createBiquadFilter();f.type=type;
+let AC=null,master=null,sfxBus=null,musicBus=null,noiseBuf=null,soundOn=true,lastBoom=0;
+function initAudio(){if(AC)return;try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.connect(AC.destination);
+  sfxBus=AC.createGain();sfxBus.connect(master);musicBus=AC.createGain();musicBus.connect(master);
+  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;applySettings();startMusic()}catch(e){AC=null}}
+// 背景音樂：程式即時合成的低沉和弦（Am－F－C－E 每 6 秒換一次），走獨立的音樂音量
+let musicTimer=null,musicStep=0;
+function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],[174.6,220,261.6],[130.8,196,261.6],[164.8,207.7,246.9]];
+  const play=()=>{const t=AC.currentTime,ch=chords[musicStep++%chords.length];
+    for(const f of ch)for(const det of [-4,4]){const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();o.type='sawtooth';o.frequency.value=f/2;o.detune.value=det;
+      lp.type='lowpass';lp.frequency.value=520;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.022,t+2);g.gain.linearRampToValueAtTime(.018,t+5);g.gain.linearRampToValueAtTime(0,t+6.4);
+      o.connect(lp).connect(g).connect(musicBus);o.start(t);o.stop(t+6.5)}
+    const b=AC.createOscillator(),bg=AC.createGain();b.type='sine';b.frequency.value=ch[2]*2;bg.gain.setValueAtTime(.05,t+.05);bg.gain.exponentialRampToValueAtTime(.001,t+3);b.connect(bg).connect(musicBus);b.start(t+.05);b.stop(t+3)};
+  play();musicTimer=setInterval(play,6000)}
+
+// 設定：四種音量、粒子密度、減少震動與停格、字幕大小、掉寶形狀標記（存在瀏覽器裡，讀不到就用預設）
+const SET_DEFAULT={master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
+const SET=Object.assign({},SET_DEFAULT);
+try{const s=JSON.parse(localStorage.getItem('eg-settings')||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
+let DENSITY=1;
+function saveSettings(){try{localStorage.setItem('eg-settings',JSON.stringify(SET))}catch(e){}}
+function applySettings(){DENSITY={low:.4,mid:.7,high:1}[SET.particles]||1;
+  if(AC){master.gain.value=.55*SET.master;sfxBus.gain.value=soundOn?SET.sfx:0;musicBus.gain.value=SET.music}
+  document.documentElement.style.setProperty('--sub',SET.subSize)}
+applySettings();
+function nz(dur,f0,f1,type,gain,q=1,delay=0){if(!AC||!soundOn||!sfxBus)return;const t=AC.currentTime+delay,s=AC.createBufferSource();s.buffer=noiseBuf;const f=AC.createBiquadFilter();f.type=type;
   f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);f.Q.value=q;const g=AC.createGain();g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
-  s.connect(f).connect(g).connect(master);s.start(t);s.stop(t+dur)}
-function tone(f0,f1,dur,type,gain,delay=0){if(!AC||!soundOn)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
-  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(master);o.start(t);o.stop(t+dur)}
+  s.connect(f).connect(g).connect(sfxBus);s.start(t);s.stop(t+dur)}
+function tone(f0,f1,dur,type,gain,delay=0){if(!AC||!soundOn||!sfxBus)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+  g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(sfxBus);o.start(t);o.stop(t+dur)}
 const sfx={cast:()=>nz(.22,1800,500,'bandpass',.22,1.2),whoosh:()=>nz(.18,2500,700,'bandpass',.08,2),
   boom:s=>{if(!AC)return;const n=AC.currentTime;if(n-lastBoom<.04)return;lastBoom=n;nz(.35+.5*s,900,50,'lowpass',.55*Math.min(1.2,s),.7);tone(110,40,.3+.3*s,'sine',.3*Math.min(1,s))},
   zap:()=>{for(let i=0;i<4;i++)tone(rand(600,1800),rand(200,500),.04,'square',.05,i*.025);nz(.12,6000,2000,'highpass',.12)},
@@ -1029,11 +1200,12 @@ const sfx={cast:()=>nz(.22,1800,500,'bandpass',.22,1.2),whoosh:()=>nz(.18,2500,7
 /* ---------- 操作 ---------- */
 const keys={},mouse=new THREE.Vector2(),aim=new V3(),ray=new THREE.Raycaster(),gplane=new THREE.Plane(new V3(0,1,0),0);let lmb=false;
 addEventListener('keydown',e=>{keys[e.code]=true;
-  if(e.code==='Space'){e.preventDefault();if(dlg)nextLine();return}
+  if(e.code==='Space'){e.preventDefault();if(dlg)nextLine();else if(!$('#result').hidden)closeResult();return}
   if(e.code==='Tab'){e.preventDefault();toggleInv()}if(e.code==='KeyI')toggleInv();
   if(e.code==='KeyR'&&!$('#dead').hidden)restart();
   const m={Digit1:'fire',Digit2:'bolt',Digit3:'meteor',Digit4:'blood'}[e.code];if(m)tryCast(m);
-  if(e.code==='Escape'&&!$('#inv').hidden)toggleInv()});
+  if(e.code==='Escape'||e.code==='KeyP'){if(!$('#settings').hidden)backSub('settings');else if(!$('#help').hidden)backSub('help');else if(!$('#credits').hidden)backSub('credits');
+    else if(!$('#inv').hidden)toggleInv();else if(!$('#result').hidden)closeResult();else togglePause()}});
 addEventListener('keyup',e=>{keys[e.code]=false});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;lmb=false});
 canvas.addEventListener('mousemove',e=>{mouse.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1)});
@@ -1045,7 +1217,7 @@ for(const el of document.querySelectorAll('.sk'))el.addEventListener('click',()=
 function toggleInv(){const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
 $('#invClose').onclick=toggleInv;
 
-function tryCast(id){if(!running||paused||!player.alive)return;
+function tryCast(id){if(!running||paused||menuOpen||!player.alive)return;
   if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}
   if(player.cast||cds[id]>0)return;
   const s=SPELLS[id],cs=castMul();
@@ -1058,9 +1230,10 @@ function releaseCast(c){const h=handPos(),dir=new V3(c.target.x-h.x,0,c.target.z
   if(c.id==='fire'){if(tierOf('fire')){for(const a of [-.2,0,.2])spawnFireball(h,dir.clone().applyAxisAngle(new V3(0,1,0),a))}else spawnFireball(h,dir)}
   else if(c.id==='bolt')spawnOrb(h,dir);
   else if(c.id==='meteor')castMeteor(c.target)}
-function hurtPlayer(d){if(!player.alive)return;player.hp-=d;player.hurtT=.25;sfx.hurt();$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,.55)';
+function hurtPlayer(d,src='怪物'){if(!player.alive)return;player.hp-=d;player.lastHurt=src;player.hurtT=.25;sfx.hurt();$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,.55)';
   if(player.hp<=0){player.hp=0;player.alive=false;player.cast=null;
-    $('#deadSub').textContent=story.on?(story.phase==='boss'?'倒在首領戰・重新挑戰無燈之主':`倒在第 ${story.act+1} 幕・從本幕重來`):`撐到第 ${wave} 波・擊倒 ${player.kills} 隻`;setTimeout(()=>{$('#dead').hidden=false},900)}}
+    $('#deadCause').textContent='擊倒你的是：'+player.lastHurt;$('#deadTip').textContent='提示：'+(DEATH_TIPS[player.lastHurt]||DEFAULT_TIP);
+    $('#deadSub').textContent=story.on?(story.phase==='boss'?'倒在首領戰・重新挑戰無燈之主':`倒在第 ${story.act+1} 幕・從本幕重來`):`撐到第 ${wave} 波・擊倒 ${player.kills} 隻`;setTimeout(()=>{if(running&&!player.alive)$('#dead').hidden=false},900)}}
 
 function updatePlayer(dt){
   for(const k in cds)cds[k]=Math.max(0,cds[k]-dt);
@@ -1069,7 +1242,7 @@ function updatePlayer(dt){
     if(lmb)tryCast('fire');
     let mx=(keys.KeyD?1:0)-(keys.KeyA?1:0),mz=(keys.KeyS?1:0)-(keys.KeyW?1:0);const l=Math.hypot(mx,mz);
     const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);
-    if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a)}}
+    if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a,'熔岩')}}
     if(l){player.pos.x+=mx/l*sp*dt;player.pos.z+=mz/l*sp*dt;player.walk+=dt*10*root}
     pushOut(player.pos,.4);
     if(!c)player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);
@@ -1117,7 +1290,7 @@ let voiceOn=true,zhVoice=null;
 function pickVoice(){try{const vs=speechSynthesis.getVoices();zhVoice=vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/zh/i.test(v.lang))||null}catch(e){}}
 if('speechSynthesis' in window){pickVoice();try{speechSynthesis.onvoiceschanged=pickVoice}catch(e){}}
 function speak(text,sp){if(!voiceOn||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text.replace(/[「」…]/g,''));
-  if(zhVoice)u.voice=zhVoice;u.lang=zhVoice?zhVoice.lang:'zh-TW';u.pitch=sp.pitch;u.rate=sp.rate;speechSynthesis.speak(u)}catch(e){}}
+  if(zhVoice)u.voice=zhVoice;u.lang=zhVoice?zhVoice.lang:'zh-TW';u.pitch=sp.pitch;u.rate=sp.rate;u.volume=Math.min(1,SET.voice*SET.master);speechSynthesis.speak(u)}catch(e){}}
 function hush(){try{speechSynthesis.cancel()}catch(e){}}
 
 let dlg=null;
@@ -1168,20 +1341,26 @@ function clearWorld(){for(const e of enemies){scene.remove(e.g);if(e.hpEl)e.hpEl
   for(const p of projs)p.dead=true;projs.length=0;for(const s of shocks){scene.remove(s.mesh)}shocks.length=0;timers.length=0;
   player.alive=true;player.hp=player.maxhp;player.cast=null;player.tacc=0;P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true);
   for(const m of meteors){m.dead=true;scene.remove(m.mesh);scene.remove(m.ring)}meteors.length=0;for(const b of burns){b.dead=true;scene.remove(b.decal)}burns.length=0;
+  for(const id of MENUS)$('#'+id).hidden=true;resultThen=null;syncMenu();
   resetTerrain()}
-function startStory(){initAudio();$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();player.pos.set(0,0,4);player.kills=0;
-  Object.assign(story,{on:true,act:0,phase:'idle',unlocked:new Set(['fire']),tier:{fire:0},seen:new Set(),t0:time});
-  TOWERS.forEach(T=>{setTowerLit(T,false);T.beam.visible=false});$('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();beginAct(0)}
-function startFree(){initAudio();$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();
+function startStory(fromAct=0){if(typeof fromAct!=='number')fromAct=0;initAudio();titleMode(false);$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();player.pos.set(0,0,4);player.kills=0;pickups=0;
+  Object.assign(story,{on:true,act:0,phase:'idle',unlocked:new Set(['fire']),tier:{fire:0},seen:new Set(),t0:time,bestChain:0});
+  TOWERS.forEach(T=>{setTowerLit(T,false);T.beam.visible=false});
+  // 從存檔繼續：前面幾幕的燈塔直接點亮、法術直接解鎖，開場對白不再播
+  for(let k=0;k<fromAct;k++){const T=TOWERS[k];setTowerLit(T,true);if(T.spell==='fire')story.tier.fire=1;else story.unlocked.add(T.spell)}
+  if(fromAct>0)story.seen.add('intro');
+  $('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();beginAct(fromAct)}
+function startFree(){initAudio();titleMode(false);$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();
   Object.assign(story,{on:false,phase:'idle',unlocked:new Set(['fire','bolt','meteor','blood'])});$('#objective').hidden=true;$('#tierLbl').hidden=false;$('#segTier').hidden=false;
   TOWERS.forEach(T=>{setTowerLit(T,true);T.beam.visible=false});player.pos.set(0,0,0);player.kills=0;wave=1;waveTimer=0;refreshSkillLabels();spawnWave(50);toast('第 1 波')}
-function beginAct(i){story.act=i;const A=ACTS[i];story.ambushed=false;story.ign=0;
+function beginAct(i){story.act=i;const A=ACTS[i];story.ambushed=false;story.ign=0;if(story.on)writeSave(i);
+  Object.assign(story,{actT0:time,actKills0:player.kills,actTk0:terrainKills,actLoot0:pickups,bestChain:0});
   const go=()=>{story.phase='fight';story.killsAt=player.kills;story.goal=A.n;spawnWave(A.n,A.mix,1+i*.15);toast(`第 ${i+1} 幕`)};
   if(A.dlg&&!story.seen.has(A.dlg)){story.seen.add(A.dlg);story.phase='dialog';playDialog(A.dlg,go)}else go()}
 function ambush(T){const A=ACTS[story.act];for(let i=0;i<6;i++){const a=rand(0,TAU),r=rand(9,12);spawnEnemy(pickType(A.mix),T.x+Math.cos(a)*r,T.z+Math.sin(a)*r,1+story.act*.15)}note('亡者被火光吸引過來了')}
-function igniteTower(T){setTowerLit(T,true);T.beam.visible=false;story.phase='dialog';explode(new V3(T.x,3.8,T.z),1.1,[1,1,1],true);shakeAmt=Math.max(shakeAmt,.3);
+function igniteTower(T){setTowerLit(T,true);T.beam.visible=false;story.phase='dialog';explode(new V3(T.x,3.8,T.z),1.1,[1,1,1],true);shake(.3);
   if(T.spell==='fire')story.tier.fire=1;else story.unlocked.add(T.spell);refreshSkillLabels();toast(`${T.name}點亮了`);obj(`${T.name}點亮了`,'');
-  const A=ACTS[story.act];after(1,()=>playDialog(A.after,()=>{if(story.act<ACTS.length-1)beginAct(story.act+1);else startBoss()}))}
+  const A=ACTS[story.act];after(1,()=>showResult(story.act,()=>playDialog(A.after,()=>{if(story.act<ACTS.length-1)beginAct(story.act+1);else startBoss()})))}
 function updateStory(dt){if(!story.on)return;
   if(story.phase==='fight'){const k=Math.min(story.goal,player.kills-story.killsAt);obj(`擊倒甦醒的亡者　${k} / ${story.goal}`,`第 ${story.act+1} 幕`);
     if(k>=story.goal){story.phase='goto';TOWERS[story.act].beam.visible=true;toast(`前往${TOWERS[story.act].name}`);sfx.pick()}}
@@ -1198,12 +1377,12 @@ function updateStory(dt){if(!story.on)return;
 const shocks=[],shockGeo=new THREE.RingGeometry(.9,1,72);
 function startBoss(){story.phase='boss';spawnEnemy('lord',0,0,1);const b=enemies[enemies.length-1];b.aggro=true;b.shockT=3;b.flags={};story.boss=b;$('#bossbar').hidden=false;
   for(let i=0;i<30;i++){const d=randUnit();SMOKE.emit({x:rand(-1,1),y:1+rand(0,2),z:rand(-1,1),vx:d.x*3,vy:Math.abs(d.y)*2,vz:d.z*3,kind:2,fm:1,life:rand(1.4,2.2),s0:2,s1:5,r:.25,g:.12,b:.35,a0:.8,a1:0})}
-  flash(new V3(0,2,0),0x9a5cff,6,16,.8);shakeAmt=.5;sfx.blood();toast('無燈之主')}
+  flash(new V3(0,2,0),0x9a5cff,6,16,.8);shake(.5);sfx.blood();toast('無燈之主')}
 function summon(e,n){for(let i=0;i<n;i++){const a=rand(0,TAU),r=rand(4,7),x=e.pos.x+Math.cos(a)*r,z=e.pos.z+Math.sin(a)*r;spawnEnemy(Math.random()<.6?'spider':'ghost',x,z,1.5);
   for(let k=0;k<4;k++)SMOKE.emit({x,y:.4,z,vx:rand(-1,1),vy:rand(.5,1.5),vz:rand(-1,1),kind:2,fm:1,life:1.2,s0:1,s1:2.5,r:.3,g:.2,b:.4,a0:.6,a1:0})}}
 function bossAI(e,dt){e.shockT-=dt;
   if(e.shockT<=0){e.shockT=5.2;const m=new THREE.Mesh(shockGeo,new THREE.MeshBasicMaterial({color:0xa05cff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
-    m.rotation.x=-Math.PI/2;m.position.set(e.pos.x,.08,e.pos.z);scene.add(m);shocks.push({x:e.pos.x,z:e.pos.z,t:0,mesh:m,hit:false});sfx.boom(.8);shakeAmt=Math.max(shakeAmt,.25)}
+    m.rotation.x=-Math.PI/2;m.position.set(e.pos.x,.08,e.pos.z);scene.add(m);shocks.push({x:e.pos.x,z:e.pos.z,t:0,mesh:m,hit:false});sfx.boom(.8);shake(.25)}
   rate(e.parts,'aura',30,dt,()=>{const a=rand(0,TAU),r=rand(.5,1.8);SMOKE.emit({x:e.pos.x+Math.cos(a)*r,y:rand(.3,3.5),z:e.pos.z+Math.sin(a)*r,vy:rand(.3,.8),kind:2,fm:1,life:rand(1,1.6),s0:1.2,s1:2.6,r:.22,g:.1,b:.32,a0:.55,a1:0})});
   const f=e.hp/e.maxhp;
   if(f<.66&&!e.flags.s1){e.flags.s1=true;summon(e,7);note('無燈之主召來了亡者')}
@@ -1211,21 +1390,24 @@ function bossAI(e,dt){e.shockT-=dt;
   if(f<.33&&!e.flags.s2){e.flags.s2=true;summon(e,9);note('更多亡者從墳裡爬出來')}}
 function updateShocks(dt){for(let i=shocks.length-1;i>=0;i--){const s=shocks[i];s.t+=dt;const k=s.t/1.5,r=1+k*13;s.mesh.scale.setScalar(r);s.mesh.material.opacity=.9*(1-k*.6);
   for(const p of props)if(p.state==='up'&&(p.kind==='tomb'||p.kind==='fence')&&Math.abs(Math.hypot(p.x-s.x,p.z-s.z)-r)<.8){p.hp-=3;if(p.hp<=0)breakProp(p,new V3(s.x,0,s.z))}
-  if(!s.hit&&player.alive&&r>2.2){const d=Math.hypot(player.pos.x-s.x,player.pos.z-s.z);if(Math.abs(d-r)<.75){s.hit=true;hurtPlayer(22);flash(player.pos.clone().setY(1),0xa05cff,3,6,.3)}}
+  if(!s.hit&&player.alive&&r>2.2){const d=Math.hypot(player.pos.x-s.x,player.pos.z-s.z);if(Math.abs(d-r)<.75){s.hit=true;hurtPlayer(22,'首領衝擊波');flash(player.pos.clone().setY(1),0xa05cff,3,6,.3)}}
   rate(s,'p',90,dt,()=>{const a=rand(0,TAU);ADD.emit({x:s.x+Math.cos(a)*r,y:.15,z:s.z+Math.sin(a)*r,vy:rand(.5,1.5),kind:3,fm:2,frame:0,life:.4,s0:.35,s1:.05,r:.65,g:.35,b:1,a0:.9,a1:0})});
   if(k>=1){scene.remove(s.mesh);s.mesh.material.dispose();shocks.splice(i,1)}}}
 function onBossDead(e){story.phase='outro';$('#bossbar').hidden=true;$('#objective').hidden=true;const c=e.pos.clone();
   for(let i=0;i<6;i++)after(i*.22,()=>explode(new V3(c.x+rand(-2,2),rand(.5,2.5),c.z+rand(-2,2)),1.3,[.75,.5,1]));
   after(1.4,()=>{for(const o of enemies)if(o.alive)killEnemy(o);setDark(0)});
   after(2.8,()=>playDialog('end',showEnding))}
-function showEnding(){story.phase='end';const s=Math.round(time-story.t0);
+function showEnding(){story.phase='end';clearSave();const s=Math.round(time-story.t0);
   $('#endSub').textContent=`用時 ${Math.floor(s/60)} 分 ${String(s%60).padStart(2,'0')} 秒・擊倒 ${player.kills} 隻・地形擊殺 ${terrainKills}（${player.kills?Math.round(terrainKills/player.kills*100):0}%）`;$('#ending').hidden=false;$('#objective').hidden=true}
-$('#endAgain').onclick=startStory;$('#endFree').onclick=startFree;
+$('#endAgain').onclick=()=>startStory(0);$('#endFree').onclick=startFree;
 $('#btnVoice').onclick=()=>{voiceOn=!voiceOn;$('#btnVoice').textContent='語音：'+(voiceOn?'開':'關');if(!voiceOn)hush()};
 
 /* ---------- 鏡頭、介面、主迴圈 ---------- */
 const camPos=new V3(0,15,11);
-function updateCamera(dt){const off=new V3(0,18.5*zoom,11*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);camPos.lerp(want,Math.min(1,dt*6));
+function updateCamera(dt){
+  // 標題畫面：鏡頭繞著墓園慢慢轉
+  if(!running){const a=time*.06,w=new V3(Math.cos(a)*26,16,Math.sin(a)*26);camPos.lerp(w,Math.min(1,dt*2));camera.position.copy(camPos);camera.lookAt(0,0,0);return}
+  const off=new V3(0,18.5*zoom,11*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);camPos.lerp(want,Math.min(1,dt*6));
   camera.position.copy(camPos);if(shakeAmt>.001){camera.position.x+=rand(-1,1)*shakeAmt;camera.position.y+=rand(-1,1)*shakeAmt;camera.position.z+=rand(-1,1)*shakeAmt;shakeAmt*=Math.exp(-dt*9)}
   camera.lookAt(camPos.x,0,camPos.z-11*zoom+.0001)}
 let ambAcc={};
@@ -1238,7 +1420,7 @@ function setTier(v){upgraded=!!v;for(const b of document.querySelectorAll('#segT
 for(const b of document.querySelectorAll('#segRoute button'))b.onclick=()=>setRoute(+b.dataset.v);
 for(const b of document.querySelectorAll('#segTier button'))b.onclick=()=>setTier(+b.dataset.v);
 $('#labMin').onclick=()=>{const l=$('#lab');l.classList.toggle('min');$('#labMin').textContent=l.classList.contains('min')?'展開':'收起'};
-$('#btnSound').onclick=()=>{soundOn=!soundOn;$('#btnSound').textContent='音效：'+(soundOn?'開':'關')};
+$('#btnSound').onclick=()=>{soundOn=!soundOn;$('#btnSound').textContent='音效：'+(soundOn?'開':'關');applySettings()};
 $('#btnAtlas').onclick=()=>{$('#atlasPop').hidden=!$('#atlasPop').hidden};
 let toastT=0,msgT=0;function toast(t){const e=$('#toast');e.textContent=t;e.style.opacity=1;toastT=2.2}
 function note(t){const e=$('#msg');e.textContent=t;e.style.opacity=1;msgT=2.4}
@@ -1261,7 +1443,60 @@ function logic(dt){
 function visuals(dt){updateTowers(dt);flushTerrain();ADD.update(dt);SMOKE.update(dt);updateLights(dt);updateCamera(dt);updateTexts(dt);updateDialog(dt);updateHud(dt)}
 const clock=new THREE.Clock();
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);time+=dt;shared.uTime.value=time;
-  if(running&&!paused)logic(dt);visuals(dt);renderer.render(scene,camera)}
+  // 停格：命中瞬間遊戲規則幾乎停住（只走 8%），畫面照常更新
+  if(running&&!paused&&!menuOpen){if(hitStop>0){hitStop-=dt;logic(dt*.08)}else logic(dt)}
+  visuals(dt);renderer.render(scene,camera)}
+
+/* ---------- 畫面：讀取、標題、暫停、設定、操作說明、製作群、階段結算、存檔 ---------- */
+const VERSION='v0.4・P3a 換皮';
+let menuOpen=false,pickups=0,resultThen=null;
+function titleMode(on){document.body.classList.toggle('on-title',on)}titleMode(true);
+const MENUS=['pause','settings','help','credits','result'];
+function syncMenu(){menuOpen=MENUS.some(id=>!$('#'+id).hidden);if(menuOpen)lmb=false}
+function openSub(id,from){const el=$('#'+id);el.dataset.from=from||'';if(from)$('#'+from).hidden=true;el.hidden=false;if(id==='settings')loadSettingsUI();syncMenu();const f=el.querySelector('button,input,select');if(f)f.focus()}
+function backSub(id){const el=$('#'+id);el.hidden=true;const f=el.dataset.from;if(f)$('#'+f).hidden=false;syncMenu()}
+function togglePause(force){if(!running||!player.alive||dlg)return;const p=$('#pause'),open=force!==undefined?force:p.hidden;
+  if(open){if(menuOpen)return;p.hidden=false;$('#pConfirm').hidden=true;hush()}else p.hidden=true;syncMenu();if(open)$('#pResume').focus()}
+// 本機存檔：只記「故事進行到第幾幕」，存在瀏覽器裡；讀不到就當沒有存檔
+const SAVE_KEY='eg-save';
+function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&Number.isInteger(s.act)&&s.act>=0&&s.act<ACTS.length?s:null}catch(e){return null}}
+function writeSave(act){try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,act}))}catch(e){}}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
+function refreshTitle(){const s=readSave(),b=$('#goContinue');b.hidden=!s;if(s)b.textContent=`繼續・第 ${s.act+1} 幕`;$('#ver').textContent=VERSION}
+function goTitle(){for(const id of MENUS)$('#'+id).hidden=true;resultThen=null;if(dlg){dlg.then=null;endDialog()}running=false;paused=false;clearWorld();story.on=false;story.phase='idle';
+  for(const id of ['objective','bossbar','dead','ending'])$('#'+id).hidden=true;if(!$('#inv').hidden)toggleInv();
+  TOWERS.forEach(T=>{setTowerLit(T,true);T.beam.visible=false});refreshTitle();titleMode(true);$('#intro').hidden=false;syncMenu()}
+function fmtTime(s){s=Math.max(0,Math.round(s));return `${Math.floor(s/60)} 分 ${String(s%60).padStart(2,'0')} 秒`}
+// 階段結算：每點亮一座燈塔就停下來看這一幕的成績
+function showResult(act,then){const rows=[['用時',fmtTime(time-story.actT0)],['擊倒',(player.kills-story.actKills0)+' 隻'],['地形擊殺',(terrainKills-story.actTk0)+' 隻'],
+    ['最高地形連鎖',story.bestChain>=2?'×'+story.bestChain:'沒有'],['撿到裝備',(pickups-story.actLoot0)+' 件']];
+  $('#rTitle').textContent=TOWERS[act].name+'點亮了';$('#rHead').textContent=`第 ${act+1} 幕　完成`;
+  $('#rTab').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');resultThen=then;$('#result').hidden=false;syncMenu();$('#rNext').focus()}
+function closeResult(){if($('#result').hidden)return;$('#result').hidden=true;syncMenu();const f=resultThen;resultThen=null;if(f)f()}
+// 設定畫面
+const SLIDERS=[['sMaster','oMaster','master'],['sMusic','oMusic','music'],['sSfx','oSfx','sfx'],['sVoice','oVoice','voice']];
+function loadSettingsUI(){for(const [i,o,k] of SLIDERS){$('#'+i).value=Math.round(SET[k]*100);$('#'+o).textContent=Math.round(SET[k]*100)}
+  $('#sParticles').value=SET.particles;$('#sShake').checked=SET.reduceShake;$('#sShapes').checked=SET.lootShapes;$('#sSub').value=Math.round(SET.subSize*100);$('#oSub').textContent=Math.round(SET.subSize*100)+'%'}
+for(const [i,o,k] of SLIDERS)$('#'+i).addEventListener('input',e=>{SET[k]=e.target.value/100;$('#'+o).textContent=e.target.value;applySettings();saveSettings()});
+$('#sParticles').addEventListener('change',e=>{SET.particles=e.target.value;applySettings();saveSettings()});
+$('#sShake').addEventListener('change',e=>{SET.reduceShake=e.target.checked;if(SET.reduceShake){shakeAmt=0;hitStop=0}saveSettings()});
+$('#sShapes').addEventListener('change',e=>{SET.lootShapes=e.target.checked;saveSettings();for(const L of loots)L.el.textContent=rarMark(L.it.rar)+L.it.name;if(!$('#inv').hidden)renderInv()});
+$('#sSub').addEventListener('input',e=>{SET.subSize=e.target.value/100;$('#oSub').textContent=e.target.value+'%';applySettings();saveSettings()});
+$('#sReset').onclick=()=>{Object.assign(SET,SET_DEFAULT);applySettings();saveSettings();loadSettingsUI();note('設定已恢復預設')};
+// 按鈕
+$('#btnSettings').onclick=()=>openSub('settings','intro');$('#btnHelp').onclick=()=>openSub('help','intro');$('#btnCredits').onclick=()=>openSub('credits','intro');
+$('#pResume').onclick=()=>togglePause(false);$('#pSettings').onclick=()=>openSub('settings','pause');$('#pHelp').onclick=()=>openSub('help','pause');
+$('#pRestart').onclick=()=>{togglePause(false);restart()};$('#pTitle').onclick=()=>{$('#pConfirm').hidden=false;$('#pYes').focus()};$('#pNo').onclick=()=>{$('#pConfirm').hidden=true};$('#pYes').onclick=goTitle;
+$('#sBack').onclick=()=>backSub('settings');$('#hBack').onclick=()=>backSub('help');$('#cBack').onclick=()=>backSub('credits');
+$('#rNext').onclick=closeResult;$('#deadTitle').onclick=goTitle;$('#endCredits').onclick=()=>openSub('credits','ending');
+$('#goContinue').onclick=()=>{const s=readSave();startStory(s?s.act:0)};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&running&&!menuOpen&&!dlg&&player.alive)togglePause(true)});
+// 死因與提示、讀取畫面的提示
+const DEATH_TIPS={'熔岩':'熔岩是唯一會傷到你的地形，橘紅發光的地面別久站。','首領衝擊波':'衝擊波會往外擴散：退到圈外，或貼近首領躲在圈內。','磷火爆炸':'藍色磷火墳碰到火或雷會爆炸，施法前先看腳下。'};
+const DEFAULT_TIP='被包圍時用星墜清場，或把怪物引進燃燒的草地。';
+const LOAD_TIPS=['火球打中枯草會點燃整片草地，站在火裡的怪物會一直扣血。','鏈雷打進積水，整片相連的水都會帶電。','墓碑被炸三次會朝反方向倒下，壓死路徑上的怪物。',
+  '熔岩碰到積水會凝成黑曜石牆，可以拿來擋路。','藍色磷火墳會連鎖爆炸，引怪物過去再點燃。','1.2 秒內連續地形擊殺，會累積「地形連鎖」。','設定裡可以降低粒子密度、關掉震動與停格。'];
+$('#ldtip').textContent=pick(LOAD_TIPS);$('#ldfill').style.width='20%';
 
 /* ---------- 開場 ---------- */
 setRoute(0);setTier(1);
@@ -1277,14 +1512,16 @@ function replaceSheet(sheet,img){
 $('#sheetFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f||!atlas)return;const img=new Image();img.onload=()=>{replaceSheet(+$('#sheetSel').value,img);URL.revokeObjectURL(img.src);setRoute(0);note('已換上新的翻頁圖')};
   img.onerror=()=>note('這個檔案讀不出來，請換 PNG 或 JPG');img.src=URL.createObjectURL(f);e.target.value=''});
 $('#sheetReset').onclick=()=>{if(!atlas)return;atlas.getContext('2d').putImageData(atlasOrig,0,0);refreshAtlas();note('已還原程式畫的翻頁圖')};
-setTimeout(()=>{
-  atlas=buildAtlas();atlasOrig=atlas.getContext('2d').getImageData(0,0,1024,1024);
-  atlasTex=new THREE.CanvasTexture(atlas);atlasTex.flipY=false;atlasTex.minFilter=THREE.LinearFilter;atlasTex.generateMipmaps=false;shared.uAtlas.value=atlasTex;
-  refreshAtlas();
-  for(let i=0;i<3;i++)dropLoot(new V3(rand(-3,3),0,rand(2,5)));
-  const go=$('#go');go.disabled=false;go.textContent='自由試玩';go.onclick=startFree;
-  const gs=$('#goStory');gs.disabled=false;gs.onclick=startStory;
-},30);
+// 讀取：先讓讀取畫面畫出來，再做最花時間的翻頁圖集，完成後才開放按鈕
+setTimeout(()=>{$('#ldfill').style.width='45%';$('#ldstep').textContent='畫翻頁圖集…';
+  setTimeout(()=>{
+    atlas=buildAtlas();atlasOrig=atlas.getContext('2d').getImageData(0,0,1024,1024);
+    atlasTex=new THREE.CanvasTexture(atlas);atlasTex.flipY=false;atlasTex.minFilter=THREE.LinearFilter;atlasTex.generateMipmaps=false;shared.uAtlas.value=atlasTex;
+    refreshAtlas();$('#ldfill').style.width='100%';$('#ldstep').textContent='完成';
+    $('#loading').hidden=true;refreshTitle();
+    const go=$('#go');go.disabled=false;go.textContent='自由試玩';go.onclick=startFree;
+    const gs=$('#goStory');gs.disabled=false;gs.onclick=()=>startStory(0);
+  },40)},30);
 $('#again').onclick=restart;
 loop();
 </script>

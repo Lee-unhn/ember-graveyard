@@ -20,8 +20,11 @@ function staticChecks() {
   rep.ok(dup.length === 0, `no duplicate ids among ${ids.length}`, dup);
   const lower = ids.map((s) => s.toLowerCase()); const ci = lower.filter((v, i) => lower.indexOf(v) !== i);
   rep.ok(ci.length === 0, 'no ids that collide case-insensitively', ci);
+  // a second `function name(){}` silently replaces the first one everywhere (hoisting): P3a's terrain noise broke the atlas tiling this way
+  const fns = [...html.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]); const dupFn = [...new Set(fns.filter((v, i) => fns.indexOf(v) !== i))];
+  rep.ok(dupFn.length === 0, `no function declared twice among ${fns.length}`, dupFn);
   // relative links in markdown
-  const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md'];
+  const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md', 'docs/SCREENS.md', 'docs/DEVLOG.md'];
   let broken = [];
   for (const f of mds) { const t = readFileSync(join(ROOT, f), 'utf8');
     for (const m of t.matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)) { const l = m[1]; if (/^https?:|^mailto:/.test(l)) continue; const p = resolve(ROOT, dirname(f), decodeURIComponent(l)); if (!existsSync(p)) broken.push(`${f} -> ${l}`); } }
