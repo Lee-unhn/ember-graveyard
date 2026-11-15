@@ -26,7 +26,8 @@ async function storyFlow() {
     // movement: hold W
     await p.evaluate(`(() => { for (const e of enemies) { e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); } })()`); // setup: freeze monsters so the test is deterministic
     const z0 = await p.evaluate('player.pos.z');
-    await p.keyDown('KeyW'); await sleep(700); await p.keyUp('KeyW');
+    // hold W until the mage has walked 1.5 units (max 5 s): a fixed hold time fails on slow CI and on slowing terrain (mud, water)
+    await p.keyDown('KeyW'); await p.waitFor(`player.pos.z < ${z0} - 1.5`, 5000); await p.keyUp('KeyW');
     const z1 = await p.evaluate('player.pos.z');
     rep.ok(z0 - z1 > 1.5, `holding W moves the mage north (${(z0 - z1).toFixed(2)} units)`);
 
