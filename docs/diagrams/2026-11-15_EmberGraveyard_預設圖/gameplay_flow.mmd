@@ -1,0 +1,73 @@
+%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph BOOT[🚪 開場]
+    START([開啟頁面]):::input
+    BUILD[/程式畫翻頁圖集<br/>4 張 × 16 格/]:::pipeline
+    INTRO[開場說明<br/>按「進入墓園」]:::ui
+  end
+
+  %% col=1 row=0
+  subgraph WAVE[🌊 波次]
+    SPAWN[/生成一波怪<br/>第 1 波 50 隻/]:::pipeline
+    FIGHT[戰鬥中<br/>怪物追擊・近身攻擊]:::worker
+    CLEAR[/全清 → 2.5 秒後下一波<br/>數量 +5・血量 +25%/]:::pipeline
+  end
+
+  %% col=2 row=0
+  subgraph CASTF[🪄 一次施法]
+    PRESS([按鍵或滑鼠]):::input
+    CD[/冷卻檢查<br/>施法速度縮短冷卻/]:::pipeline
+    POSE[/專屬手勢動畫/]:::pipeline
+    RELEASE[/到出手時點<br/>生成法術/]:::pipeline
+  end
+
+  %% col=3 row=0
+  subgraph LIFE[🔥 法術生命週期]
+    FLY[/飛行<br/>球芯 3 片・尾焰每秒 240 片<br/>跟隨光源/]:::pipeline
+    HIT[/命中<br/>爆炸翻頁・40 顆火星・濃煙/]:::pipeline
+    AFTER[/殘留<br/>燃燒地面・閃電跳下一隻/]:::pipeline
+  end
+
+  %% col=4 row=0
+  subgraph RESULT[💀 結算]
+    DMG[/傷害<br/>12% 爆擊 ×1.8/]:::pipeline
+    KILL[擊殺]:::worker
+    DROP[(掉寶<br/>一般 30%・殘魂 50%)]:::output
+    PICK[/走近自動撿起<br/>放進行囊/]:::pipeline
+    EQUIP[/穿上裝備<br/>數值重算/]:::pipeline
+  end
+
+  %% col=5 row=0
+  DEAD([生命歸零<br/>再來一次]):::safety
+
+  START --> BUILD
+  BUILD --> INTRO
+  INTRO --> SPAWN
+  SPAWN --> FIGHT
+  FIGHT --> PRESS
+  PRESS --> CD
+  CD --> POSE
+  POSE --> RELEASE
+  RELEASE --> FLY
+  FLY --> HIT
+  HIT --> AFTER
+  HIT --> DMG
+  AFTER --> DMG
+  DMG --> KILL
+  KILL --> DROP
+  DROP --> PICK
+  PICK --> EQUIP
+  EQUIP -. 傷害・冷卻・生命改變 .-> CD
+  KILL -. 全部清空 .-> CLEAR
+  CLEAR -. 下一波 .-> SPAWN
+  FIGHT -. 被咬到歸零 .-> DEAD
+  DEAD -. 重來 .-> SPAWN
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000

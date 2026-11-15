@@ -1,0 +1,7 @@
+# local-only working files (project truth source, private scan terms, raw inputs)
+EMBER-GRAVEYARD.md
+scripts/private-terms.txt
+incoming/
+node_modules/
+.DS_Store
+Thumbs.db

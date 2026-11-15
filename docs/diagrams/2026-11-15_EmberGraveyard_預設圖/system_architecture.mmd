@@ -1,0 +1,80 @@
+%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph INPUT[👤 玩家輸入]
+    KEYS([鍵盤<br/>WASD 移動・1-4 施法・I 行囊]):::input
+    MOUSE([滑鼠<br/>瞄準・左鍵焰核彈・右鍵鏈雷]):::input
+    UPLOAD([上傳黑底 4×4 翻頁圖<br/>GPT／Gemini 畫的]):::input
+  end
+
+  %% col=1 row=0
+  subgraph UI[🖥️ 介面層]
+    LAB[拆解台<br/>貼圖路線・基礎／升級]:::ui
+    HUD[狀態列・技能列・血條]:::ui
+    INV[行囊<br/>10×6 網格照形狀占格・7 裝備欄]:::ui
+    FXL[浮字層<br/>傷害數字・怪物血條・掉寶名]:::ui
+  end
+
+  %% col=2 row=0
+  subgraph LOGIC[⚙️ 遊戲邏輯]
+    LOOP[/主迴圈<br/>每格 dt ≤ 0.05 秒/]:::pipeline
+    CAST[/施法系統<br/>冷卻・手勢・出手時點/]:::pipeline
+    SPELLS[/四招法術<br/>焰核彈・鏈雷・星墜・血環/]:::pipeline
+    ENEMY[/怪物 AI<br/>追擊・互相推開・近身攻擊/]:::pipeline
+    LOOT[/掉寶與數值<br/>四級稀有度・換裝重算/]:::pipeline
+  end
+
+  %% col=3 row=0
+  subgraph VFX[🔥 特效三零件]
+    ATLAS[(翻頁圖集 1024²<br/>火焰・爆炸・濃煙・光點 各 16 格)]:::model
+    SHADER[/著色器三模式<br/>翻頁圖・即時算・只看方塊/]:::pipeline
+    PSYS[粒子系統<br/>疊加 12000＋濃煙 3000<br/>方塊永遠面向鏡頭]:::worker
+    LIGHTS[燈光池<br/>固定 10 盞]:::worker
+    MESH[(程式捏的模型<br/>隕石・怪物・裝備)]:::model
+  end
+
+  %% col=4 row=0
+  subgraph RES[📦 外部資源]
+    THREE[(Three.js r128<br/>cdnjs)]:::model
+    FONTS[(Google Fonts<br/>Noto 繁中)]:::model
+    AUDIO[WebAudio<br/>即時合成音效]:::worker
+  end
+
+  %% col=5 row=0
+  subgraph OUT[🖼️ 輸出]
+    CANVAS[(WebGL 畫面)]:::output
+    SND[(音效)]:::output
+  end
+
+  KEYS --> CAST
+  MOUSE --> CAST
+  UPLOAD --> ATLAS
+  LAB -. 切換路線 .-> SHADER
+  LAB -. 基礎／升級 .-> SPELLS
+  LOOP --> CAST
+  LOOP --> HUD
+  CAST --> SPELLS
+  SPELLS --> PSYS
+  SPELLS --> LIGHTS
+  SPELLS --> MESH
+  SPELLS --> ENEMY
+  ENEMY --> LOOT
+  LOOT --> INV
+  INV -. 換裝改數值 .-> CAST
+  ENEMY -. 受傷 .-> FXL
+  ATLAS --> SHADER
+  SHADER --> PSYS
+  PSYS --> CANVAS
+  LIGHTS --> CANVAS
+  MESH --> CANVAS
+  THREE --> CANVAS
+  SPELLS -. 命中 .-> AUDIO
+  AUDIO --> SND
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef model fill:#a6e3a1,stroke:#1e6f1a,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
