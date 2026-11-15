@@ -196,6 +196,11 @@ window.__runUnit = async (only) => {
   test('terrain grid: cell <-> world mapping, out of bounds is -1', () => {
     eq(C(-44, -44), 0); eq(C(43.99, 43.99), GN * GN - 1); eq(C(50, 0), -1); const c = cellCenter(C(3.2, -7.9)); eq(c.x, 3.5); eq(c.z, -7.5);
   });
+  test('world props are placed from a fixed seed (same layout on every load)', () => {
+    const t = props.filter((p) => p.kind === 'tomb'); eq(t.length, 46); eq(props.filter((p) => p.kind === 'tree').length, 12); eq(props.filter((p) => p.kind === 'sarc').length, 6);
+    const sig = props.filter((p) => p.kind !== 'fence').map((p) => p.x.toFixed(3) + ',' + p.z.toFixed(3)).join(';');
+    let h = 0; for (let i = 0; i < sig.length; i++) h = (h * 31 + sig.charCodeAt(i)) >>> 0; window.__propSig = h; ok(h > 0);
+  });
   test('initial map is deterministic and contains every base terrain', () => {
     fresh(); genTerrain(); let same = true; for (let i = 0; i < TT.length; i++) if (TT[i] !== TT0[i]) { same = false; break; } ok(same, 'regenerated map equals the saved one');
     for (const t of [TER.GRASS, TER.SOIL, TER.PAVE, TER.WATER, TER.MUD, TER.BONE, TER.WISP]) ok(TT0.includes(t), `map has ${TP[t].n}`); resetTerrain();
@@ -240,13 +245,17 @@ window.__runUnit = async (only) => {
     queueBoom(C(6.5, 6.5)); for (let k = 0; k < 10; k++) updateTerrain(.1);
     eq(tAt(6.5, 6.5), TER.CRATER); eq(tAt(7.5, 6.5), TER.CRATER, 'neighbour went off too'); eq(e.alive, false); eq(e.lastKind, 'boom'); ok(terrainKills >= 1);
   });
+  // find a w x h block with no tombstone / tree / tower nearby, so body-blocking never nudges a test monster off its tile
+  const freeArea = (w, h) => { for (let z0 = -38; z0 < 30; z0 += 2) for (let x0 = -38; x0 < 30; x0 += 2) {
+    if ([[x0, z0], [x0 + w, z0], [x0, z0 + h], [x0 + w, z0 + h]].some(([x, z]) => Math.hypot(x, z) > 36)) continue; // stay inside the fenced arena (radius 42.5)
+    if (obstacles.every((o) => !o.r || o.x < x0 - o.r - 1.5 || o.x > x0 + w + o.r + 1.5 || o.z < z0 - o.r - 1.5 || o.z > z0 + h + o.r + 1.5)) return [x0, z0]; } throw new AssertError('no free area'); };
   test('terrain damage: standing in lava kills; mud slows; chain counter builds and resets', () => {
-    fresh(); player.pos.set(-30, 0, 30); clearBox(4, 4, 12, 8);
-    for (let k = 0; k < 3; k++) { put(5.5 + k * 2, 6.5, TER.LAVA, 60); spawnEnemy('spider', 5.5 + k * 2, 6.5, 1); enemies[k].T = Object.assign({}, enemies[k].T, { speed: 0, dmg: 0 }); }
+    fresh(); player.pos.set(-30, 0, 30); const [ax, az] = freeArea(9, 5); clearBox(ax, az, ax + 8, az + 4);
+    for (let k = 0; k < 3; k++) { put(ax + 1.5 + k * 2, az + 2.5, TER.LAVA, 60); spawnEnemy('spider', ax + 1.5 + k * 2, az + 2.5, 1); enemies[k].T = Object.assign({}, enemies[k].T, { speed: 0, dmg: 0 }); }
     for (let k = 0; k < 40 && enemies.some((x) => x.alive); k++) updateEnemies(.1);
-    ok(enemies.every((x) => !x.alive), 'all three burned'); eq(terrainKills, 3); ok(chainN >= 2, `chain ${chainN}`); eq($('#chainTag').hidden, false); ok(/×\d/.test($('#chainTag').textContent));
+    ok(enemies.every((x) => !x.alive), `all three burned: ${JSON.stringify(enemies.map((e) => ({ alive: e.alive, hp: Math.round(e.hp), x: +e.pos.x.toFixed(2), z: +e.pos.z.toFixed(2), tile: TP[tileAt(e.pos.x, e.pos.z)].n })))} area ${ax},${az}`); eq(terrainKills, 3); ok(chainN >= 2, `chain ${chainN}`); eq($('#chainTag').hidden, false); ok(/×\d/.test($('#chainTag').textContent));
     time += 2; updateTerrain(.01); eq($('#chainTag').hidden, true, 'chain tag hides after 1.4 s');
-    spawnEnemy('lizard', 9.5, 6.5, 1); put(9.5, 6.5, TER.MUD); near(terrainEffects(enemies[3], .016), .45, 1e-9, 'mud speed factor');
+    spawnEnemy('lizard', ax + 7.5, az + 2.5, 1); put(ax + 7.5, az + 2.5, TER.MUD); near(terrainEffects(enemies[3], .016), .45, 1e-9, 'mud speed factor');
   });
   test('player: lava hurts, mud slows, obsidian is a wall', () => {
     fresh(); clearBox(-2, -2, 3, 3); put(.5, .5, TER.LAVA, 60); player.pos.set(.5, 0, .5); const hp0 = player.hp; for (let k = 0; k < 10; k++) updatePlayer(.1); ok(player.hp < hp0 - 5, `hp ${player.hp}`);

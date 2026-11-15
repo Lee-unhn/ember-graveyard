@@ -452,6 +452,9 @@ const barkMat=new THREE.MeshLambertMaterial({color:0x2a211b});
 function freeSpot(minR,maxR){for(let k=0;k<40;k++){const a=rand(0,TAU),r=rand(minR,maxR),x=Math.cos(a)*r,z=Math.sin(a)*r;
   if(obstacles.every(o=>Math.hypot(o.x-x,o.z-z)>o.r+1.6))return [x,z]}return [rand(-30,30),rand(-30,30)]}
 // 四座燈塔先佔位，墓碑與枯樹不會生在塔邊；擺完再縮回塔身大小
+// 世界擺設用固定種子：每次載入墓碑、枯樹、石棺都在同一位置（測試可重現、截圖與教學示範一致）
+function mulberry32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const _sysRandom=Math.random;Math.random=mulberry32(20261115);
 const TOWER_POS=[[0,-15],[16,-1],[1,16],[-16,1]];
 const towerObs=TOWER_POS.map(([x,z])=>{const o={x,z,r:3};obstacles.push(o);return o});
 // 可破壞物：墓碑（倒下壓怪）、枯樹（燒完倒下）、鐵柵欄（分段撞斷）、石棺（打破放出殘魂）
@@ -483,6 +486,7 @@ for(let i=0;i<6;i++){const [x,z]=freeSpot(9,36),g=new THREE.Group(),base=new THR
   g.position.set(x,0,z);g.rotation.y=rand(0,TAU);scene.add(g);const ob={x,z,r:.95};obstacles.push(ob);addProp({kind:'sarc',g,x,z,ob,hp0:4,lid,lid0:lid.position.clone()})}
 {const mush=new THREE.MeshBasicMaterial({color:0x4fd8c0});for(let i=0;i<70;i++){const [x,z]=freeSpot(3,42);const m=new THREE.Mesh(new THREE.SphereGeometry(rand(.05,.11),6,4),mush);m.position.set(x,.05,z);scene.add(m)}}
 towerObs.forEach(o=>o.r=1.1);
+Math.random=_sysRandom;  // 擺設完成，戰鬥中的亂數恢復正常
 
 /* ---------- 地形網格：每格 1 單位，88×88 格涵蓋整座墓園（參考 The-Waste-Land 的地形破壞＋地形殺） ---------- */
 const GN=88,GH=44,TPX=4;  // 格數、半寬、每格在貼圖上幾像素

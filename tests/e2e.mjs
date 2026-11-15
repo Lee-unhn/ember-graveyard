@@ -20,8 +20,9 @@ async function storyFlow() {
     let presses = 0;
     while (await p.evaluate(`!document.querySelector('#dialog').hidden`) && presses < 20) { await p.key('Space', ' ', ' '); presses++; await sleep(60); }
     rep.ok(presses >= 5 && presses <= 10, `Space advances the opening dialogue (${presses} presses for 5 lines)`);
-    rep.ok(await p.evaluate(`story.phase === 'fight' && /擊倒/.test(document.querySelector('#objective').textContent)`), 'after dialogue: fight phase with a kill objective');
-    rep.ok(await p.evaluate(`document.querySelector('.sk[data-s=bolt]').classList.contains('locked')`), 'locked spells are greyed out in the skill bar');
+    // objective text and skill-bar classes are refreshed by the next frame, so wait for them (slow CI renders few frames)
+    rep.ok(await p.waitFor(`story.phase === 'fight' && /擊倒/.test(document.querySelector('#objective').textContent)`, 5000), 'after dialogue: fight phase with a kill objective');
+    rep.ok(await p.waitFor(`document.querySelector('.sk[data-s=bolt]').classList.contains('locked')`, 5000), 'locked spells are greyed out in the skill bar');
 
     // movement: hold W
     await p.evaluate(`(() => { for (const e of enemies) { e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); } })()`); // setup: freeze monsters so the test is deterministic
