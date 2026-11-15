@@ -84,6 +84,13 @@ flowchart LR
     ENEMY[/Monster AI/]:::pipeline
     LOOT[/Loot and stats/]:::pipeline
   end
+  subgraph TERRAIN[🪨 Terrain layer · P2]
+    REACT[/Reaction table · fire, lightning, meteor, blood/]:::pipeline
+    GRID[(Terrain grid 88×88 · 15 types)]:::model
+    CA[/Automaton every 0.2 s · spread, flow, cool, chain blasts/]:::pipeline
+    TKILL[/Terrain kills · damage over time, chain xN, bonus loot/]:::pipeline
+    PROPS[Destructibles · topple, burn, break, crack open]:::worker
+  end
   subgraph VFX[🔥 Three building blocks · visuals dt]
     ATLAS[(Flipbook atlas 1024²)]:::model
     SHADER[/Shader modes · atlas, procedural, quads/]:::pipeline
@@ -97,10 +104,10 @@ flowchart LR
   end
   subgraph VERIFY[✅ Verification layer]
     STATIC[Static gates · size, hosts, compile, privacy]:::safety
-    UNIT[Unit · 50 tests on page functions]:::safety
-    E2E[End-to-end · 35 checks with real input]:::safety
+    UNIT[Unit · 52 tests incl. every terrain reaction]:::safety
+    E2E[End-to-end · 36 checks with real input]:::safety
     CHECKS[Checks · 43 for perf, leaks, phone, a11y]:::safety
-    MUT[Mutation · planted defects must turn red]:::safety
+    MUT[Mutation · 5 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
   KEYS --> CAST
@@ -120,6 +127,14 @@ flowchart LR
   SPELLS --> LIGHTS
   SPELLS --> MESH
   SPELLS --> ENEMY
+  SPELLS --> REACT
+  REACT --> GRID
+  CA --> GRID
+  GRID --> TKILL
+  TKILL --> ENEMY
+  PROPS -. crush .-> TKILL
+  BOSS -. shockwave .-> PROPS
+  GRID --> CANVAS
   ENEMY --> LOOT
   LOOT --> INV
   INV -. stats .-> CAST
@@ -129,7 +144,7 @@ flowchart LR
   LIGHTS --> CANVAS
   MESH --> CANVAS
   VOICE --> SND
-  UNIT -. tests .-> LOGIC
+  UNIT -. tests .-> TERRAIN
   E2E -. tests .-> UI
   CHECKS -. tests .-> OUT
   MUT -. tests the tests .-> UNIT
@@ -160,6 +175,10 @@ flowchart TD
   SPAWN -. while fighting .-> PRESS
   PRESS --> CD[/Unlock and cooldown check/]:::pipeline --> FLY[/Flight, impact, aftermath/]:::pipeline --> DMG[/Damage · 12% crit/]:::pipeline --> DROP[(Loot → inventory → equip)]:::output
   DROP -. stats change .-> CD
+  FLY -. impact .-> CHANGE[/Impact reshapes the ground/]:::pipeline --> EVOLVE[/Terrain evolves every 0.2 s/]:::pipeline --> TOPPLE[/Tombstones topple, trees burn and fall/]:::pipeline --> TK[Terrain kills · chain xN]:::worker
+  TK -. bonus loot .-> DROP
+  SHOCK -. topples tombstones .-> TOPPLE
+  PHASE --> LAVA[/Lure it onto lava · heavy damage/]:::pipeline
   PRESS -. health reaches 0 .-> DEAD([Retry the current act]):::safety -.-> TALK
   classDef input fill:#74c7ec,stroke:#1e6091,color:#000
   classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
@@ -173,7 +192,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 50/]:::pipeline --> E2ET[/End-to-end · 35/]:::pipeline --> CHK[/Checks · 43/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
+  EDIT([Change code or content]):::input --> SMOKE[/Static gates + integration probe/]:::pipeline --> SELF[/Gate self-test/]:::pipeline --> UNITT[/Unit · 52/]:::pipeline --> E2ET[/End-to-end · 36/]:::pipeline --> CHK[/Checks · 43/]:::pipeline --> MUTT[/Mutation test/]:::pipeline --> GREEN{All green?}:::safety
   GREEN -. any red .-> FIX[Fix the feature, never loosen a gate]:::worker -.-> EDIT
   GREEN --> ASK[Ask before pushing]:::safety --> PUSH([git push]):::input --> ACTIONS[/GitHub Actions re-runs everything/]:::pipeline --> PAGES[(GitHub Pages deploy)]:::output --> LIVE[/npm run test:live against the site/]:::pipeline --> DONE[(Released)]:::output
   ACTIONS -. red in CI .-> FIX
@@ -185,7 +204,7 @@ flowchart LR
   classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
 ```
 
-Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) locally (works offline). The first snapshot from launch day is kept in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
+Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html) locally (works offline). Earlier snapshots are kept: [P1 story + verification](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) and the launch-day baseline in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
 
 ## Development log
 
@@ -212,8 +231,8 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | Suite | Command | What it proves |
 |---|---|---|
 | Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
-| Unit | `npm run test:unit` | 50 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi |
-| End-to-end | `npm run test:e2e` | 35 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill |
+| Unit | `npm run test:unit` | 52 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi |
+| End-to-end | `npm run test:e2e` | 36 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill |
 | Checks | `npm run test:checks` | Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync |
 | Mutation | part of `npm test` | Copies the project, plants five known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
@@ -291,7 +310,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 
 ### 架構圖與流程圖
 
-上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，下載後離線開啟即可；上線第一天的版本保留在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
+上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html`](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html)，下載後離線開啟即可；先前的版本都保留：[P1 故事＋驗收](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，以及上線第一天的版本在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
 
 ### 開發紀錄
 
@@ -318,8 +337,8 @@ npm test
 | 測試組 | 指令 | 驗什麼 |
 |---|---|---|
 | 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
-| 單元測試 | `npm run test:unit` | 50 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺 |
-| 端對端 | `npm run test:e2e` | 35 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物 |
+| 單元測試 | `npm run test:unit` | 52 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺 |
+| 端對端 | `npm run test:e2e` | 36 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步 |
 | 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋五個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |

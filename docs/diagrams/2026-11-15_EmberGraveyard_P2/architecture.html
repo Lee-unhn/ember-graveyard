@@ -1,0 +1,1212 @@
+<!doctype html>
+<!-- 2026-11-15 本檢視器相對原範本的改動：①renderFlowchart 參數化以支援第二張流程圖分頁（箭頭 marker id 依分頁區分）②同欄連線改上下相接、同欄往回連線改右側繞行。其餘渲染器邏輯未動。 -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>燼語墓園 ember-graveyard · P2 地形（2026-11-15）</title>
+<style>
+  :root {
+    --bg: #11111b;
+    --panel: #181825;
+    --border: #313244;
+    --text: #cdd6f4;
+    --muted: #6c7086;
+    --accent: #f9e2af;
+    --anc: #f38ba8;
+    --desc: #89b4fa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family: -apple-system, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .meta { color: var(--muted); font-size: 12px; }
+
+  .tabs {
+    display: flex; gap: 4px; padding: 8px 12px 0; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 16px; cursor: pointer; border: 1px solid transparent;
+    border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted);
+    font-size: 13px; user-select: none;
+  }
+  .tab.active { background: var(--bg); border-color: var(--border); color: var(--text); }
+  .tab.mm-related {
+    background: var(--accent); color: #1e1e2e; font-weight: 600;
+    outline: 2px solid var(--accent); outline-offset: -2px;
+  }
+
+  main { display: flex; height: calc(100vh - 96px); }
+
+  .stage { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+  .stage > div.pane { display: none; width: 100%; height: 100%; position: relative; }
+  .stage > div.pane.active { display: block; }
+
+  .controls {
+    position: absolute; top: 16px; right: 16px; display: flex; gap: 4px; z-index: 10;
+  }
+  .controls button {
+    width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); cursor: pointer; font-size: 14px;
+  }
+  .controls button:hover { background: var(--border); }
+
+  .mm-hint {
+    position: absolute; bottom: 16px; left: 16px; z-index: 10;
+    background: rgba(24,24,37,0.92); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; font-size: 12px; color: var(--text);
+    max-width: 640px;
+  }
+  .mm-hint .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+  .mm-hint .row:last-child { margin-bottom: 0; }
+  .mm-hint .meta { color: var(--muted); }
+  .mm-hint .tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .mm-hint .tag.focus { background: #f9e2af; color: #1e1e2e; }
+  .mm-hint .tag.anc   { background: #f38ba8; color: #1e1e2e; }
+  .mm-hint .tag.desc  { background: #89b4fa; color: #1e1e2e; }
+  .mm-hint .tag.dim   { background: #6c7086; color: #cdd6f4; opacity: 0.55; }
+  .mm-hint kbd { padding: 1px 5px; border-radius: 3px; background: var(--border);
+    font-size: 11px; font-family: monospace; }
+
+  aside.legend {
+    width: 300px; flex-shrink: 0; background: var(--panel);
+    border-left: 1px solid var(--border); padding: 16px;
+    overflow-y: auto; font-size: 12px;
+  }
+  aside.legend h3 {
+    font-size: 13px; margin: 0 0 8px; color: var(--accent);
+    border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  }
+  aside.legend h3:not(:first-child) { margin-top: 18px; }
+  aside.legend .item {
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  }
+  aside.legend .swatch {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  aside.legend .shape {
+    width: 36px; height: 18px; flex-shrink: 0;
+    display:flex; align-items:center; justify-content:center;
+    font-family: "PingFang TC", monospace; font-size: 11px; color: var(--text);
+    border: 1px dashed var(--border);
+  }
+  aside.legend .note {
+    color: var(--muted); font-size: 11px; line-height: 1.55; margin-top: 6px;
+  }
+  aside.legend code {
+    background: var(--bg); padding: 1px 4px; border-radius: 3px;
+    font-family: monospace; font-size: 11px; color: var(--accent);
+  }
+
+  .canvas-wrap { width:100%; height:100%; cursor: grab; touch-action: none; }
+  .canvas-wrap.grabbing { cursor: grabbing; }
+  svg.diagram { width:100%; height:100%; display:block; user-select:none; }
+
+  .fc-node text, .mm-node text { font-family: "PingFang TC", -apple-system, sans-serif; }
+  .fc-node rect, .fc-node polygon, .fc-node ellipse, .fc-node path.body { stroke-width: 1.3; }
+  .fc-node text { fill:#0b0b12; font-size: 12px; }
+  .fc-node .cyl-seam { stroke-width: 1; opacity: .55; }
+  .sg-box { fill: rgba(255,255,255,0.02); stroke: var(--border); stroke-width: 1; rx: 10; }
+  .sg-title { fill: var(--muted); font-size: 12px; font-weight: 600; }
+  .fc-edge { fill:none; stroke: #7f849c; stroke-width: 1.6; }
+  .fc-edge.dashed { stroke-dasharray: 5 4; }
+  .fc-edge-label { fill: var(--muted); font-size: 10.5px; }
+
+  .mm-node .box { stroke-width: 1.3; }
+  .mm-node text { fill: var(--text); font-size: 11px; }
+  .mm-node.root text { font-size: 13px; font-weight: 700; }
+  .mm-node.branch text { font-size: 11.5px; font-weight: 600; }
+  .mm-edge { fill:none; stroke: #45475a; stroke-width: 1.4; }
+
+  /* mind map interaction states */
+  .mm-dim { opacity: 0.18; transition: opacity 0.2s; }
+  .mm-edge-dim { opacity: 0.12; transition: opacity 0.2s; }
+
+  .mm-focus .box { filter: drop-shadow(0 0 8px #f9e2af); stroke:#f9e2af !important; stroke-width:3 !important; }
+  .mm-focus text { fill:#f9e2af !important; font-weight:700; }
+
+  .mm-anc .box { stroke:#f38ba8 !important; stroke-width:2.5 !important; }
+  .mm-anc text { fill:#f38ba8 !important; font-weight:600; }
+
+  .mm-desc .box { stroke:#89b4fa !important; stroke-width:2.5 !important; }
+  .mm-desc text { fill:#89b4fa !important; font-weight:600; }
+
+  .mm-edge-anc  { stroke:#f38ba8 !important; stroke-width:2 !important; }
+  .mm-edge-desc { stroke:#89b4fa !important; stroke-width:2 !important; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>燼語墓園 ember-graveyard · P2 地形破壞與地形殺</h1>
+    <div class="meta">2026-11-15 第二次快照 · 新增地形層（88×88 格、15 種地形、自動演變、地形殺、可破壞物、固定種子世界）；驗收層更新為單元 52・端對端 36・其他驗證 43・突變 5</div>
+  </header>
+
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="overview">🗺️ 系統架構</div>
+    <div class="tab" data-tab="flow">🔄 遊戲流程</div>
+    <div class="tab" data-tab="verify">✅ 驗證流程</div>
+    <div class="tab" data-tab="mindmap">🧠 Mind Map</div>
+  </div>
+
+  <main>
+    <div class="stage" id="stage">
+      <div id="pane-overview" class="pane active">
+        <div class="controls">
+          <button onclick="zoomBtn('overview','in')" title="zoom in">＋</button>
+          <button onclick="zoomBtn('overview','out')" title="zoom out">－</button>
+          <button onclick="zoomBtn('overview','reset')" title="reset">⟲</button>
+        </div>
+        <div class="canvas-wrap" id="wrap-overview">
+          <svg class="diagram" id="svg-overview">
+            <g id="viewport-overview"></g>
+          </svg>
+        </div>
+      </div>
+      <div id="pane-flow" class="pane">
+        <div class="controls">
+          <button onclick="zoomBtn('flow','in')" title="zoom in">＋</button>
+          <button onclick="zoomBtn('flow','out')" title="zoom out">－</button>
+          <button onclick="zoomBtn('flow','reset')" title="reset">⟲</button>
+        </div>
+        <div class="canvas-wrap" id="wrap-flow">
+          <svg class="diagram" id="svg-flow">
+            <g id="viewport-flow"></g>
+          </svg>
+        </div>
+      </div>
+      <div id="pane-verify" class="pane">
+        <div class="controls">
+          <button onclick="zoomBtn('verify','in')" title="zoom in">＋</button>
+          <button onclick="zoomBtn('verify','out')" title="zoom out">－</button>
+          <button onclick="zoomBtn('verify','reset')" title="reset">⟲</button>
+        </div>
+        <div class="canvas-wrap" id="wrap-verify">
+          <svg class="diagram" id="svg-verify">
+            <g id="viewport-verify"></g>
+          </svg>
+        </div>
+      </div>
+      <div id="pane-mindmap" class="pane">
+        <div class="controls">
+          <button onclick="zoomBtn('mindmap','in')" title="zoom in">＋</button>
+          <button onclick="zoomBtn('mindmap','out')" title="zoom out">－</button>
+          <button onclick="zoomBtn('mindmap','reset')" title="reset">⟲</button>
+        </div>
+        <div class="canvas-wrap" id="wrap-mindmap">
+          <svg class="diagram" id="svg-mindmap">
+            <g id="viewport-mindmap"></g>
+          </svg>
+        </div>
+        <div class="mm-hint">
+          <div class="row">
+            <span class="meta">click →</span>
+            <span class="tag focus">focus</span> +
+            <span class="tag anc">祖先 ancestors</span> +
+            <span class="tag desc">子孫 descendants</span> ·
+            <span class="tag dim">others 18%</span>
+            <span class="meta">edges 12%</span>
+          </div>
+          <div class="row meta">↑ 上方 tab 同步高亮：點到節點所屬子圖</div>
+          <div class="row meta">
+            reset · <kbd>Esc</kbd> / 點空白 · pan · 拖曳 drag · zoom · 滾輪 wheel
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="legend">
+      <h3>🎨 架構色盤 Architecture</h3>
+      <div class="item"><span class="swatch" style="background:#74c7ec"></span> 使用者輸入 input</div>
+      <div class="item"><span class="swatch" style="background:#cba6f7"></span> UI 元件 介面層</div>
+      <div class="item"><span class="swatch" style="background:#fdd97a"></span> 處理階段 pipeline</div>
+      <div class="item"><span class="swatch" style="background:#fab387"></span> 守門／驗收 safety</div>
+      <div class="item"><span class="swatch" style="background:#a6e3a1"></span> 模型／外部資源 model</div>
+      <div class="item"><span class="swatch" style="background:#f5c2e7"></span> 輸出檔 output</div>
+      <div class="item"><span class="swatch" style="background:#94e2d5"></span> 常駐系統（粒子・燈光・音效）</div>
+      <div class="item"><span class="swatch" style="background:#6c7086"></span> Deprecated 已棄用（本案暫無）</div>
+
+      <h3>🔣 Shape</h3>
+      <div class="item"><span class="shape">▭</span> Rectangle · 元件 component</div>
+      <div class="item"><span class="shape">◖◗</span> Stadium · 起點 entry</div>
+      <div class="item"><span class="shape">◫</span> Cylinder · 資料 store</div>
+      <div class="item"><span class="shape">⏢</span> Trapezoid · 處理 process</div>
+
+      <h3>━ Line</h3>
+      <div class="item"><span class="shape">→</span> 實線 · 資料流</div>
+      <div class="item"><span class="shape">⇢</span> 虛線 · 事件／訊號</div>
+
+      <h3>🧠 Mind Map 互動色</h3>
+      <div class="item"><span class="swatch" style="background:#f9e2af"></span> focus 點選 <code>#f9e2af</code></div>
+      <div class="item"><span class="swatch" style="background:#f38ba8"></span> ancestors 祖先 <code>#f38ba8</code></div>
+      <div class="item"><span class="swatch" style="background:#89b4fa"></span> descendants 子孫 <code>#89b4fa</code></div>
+      <div class="item"><span class="swatch" style="background:#6c7086;opacity:0.55"></span> others 18% dim</div>
+      <div class="note">
+        此三色（yellow / red / blue）僅用於 mind map 點擊互動，不在 architecture 節點色盤出現。
+        架構圖 pipeline 採用 <code>#fdd97a</code> 區隔 mind map focus 的 <code>#f9e2af</code>。
+      </div>
+
+      <h3>🪨 地形層（P2）</h3>
+      <div class="note">
+        地面是 88×88 格、15 種地形。四招落點改寫地形，地形每 0.2 秒自己演變（蔓延、流動、冷卻），
+        站在火、熔岩、帶電水、血沼、蒸氣上的怪物持續扣血，被地形殺死算「地形擊殺」並累積連鎖。
+        墓碑、枯樹、柵欄、石棺可被破壞；世界擺設用固定種子，每次載入相同。
+      </div>
+
+      <h3>📁 快照命名</h3>
+      <div class="note">
+        同一天第二次階段快照，資料夾名加上 <code>_P2</code> 後綴；前一版 <code>2026-11-15_EmberGraveyard</code>（P1）保留不改。
+      </div>
+
+      <h3>🔥 特效三零件</h3>
+      <div class="note">
+        每招法術拆成：①翻頁圖（火焰／爆炸／濃煙，4×4 共 16 格）②程式控制的粒子與燈光（軌跡、數量、重力、照地）
+        ③模型（隕石）。翻頁圖貼在永遠面向鏡頭的方塊上，球體感靠多片疊加。
+      </div>
+
+      <h3>🔧 檢視器改動</h3>
+      <div class="note">
+        本檔新增「🔄 遊戲流程」第二張流程圖分頁；同欄節點連線改為上下相接，往回的連線從右側繞行。
+      </div>
+
+      <h3>ℹ️ 圖檔結構</h3>
+      <div class="note">
+        本檔為「viewer」，Source-of-truth 為同資料夾下兩個 <code>.mmd</code> 檔（本頁內嵌其內容並自行解析渲染，
+        不依賴外部 CDN）：<br/>
+        ・<code>system_architecture.mmd</code>（🗺️ 系統架構）<br/>
+        ・<code>gameplay_flow.mmd</code>（🔄 遊戲流程）<br/>
+        ・<code>verification_flow.mmd</code>（✅ 驗證流程）<br/>
+        ・<code>mindmap.mmd</code><br/>
+        架構變動時新增日期資料夾，不覆蓋舊版。
+      </div>
+      <div class="note">
+        <b>完全離線</b>：本頁自行解析 Mermaid 子集並以 SVG 繪出，拖曳、縮放、心智圖互動皆為原生 JavaScript，不載入任何外部套件。</div>
+    </aside>
+  </main>
+
+<script>
+// =============================================================================
+// Inline mmd source — mirrors the .mmd files in this folder exactly.
+// This HTML parses these strings itself (no CDN, no build step, no mermaid.js).
+// =============================================================================
+
+const FLOWCHART_SRC = String.raw`%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph INPUT[👤 玩家輸入]
+    KEYS([鍵盤<br/>WASD・1-4・I・空白鍵]):::input
+    MOUSE([滑鼠<br/>瞄準・左鍵・右鍵]):::input
+    UPLOAD([上傳黑底 4×4 翻頁圖]):::input
+  end
+
+  %% col=1 row=0
+  subgraph UI[🖥️ 介面層]
+    MODE[開場選單<br/>故事模式・自由試玩]:::ui
+    LAB[拆解台<br/>貼圖路線・基礎／升級・語音]:::ui
+    HUD[目標提示・首領血條<br/>技能列・地形連鎖跳字]:::ui
+    DLGUI[對白框<br/>頭像・逐字・跳過]:::ui
+    INV[行囊<br/>照形狀占格・7 裝備欄]:::ui
+  end
+
+  %% col=2 row=0
+  subgraph STORY[📖 故事層]
+    ACTS[/幕次狀態機<br/>對白→清怪→前往→點燃→解鎖/]:::pipeline
+    TOWER[(四座燈塔<br/>焰・雷・星・血)]:::model
+    BOSS[/首領 AI<br/>衝擊波・召喚・黑暗/]:::pipeline
+    VOICE[瀏覽器內建語音<br/>三種音高]:::worker
+  end
+
+  %% col=3 row=0
+  subgraph LOGIC[⚙️ 遊戲邏輯 logic dt]
+    CAST[/施法系統<br/>解鎖・冷卻・手勢/]:::pipeline
+    SPELLS[/四招法術<br/>依進度決定強度/]:::pipeline
+    ENEMY[/怪物 AI<br/>追擊・推開・地形減速/]:::pipeline
+    LOOT[/掉寶與數值/]:::pipeline
+  end
+
+  %% col=3 row=1
+  subgraph TERRAIN[🪨 地形層 P2]
+    REACT[/反應表<br/>火・雷・星墜・血 → 改地形/]:::pipeline
+    GRID[(地形網格 88×88<br/>15 種地形)]:::model
+    TKILL[/地形殺<br/>持續傷害・連鎖 ×N・多掉寶/]:::pipeline
+    PROPS[可破壞物<br/>倒下壓怪・燒倒・撞斷・裂開]:::worker
+    SEED[(固定種子世界<br/>墓碑 46・枯樹 12・石棺 6)]:::model
+    CA[/自動演變 每 0.2 秒<br/>蔓延・流動・冷卻・連鎖爆炸/]:::pipeline
+  end
+
+  %% col=4 row=0
+  subgraph VFX[🔥 特效三零件 visuals dt]
+    ATLAS[(翻頁圖集 1024²<br/>4 張 × 16 格)]:::model
+    SHADER[/著色器三模式/]:::pipeline
+    PSYS[粒子系統<br/>方塊永遠面向鏡頭]:::worker
+    LIGHTS[燈光池 10 盞<br/>＋燈塔 4 盞]:::worker
+    GTEX[地面貼圖兩張<br/>地面色＋疊加發光]:::worker
+  end
+
+  %% col=5 row=0
+  subgraph OUT[🖼️ 輸出]
+    CANVAS[(WebGL 畫面<br/>Three.js r128)]:::output
+    SND[(合成音效＋語音)]:::output
+  end
+
+  %% col=6 row=0
+  subgraph VERIFY[✅ 驗收層]
+    STATIC[靜態閘門<br/>大小・外連・編譯・隱私]:::safety
+    UNIT[單元測試 52 項<br/>含每種地形反應]:::safety
+    E2E[端對端 36 項<br/>真實鍵盤滑鼠事件]:::safety
+    CHECKS[其他驗證 43 項<br/>效能・地形負載・洩漏・手機]:::safety
+    MUT[突變測試<br/>埋 5 個缺陷必須變紅]:::safety
+    CI[(GitHub Actions<br/>每次推送自動跑)]:::output
+  end
+
+  KEYS --> CAST
+  MOUSE --> CAST
+  UPLOAD --> ATLAS
+  MODE --> ACTS
+  LAB -. 切換路線 .-> SHADER
+  ACTS --> DLGUI
+  DLGUI --> VOICE
+  ACTS --> TOWER
+  TOWER -. 點亮解鎖 .-> CAST
+  ACTS --> BOSS
+  BOSS --> ENEMY
+  CAST --> SPELLS
+  SPELLS --> PSYS
+  SPELLS --> LIGHTS
+  SPELLS --> ENEMY
+  SPELLS --> REACT
+  REACT --> GRID
+  CA --> GRID
+  GRID --> TKILL
+  TKILL --> ENEMY
+  SEED --> PROPS
+  PROPS -. 壓怪 .-> TKILL
+  BOSS -. 衝擊波推倒 .-> PROPS
+  GRID --> GTEX
+  ENEMY --> LOOT
+  LOOT --> INV
+  INV -. 換裝改數值 .-> CAST
+  TKILL -. 連鎖跳字 .-> HUD
+  ATLAS --> SHADER
+  SHADER --> PSYS
+  PSYS --> CANVAS
+  LIGHTS --> CANVAS
+  GTEX --> CANVAS
+  VOICE --> SND
+  UNIT -. 驗 .-> TERRAIN
+  E2E -. 驗 .-> UI
+  CHECKS -. 驗 .-> OUT
+  MUT -. 驗測試本身 .-> UNIT
+  STATIC --> CI
+  UNIT --> CI
+  E2E --> CI
+  CHECKS --> CI
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef model fill:#a6e3a1,stroke:#1e6f1a,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
+`;
+
+const FLOW_SRC = String.raw`%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph BOOT[🚪 開場]
+    START([開啟頁面]):::input
+    BUILD[/固定種子擺設世界<br/>畫翻頁圖集與地形/]:::pipeline
+    PICK[選模式<br/>故事・自由試玩]:::ui
+  end
+
+  %% col=1 row=0
+  subgraph STORY[📖 故事一幕 × 4]
+    TALK[對白＋語音<br/>遊戲暫停]:::ui
+    CLEAR1[/清怪<br/>18・24・28・30 隻/]:::pipeline
+    GOTO[/跟著箭頭與光柱<br/>前往燈塔/]:::pipeline
+    IGNITE[/站在塔下 3 秒點燃<br/>離開會倒退・引來 6 隻突襲/]:::pipeline
+    UNLOCK[解鎖一招<br/>焰三連・鏈雷・星墜・血環]:::worker
+  end
+
+  %% col=1 row=1
+  subgraph FREE[🌊 自由試玩]
+    SPAWN[/一波 50 隻<br/>清空後 +5 隻・+25% 血/]:::pipeline
+  end
+
+  %% col=2 row=0
+  subgraph BOSSF[👁️ 首領戰]
+    LORD[無燈之主出現]:::worker
+    SHOCK[/每 5 秒紫色衝擊波<br/>推倒經過的墓碑/]:::pipeline
+    PHASE[/66%・33% 召喚亡者<br/>50% 墓園變暗 9 秒/]:::pipeline
+    LAVA[/引牠站上熔岩<br/>受重傷/]:::pipeline
+    END[(結局畫面<br/>用時・擊倒數・地形擊殺比例)]:::output
+  end
+
+  %% col=3 row=0
+  subgraph CASTF[🪄 一次施法]
+    PRESS([按鍵或滑鼠]):::input
+    CD[/解鎖與冷卻檢查/]:::pipeline
+    FLY[/飛行・命中・殘留/]:::pipeline
+    DMG[/傷害 12% 爆擊/]:::pipeline
+    DROP[(掉寶 → 行囊 → 換裝)]:::output
+  end
+
+  %% col=4 row=0
+  subgraph TERR[🪨 地形循環 P2]
+    CHANGE[/落點改地形<br/>燒草・帶電・熔岩坑・血沼/]:::pipeline
+    EVOLVE[/每 0.2 秒自己演變<br/>蔓延・流動・冷卻成牆/]:::pipeline
+    TOPPLE[/墓碑倒下・枯樹燒倒<br/>壓死路徑上的怪/]:::pipeline
+    TK[地形殺<br/>1.2 秒內連殺 → 連鎖 ×N]:::worker
+  end
+
+  %% col=5 row=0
+  DEAD([生命歸零<br/>從本幕重來・地形還原]):::safety
+
+  START --> BUILD
+  BUILD --> PICK
+  PICK --> TALK
+  PICK --> SPAWN
+  TALK --> CLEAR1
+  CLEAR1 --> GOTO
+  GOTO --> IGNITE
+  IGNITE --> UNLOCK
+  UNLOCK -. 下一幕 .-> TALK
+  UNLOCK -. 第四座點亮 .-> LORD
+  LORD --> SHOCK
+  SHOCK --> PHASE
+  PHASE --> LAVA
+  LAVA --> END
+  CLEAR1 -. 戰鬥中 .-> PRESS
+  SPAWN -. 戰鬥中 .-> PRESS
+  PRESS --> CD
+  CD --> FLY
+  FLY --> DMG
+  DMG --> DROP
+  DROP -. 數值改變 .-> CD
+  FLY -. 落點 .-> CHANGE
+  CHANGE --> EVOLVE
+  EVOLVE --> TOPPLE
+  TOPPLE --> TK
+  TK -. 多掉寶 .-> DROP
+  SHOCK -. 推倒墓碑 .-> TOPPLE
+  PRESS -. 被咬到歸零 .-> DEAD
+  DEAD -. 重來 .-> TALK
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
+`;
+
+const VERIFY_SRC = String.raw`%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph DEV[✏️ 本機修改]
+    EDIT([改程式或內容]):::input
+    FIX[修正<br/>功能真壞就修功能<br/>不准為了過而放寬閘門]:::worker
+    LOG[(開發紀錄<br/>時間軸＋問題與修正表)]:::output
+  end
+
+  %% col=1 row=0
+  subgraph LOCAL[🧪 本機 npm test]
+    SMOKE[/靜態閘門＋整合探針<br/>四招・故事全程/]:::pipeline
+    SELF[/閘門自我測試<br/>弄壞的副本必須變紅/]:::pipeline
+    UNITT[/單元測試 52 項<br/>每種地形反應・固定種子/]:::pipeline
+    E2ET[/端對端 36 項<br/>真實鍵盤滑鼠<br/>一律等條件成立/]:::pipeline
+    CHK[/其他驗證 43 項<br/>效能・地形負載・洩漏<br/>手機・無障礙・圖源/]:::pipeline
+    MUTT[/突變測試<br/>埋 5 個缺陷<br/>單元與驗證都要變紅/]:::pipeline
+  end
+
+  %% col=2 row=0
+  subgraph GATE[🛡️ 守門]
+    GREEN[全綠？]:::safety
+    ASK[推送前先問使用者]:::safety
+  end
+
+  %% col=3 row=0
+  subgraph REMOTE[☁️ GitHub]
+    PUSH([git push]):::input
+    ACTIONS[/GitHub Actions<br/>雲端 Chrome 重跑全部<br/>比本機慢約 3 倍/]:::pipeline
+    PAGES[(GitHub Pages 部署)]:::output
+  end
+
+  %% col=4 row=0
+  subgraph LIVE[🌐 線上驗收]
+    LIVET[/npm run test:live<br/>對線上網址重跑/]:::pipeline
+    DONE[(才算上線完成)]:::output
+  end
+
+  EDIT --> SMOKE
+  SMOKE --> SELF
+  SELF --> UNITT
+  UNITT --> E2ET
+  E2ET --> CHK
+  CHK --> MUTT
+  MUTT --> GREEN
+  GREEN -. 有紅燈 .-> FIX
+  FIX -. 記一列 .-> LOG
+  FIX -. 重跑 .-> EDIT
+  GREEN --> ASK
+  ASK --> PUSH
+  PUSH --> ACTIONS
+  ACTIONS --> PAGES
+  ACTIONS -. 雲端紅燈 .-> FIX
+  PAGES --> LIVET
+  LIVET --> DONE
+  LIVET -. 線上紅燈 .-> FIX
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
+`;
+
+const MINDMAP_SRC = String.raw`mindmap
+  root((燼語墓園<br/>ember-graveyard))
+    🗺️ 系統元件
+      粒子方塊面向鏡頭
+      翻頁圖集 4×16 格
+      燈光池 10＋4 盞
+      地面貼圖兩張
+      logic 與 visuals 分離
+    🔄 遊戲流程
+      故事四幕點燈解鎖
+      首領無燈之主
+      自由試玩無限波
+      掉寶行囊換裝
+      結局與重來
+    🪨 地形系統
+      88×88 格 15 種地形
+      招式改地形
+      每 0.2 秒自動演變
+      地形殺與連鎖
+      墓碑倒下壓怪
+    ✅ 驗證流程
+      單元 52 項
+      端對端 36 項
+      其他驗證 43 項
+      突變測試 5 個缺陷
+      雲端線上重跑
+    🔥 特效拆解法
+      影片不能直接用
+      三零件
+      尾焰 240 片每秒
+      命中 40 顆火星
+      三條貼圖路線
+    📅 階段 Roadmap
+      P0 上線
+      P1 故事模式
+      P2 地形
+      P3 換皮
+      P4 手機・P5 Godot
+    🛡️ 守門
+      推送前先問
+      公開前隱私掃描
+      付費生成先報價
+      每階段一項玩法
+      測試等條件不等秒數
+`;
+
+const CLASS_FILL = {
+  input:    { fill:'#74c7ec', stroke:'#1e6091' },
+  ui:       { fill:'#cba6f7', stroke:'#5b2d8a' },
+  pipeline: { fill:'#fdd97a', stroke:'#7d6608' },
+  safety:   { fill:'#fab387', stroke:'#7a3f10' },
+  model:    { fill:'#a6e3a1', stroke:'#1e6f1a' },
+  output:   { fill:'#f5c2e7', stroke:'#7a2e6d' },
+  worker:   { fill:'#94e2d5', stroke:'#1d6e62' },
+  default:  { fill:'#45475a', stroke:'#6c7086' },
+};
+
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+// =============================================================================
+// Flowchart: parser
+// =============================================================================
+function parseFlowchart(src) {
+  const rawLines = src.split('\n');
+  const subgraphs = {};      // id -> {id,title,col,row,nodeIds:[]}
+  const subgraphOrder = [];
+  const nodes = {};          // id -> {id,label,shape,cls,subgraphId,col,row}
+  const edges = [];
+  let curSub = null;
+  let pendingCol = null, pendingRow = 0;
+
+  for (let raw of rawLines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('%%{')) continue;
+    if (/^flowchart\s+/.test(line)) continue;
+    if (/^classDef\s+/.test(line)) continue;
+
+    let m;
+    if ((m = line.match(/^%%\s*col=(\d+)(?:\s+row=(\d+))?\s*$/))) {
+      pendingCol = parseInt(m[1], 10);
+      pendingRow = m[2] ? parseInt(m[2], 10) : 0;
+      continue;
+    }
+    if ((m = line.match(/^subgraph\s+([A-Za-z_]\w*)\[(.*)\]\s*$/))) {
+      curSub = { id: m[1], title: m[2], col: pendingCol ?? 0, row: pendingRow, nodeIds: [] };
+      subgraphs[curSub.id] = curSub;
+      subgraphOrder.push(curSub.id);
+      pendingCol = null; pendingRow = 0;
+      continue;
+    }
+    if (line === 'end') { curSub = null; continue; }
+
+    // node def
+    if ((m = line.match(/^([A-Za-z_]\w*)\[\((.*)\)\](?::::([A-Za-z0-9_]+))?\s*$/))) {
+      addNode(m[1], 'cylinder', m[2], m[3]); continue;
+    }
+    if ((m = line.match(/^([A-Za-z_]\w*)\(\[(.*)\]\)(?::::([A-Za-z0-9_]+))?\s*$/))) {
+      addNode(m[1], 'stadium', m[2], m[3]); continue;
+    }
+    if ((m = line.match(/^([A-Za-z_]\w*)\[\/(.*)\/\](?::::([A-Za-z0-9_]+))?\s*$/))) {
+      addNode(m[1], 'trapezoid', m[2], m[3]); continue;
+    }
+    if ((m = line.match(/^([A-Za-z_]\w*)\[(.*)\](?::::([A-Za-z0-9_]+))?\s*$/))) {
+      addNode(m[1], 'rect', m[2], m[3]); continue;
+    }
+
+    // edges: dashed labeled -> dashed -> solid
+    if ((m = line.match(/^([A-Za-z_]\w*)\s*-\.\s*(.+?)\s*\.->\s*([A-Za-z_]\w*)\s*$/))) {
+      edges.push({ from: m[1], to: m[3], style: 'dashed', label: m[2] }); continue;
+    }
+    if ((m = line.match(/^([A-Za-z_]\w*)\s*-\.->\s*([A-Za-z_]\w*)\s*$/))) {
+      edges.push({ from: m[1], to: m[2], style: 'dashed' }); continue;
+    }
+    if ((m = line.match(/^([A-Za-z_]\w*)\s*-->\s*([A-Za-z_]\w*)\s*$/))) {
+      edges.push({ from: m[1], to: m[2], style: 'solid' }); continue;
+    }
+  }
+
+  function addNode(id, shape, label, cls) {
+    const n = { id, shape, label, cls: cls || 'default', subgraphId: curSub ? curSub.id : null,
+      col: curSub ? curSub.col : (pendingCol ?? 0), row: curSub ? curSub.row : (pendingRow ?? 0) };
+    nodes[id] = n;
+    if (curSub) curSub.nodeIds.push(id);
+    if (!curSub) { pendingCol = null; pendingRow = 0; }
+  }
+
+  return { subgraphs, subgraphOrder, nodes, edges };
+}
+
+// =============================================================================
+// Flowchart: layout (column-based stacking, computed at runtime — no hand
+// tuned pixel coordinates)
+// =============================================================================
+const NODE_W = 200;
+const SG_PAD_X = 16, SG_PAD_TOP = 34, SG_PAD_BOTTOM = 16;
+const NODE_GAP_Y = 14, SG_GAP_Y = 46, COL_GAP = 90;
+
+function lineCount(label) { return label.split('<br/>').length; }
+function nodeHeight(label) { return 24 + lineCount(label) * 20; }
+
+function layoutFlowchart(graph) {
+  // group top-level items (subgraphs + standalone nodes) by column
+  const items = [];
+  graph.subgraphOrder.forEach(id => items.push({ kind: 'subgraph', id, col: graph.subgraphs[id].col, row: graph.subgraphs[id].row }));
+  Object.values(graph.nodes).forEach(n => { if (!n.subgraphId) items.push({ kind: 'node', id: n.id, col: n.col, row: n.row }); });
+
+  const cols = {};
+  items.forEach(it => { (cols[it.col] = cols[it.col] || []).push(it); });
+  Object.values(cols).forEach(arr => arr.sort((a, b) => a.row - b.row));
+
+  const colKeys = Object.keys(cols).map(Number).sort((a, b) => a - b);
+  const colX = {};
+  let x = 40;
+  colKeys.forEach(c => { colX[c] = x; x += NODE_W + 2 * SG_PAD_X + COL_GAP; });
+
+  let maxBottom = 40;
+  colKeys.forEach(c => {
+    let y = 40;
+    cols[c].forEach(it => {
+      if (it.kind === 'subgraph') {
+        const sg = graph.subgraphs[it.id];
+        let cy = y + SG_PAD_TOP;
+        sg.nodeIds.forEach(nid => {
+          const n = graph.nodes[nid];
+          n.x = colX[c] + SG_PAD_X; n.y = cy; n.w = NODE_W; n.h = nodeHeight(n.label);
+          cy += n.h + NODE_GAP_Y;
+        });
+        sg.x = colX[c]; sg.y = y; sg.w = NODE_W + 2 * SG_PAD_X;
+        sg.h = (cy - NODE_GAP_Y) - y + SG_PAD_BOTTOM;
+        y += sg.h + SG_GAP_Y;
+      } else {
+        const n = graph.nodes[it.id];
+        n.h = nodeHeight(n.label) + 10;
+        n.w = NODE_W + 20;
+        n.x = colX[c] + SG_PAD_X; n.y = y;
+        y += n.h + SG_GAP_Y;
+      }
+    });
+    maxBottom = Math.max(maxBottom, y - SG_GAP_Y);
+  });
+
+  // vertically center standalone nodes relative to full diagram extent
+  const midY = (40 + maxBottom) / 2;
+  Object.values(graph.nodes).forEach(n => {
+    if (!n.subgraphId) {
+      // re-center standalone single nodes on the overall vertical midpoint
+      n.y = midY - n.h / 2;
+    }
+  });
+
+  const width = x - COL_GAP + 40;
+  const height = maxBottom + 40;
+  return { width, height };
+}
+
+// =============================================================================
+// Flowchart: render
+// =============================================================================
+function shapeAnchor(n, side) {
+  // returns {x,y} of left/right mid-point of a node's bbox (used for edge endpoints)
+  const cy = n.y + n.h / 2;
+  return side === 'right' ? { x: n.x + n.w, y: cy } : { x: n.x, y: cy };
+}
+
+function drawShape(g, n) {
+  const colors = CLASS_FILL[n.cls] || CLASS_FILL.default;
+  const grp = el('g', { class: 'fc-node', 'data-id': n.id });
+  let shapeEl;
+  if (n.shape === 'stadium') {
+    shapeEl = el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: n.h / 2, ry: n.h / 2 });
+  } else if (n.shape === 'cylinder') {
+    shapeEl = el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 14, ry: 14 });
+  } else if (n.shape === 'trapezoid') {
+    const inset = n.w * 0.12;
+    const pts = `${n.x + inset},${n.y} ${n.x + n.w - inset},${n.y} ${n.x + n.w},${n.y + n.h} ${n.x},${n.y + n.h}`;
+    shapeEl = el('polygon', { points: pts });
+  } else {
+    shapeEl = el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, ry: 6 });
+  }
+  shapeEl.setAttribute('fill', colors.fill);
+  shapeEl.setAttribute('stroke', colors.stroke);
+  shapeEl.setAttribute('class', 'body box');
+  grp.appendChild(shapeEl);
+
+  if (n.shape === 'cylinder') {
+    const seam = el('line', { x1: n.x + 6, y1: n.y + 14, x2: n.x + n.w - 6, y2: n.y + 14,
+      stroke: colors.stroke, class: 'cyl-seam' });
+    grp.appendChild(seam);
+  }
+
+  const lines = n.label.split('<br/>');
+  const text = el('text', { x: n.x + n.w / 2, y: n.y + n.h / 2 - (lines.length - 1) * 8 + 4, 'text-anchor': 'middle' });
+  lines.forEach((ln, i) => {
+    const tspan = el('tspan', { x: n.x + n.w / 2, dy: i === 0 ? 0 : 16 });
+    tspan.textContent = ln;
+    text.appendChild(tspan);
+  });
+  grp.appendChild(text);
+  g.appendChild(grp);
+}
+
+function drawSubgraphBox(g, sg) {
+  const box = el('rect', { x: sg.x, y: sg.y, width: sg.w, height: sg.h, rx: 10, ry: 10, class: 'sg-box' });
+  g.appendChild(box);
+  const title = el('text', { x: sg.x + 12, y: sg.y + 20, class: 'sg-title' });
+  title.textContent = sg.title;
+  g.appendChild(title);
+}
+
+function anchorOf(graph, id) {
+  if (graph.nodes[id]) return graph.nodes[id];
+  if (graph.subgraphs[id]) return graph.subgraphs[id];
+  return null;
+}
+
+function drawEdge(g, graph, e) {
+  const from = anchorOf(graph, e.from), to = anchorOf(graph, e.to);
+  if (!from || !to) return;
+  const sameCol = Math.abs(from.x - to.x) < 1;
+  let p1, p2, d;
+  if (sameCol && to.y >= from.y) {
+    // same column, downward: bottom-centre -> top-centre
+    p1 = { x: from.x + from.w / 2, y: from.y + from.h }; p2 = { x: to.x + to.w / 2, y: to.y };
+    const dy = Math.max(10, (p2.y - p1.y) * 0.5);
+    d = `M${p1.x},${p1.y} C${p1.x},${p1.y + dy} ${p2.x},${p2.y - dy} ${p2.x},${p2.y}`;
+  } else if (sameCol) {
+    // same column, going back up: bulge out on the right so it never crosses the nodes in between
+    p1 = shapeAnchor(from, 'right'); p2 = shapeAnchor(to, 'right');
+    const bx = Math.max(p1.x, p2.x) + 46;
+    d = `M${p1.x},${p1.y} C${bx},${p1.y} ${bx},${p2.y} ${p2.x},${p2.y}`;
+  } else {
+    const goingRight = (from.x + (from.w||0)) <= to.x + 1;
+    p1 = goingRight ? shapeAnchor(from, 'right') : shapeAnchor(from, 'left');
+    p2 = goingRight ? shapeAnchor(to, 'left') : shapeAnchor(to, 'right');
+    const dx = Math.max(40, Math.abs(p2.x - p1.x) * 0.5);
+    d = goingRight ? `M${p1.x},${p1.y} C${p1.x + dx},${p1.y} ${p2.x - dx},${p2.y} ${p2.x},${p2.y}`
+                   : `M${p1.x},${p1.y} C${p1.x - dx},${p1.y} ${p2.x + dx},${p2.y} ${p2.x},${p2.y}`;
+  }
+  const path = el('path', { d, class: 'fc-edge' + (e.style === 'dashed' ? ' dashed' : ''),
+    'marker-end': `url(#${CUR_MARKER})` });
+  g.appendChild(path);
+  if (e.label) {
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2 - 6;
+    const t = el('text', { x: mx, y: my, class: 'fc-edge-label', 'text-anchor': 'middle' });
+    t.textContent = e.label;
+    g.appendChild(t);
+  }
+}
+
+let CUR_MARKER = 'arrow-overview';
+function renderFlowchart(src = FLOWCHART_SRC, key = 'overview') {
+  const graph = parseFlowchart(src);
+  const dims = layoutFlowchart(graph);
+  const svg = document.getElementById('svg-' + key);
+  const vp = document.getElementById('viewport-' + key);
+  CUR_MARKER = 'arrow-' + key;
+  vp.innerHTML = '';
+
+  const defs = el('defs');
+  const marker = el('marker', { id: CUR_MARKER, viewBox: '0 0 10 10', refX: 9, refY: 5,
+    markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+  const arrowPath = el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#7f849c' });
+  marker.appendChild(arrowPath);
+  defs.appendChild(marker);
+  vp.appendChild(defs);
+
+  const sgLayer = el('g', { class: 'sg-layer' });
+  const edgeLayer = el('g', { class: 'edge-layer' });
+  const nodeLayer = el('g', { class: 'node-layer' });
+  vp.appendChild(sgLayer); vp.appendChild(edgeLayer); vp.appendChild(nodeLayer);
+
+  graph.subgraphOrder.forEach(id => drawSubgraphBox(sgLayer, graph.subgraphs[id]));
+  graph.edges.forEach(e => drawEdge(edgeLayer, graph, e));
+  Object.values(graph.nodes).forEach(n => drawShape(nodeLayer, n));
+
+  svg.setAttribute('viewBox', `0 0 ${dims.width} ${dims.height}`);
+  initPanZoom(key, dims.width, dims.height);
+}
+
+// =============================================================================
+// Mind map: parse indentation tree
+// =============================================================================
+function parseMindmap(src) {
+  const lines = src.split('\n');
+  const stack = []; const nodes = {}; let nextId = 0; let rootId = null;
+  for (const raw of lines) {
+    if (!raw.trim() || /^\s*mindmap\b/.test(raw)) continue;
+    const indent = raw.length - raw.replace(/^\s+/, '').length;
+    let label = raw.trim();
+    label = label.replace(/^root\(\(/, '').replace(/\)\)$/, '');
+    const id = 'n' + (nextId++);
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    const parent = stack.length ? stack[stack.length - 1].id : null;
+    if (parent === null && rootId === null) rootId = id;
+    nodes[id] = { id, label, parent, depth: stack.length, children: [] };
+    if (parent) nodes[parent].children.push(id);
+    stack.push({ indent, id });
+  }
+  return { nodes, rootId };
+}
+
+// =============================================================================
+// Mind map: radial layout (root center, branches ring 1, leaves ring 2)
+// =============================================================================
+function layoutMindmap(tree) {
+  const root = tree.nodes[tree.rootId];
+  const branches = root.children.map(id => tree.nodes[id]);
+  const cx = 900, cy = 620;
+  const R1 = 260, R2 = 560;
+  root.x = cx; root.y = cy; root.w = 240; root.h = 70;
+
+  const n = branches.length;
+  branches.forEach((b, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
+    b.angle = angle;
+    b.x = cx + R1 * Math.cos(angle);
+    b.y = cy + R1 * Math.sin(angle);
+    b.w = 190; b.h = 46;
+
+    const kids = b.children.map(id => tree.nodes[id]);
+    const m = kids.length;
+    const window = (2 * Math.PI / n) * 0.86;
+    kids.forEach((k, j) => {
+      const kAngle = angle - window / 2 + (m > 1 ? window * j / (m - 1) : window / 2);
+      k.x = cx + R2 * Math.cos(kAngle);
+      k.y = cy + R2 * Math.sin(kAngle);
+      k.w = 172; k.h = 38;
+    });
+  });
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  Object.values(tree.nodes).forEach(nd => {
+    minX = Math.min(minX, nd.x - nd.w / 2); maxX = Math.max(maxX, nd.x + nd.w / 2);
+    minY = Math.min(minY, nd.y - nd.h / 2); maxY = Math.max(maxY, nd.y + nd.h / 2);
+  });
+  const pad = 40;
+  return { minX: minX - pad, minY: minY - pad, width: (maxX - minX) + pad * 2, height: (maxY - minY) + pad * 2 };
+}
+
+// =============================================================================
+// Mind map: render + interactivity
+// =============================================================================
+let MM_TREE = null;
+let MM_MATCHED = []; // [{svg, id}]
+let MM_EDGES = [];    // [{svg, from, to}]
+
+function drawMMBox(g, nd, kindClass) {
+  const grp = el('g', { class: `mm-node ${kindClass}`, 'data-tree-id': nd.id });
+  let box;
+  if (kindClass === 'root') {
+    box = el('ellipse', { cx: nd.x, cy: nd.y, rx: nd.w / 2, ry: nd.h / 2 });
+  } else {
+    box = el('rect', { x: nd.x - nd.w / 2, y: nd.y - nd.h / 2, width: nd.w, height: nd.h, rx: 10, ry: 10 });
+  }
+  const palette = { root: { fill: '#313244', stroke: '#f9e2af' },
+    branch: { fill: '#232336', stroke: '#89b4fa' },
+    leaf: { fill: '#1c1c2b', stroke: '#45475a' } };
+  const c = palette[kindClass];
+  box.setAttribute('fill', c.fill); box.setAttribute('stroke', c.stroke);
+  box.setAttribute('class', 'box');
+  grp.appendChild(box);
+
+  const lines = nd.label.split('<br/>');
+  const text = el('text', { x: nd.x, y: nd.y - (lines.length - 1) * 7 + 4, 'text-anchor': 'middle' });
+  lines.forEach((ln, i) => {
+    const tspan = el('tspan', { x: nd.x, dy: i === 0 ? 0 : 14 });
+    tspan.textContent = ln;
+    text.appendChild(tspan);
+  });
+  grp.appendChild(text);
+  g.appendChild(grp);
+  MM_MATCHED.push({ svg: grp, id: nd.id });
+}
+
+function drawMMEdge(g, a, b) {
+  const d = `M${a.x},${a.y} L${b.x},${b.y}`;
+  const path = el('path', { d, class: 'mm-edge' });
+  g.appendChild(path);
+  MM_EDGES.push({ svg: path, from: a.id, to: b.id });
+}
+
+function renderMindmap() {
+  MM_TREE = parseMindmap(MINDMAP_SRC);
+  const dims = layoutMindmap(MM_TREE);
+  MM_MATCHED = []; MM_EDGES = [];
+
+  const svg = document.getElementById('svg-mindmap');
+  const vp = document.getElementById('viewport-mindmap');
+  vp.innerHTML = '';
+  const edgeLayer = el('g', { class: 'edge-layer' });
+  const nodeLayer = el('g', { class: 'node-layer' });
+  vp.appendChild(edgeLayer); vp.appendChild(nodeLayer);
+
+  const root = MM_TREE.nodes[MM_TREE.rootId];
+  root.children.forEach(bid => {
+    const b = MM_TREE.nodes[bid];
+    drawMMEdge(edgeLayer, root, b);
+    b.children.forEach(lid => drawMMEdge(edgeLayer, b, MM_TREE.nodes[lid]));
+  });
+
+  drawMMBox(nodeLayer, root, 'root');
+  root.children.forEach(bid => {
+    const b = MM_TREE.nodes[bid];
+    drawMMBox(nodeLayer, b, 'branch');
+    b.children.forEach(lid => drawMMBox(nodeLayer, MM_TREE.nodes[lid], 'leaf'));
+  });
+
+  svg.setAttribute('viewBox', `${dims.minX} ${dims.minY} ${dims.width} ${dims.height}`);
+  initPanZoom('mindmap', dims.width, dims.height, dims.minX, dims.minY);
+  wireMindmapInteraction(svg);
+}
+
+const normalize = (s) => (s || '').replace(/\s+/g, '').replace(/[\p{P}\p{S}]/gu, '').toLowerCase();
+const extractEmoji = (s) => {
+  const m = (s || '').match(/\p{Extended_Pictographic}️?/u);
+  return m ? m[0].replace(/️/g, '') : null;
+};
+
+function ancestorsOf(tree, id) {
+  const r = new Set(); let cur = tree.nodes[id].parent;
+  while (cur) { r.add(cur); cur = tree.nodes[cur].parent; }
+  return r;
+}
+function descendantsOf(tree, id) {
+  const r = new Set(); const stk = [...tree.nodes[id].children];
+  while (stk.length) { const c = stk.pop(); r.add(c); stk.push(...tree.nodes[c].children); }
+  return r;
+}
+
+function wireMindmapInteraction(svg) {
+  MM_MATCHED.forEach(m => {
+    m.svg.style.cursor = 'pointer';
+    m.svg.addEventListener('click', (e) => { e.stopPropagation(); highlightMM(m.id); });
+  });
+  svg.addEventListener('click', (e) => {
+    if (!e.target.closest('g[data-tree-id]')) clearMM();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clearMM(); });
+}
+
+function highlightMM(id) {
+  clearMM();
+  const anc = ancestorsOf(MM_TREE, id), desc = descendantsOf(MM_TREE, id);
+  const cls = {};
+  MM_MATCHED.forEach(m => {
+    if (m.id === id) { m.svg.classList.add('mm-focus'); cls[m.id] = 'focus'; }
+    else if (anc.has(m.id)) { m.svg.classList.add('mm-anc'); cls[m.id] = 'anc'; }
+    else if (desc.has(m.id)) { m.svg.classList.add('mm-desc'); cls[m.id] = 'desc'; }
+    else { m.svg.classList.add('mm-dim'); cls[m.id] = 'dim'; }
+  });
+  MM_EDGES.forEach(ed => {
+    const c1 = cls[ed.from], c2 = cls[ed.to];
+    const both = [c1, c2].filter(Boolean);
+    if (both.length < 2) { ed.svg.classList.add('mm-edge-dim'); return; }
+    const ancOnly = both.every(c => c === 'anc' || c === 'focus');
+    const descOnly = both.every(c => c === 'desc' || c === 'focus');
+    const hasAnc = both.includes('anc'), hasDesc = both.includes('desc');
+    if (hasAnc && ancOnly) ed.svg.classList.add('mm-edge-anc');
+    else if (hasDesc && descOnly) ed.svg.classList.add('mm-edge-desc');
+    else ed.svg.classList.add('mm-edge-dim');
+  });
+
+  // branch -> tab linkage
+  let branch = MM_TREE.nodes[id];
+  while (branch.parent && branch.parent !== MM_TREE.rootId) branch = MM_TREE.nodes[branch.parent];
+  if (branch.parent === MM_TREE.rootId) {
+    const emoji = extractEmoji(branch.label);
+    if (emoji) {
+      document.querySelectorAll('.tab').forEach(t => {
+        const tEmoji = extractEmoji(t.textContent);
+        if (tEmoji && tEmoji === emoji) t.classList.add('mm-related');
+      });
+    }
+  }
+}
+
+function clearMM() {
+  MM_MATCHED.forEach(m => m.svg.classList.remove('mm-focus', 'mm-anc', 'mm-desc', 'mm-dim'));
+  MM_EDGES.forEach(ed => ed.svg.classList.remove('mm-edge-anc', 'mm-edge-desc', 'mm-edge-dim'));
+  document.querySelectorAll('.tab.mm-related').forEach(t => t.classList.remove('mm-related'));
+}
+
+// =============================================================================
+// Generic pan / zoom controller (no external library)
+// =============================================================================
+const PZ = {}; // key -> {scale,tx,ty, baseViewBox:{x,y,w,h}}
+
+function initPanZoom(key, w, h, minX = 0, minY = 0) {
+  PZ[key] = { scale: 1, tx: 0, ty: 0, base: { x: minX, y: minY, w, h } };
+  applyTransform(key);
+}
+
+function applyTransform(key) {
+  const p = PZ[key];
+  const vp = document.getElementById('viewport-' + key);
+  vp.setAttribute('transform', `translate(${p.tx},${p.ty}) scale(${p.scale})`);
+}
+
+function fitReset(key) {
+  const p = PZ[key];
+  p.scale = 1; p.tx = 0; p.ty = 0;
+  const svg = document.getElementById('svg-' + key);
+  svg.setAttribute('viewBox', `${p.base.x} ${p.base.y} ${p.base.w} ${p.base.h}`);
+  applyTransform(key);
+}
+
+function zoomBtn(key, action) {
+  const p = PZ[key];
+  if (action === 'reset') { fitReset(key); return; }
+  const factor = action === 'in' ? 1.2 : 1 / 1.2;
+  zoomAt(key, factor, null);
+}
+
+function zoomAt(key, factor, clientPoint) {
+  const p = PZ[key];
+  const svg = document.getElementById('svg-' + key);
+  let cx, cy;
+  if (clientPoint) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientPoint.x; pt.y = clientPoint.y;
+    const screenCTM = svg.getScreenCTM();
+    const loc = pt.matrixTransform(screenCTM.inverse());
+    cx = loc.x; cy = loc.y;
+  } else {
+    cx = p.base.x + p.base.w / 2; cy = p.base.y + p.base.h / 2;
+  }
+  const newScale = Math.min(6, Math.max(0.25, p.scale * factor));
+  const k = newScale / p.scale;
+  p.tx = cx - k * (cx - p.tx);
+  p.ty = cy - k * (cy - p.ty);
+  p.scale = newScale;
+  applyTransform(key);
+}
+
+function setupWheelAndDrag(key) {
+  const wrap = document.getElementById('wrap-' + key);
+  const svg = document.getElementById('svg-' + key);
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    zoomAt(key, factor, { x: e.clientX, y: e.clientY });
+  }, { passive: false });
+
+  let dragging = false, lastX = 0, lastY = 0;
+  wrap.addEventListener('pointerdown', (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    wrap.classList.add('grabbing');
+    wrap.setPointerCapture(e.pointerId);
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const p = PZ[key];
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    const screenCTM = svg.getScreenCTM();
+    const scaleX = p.base.w / wrap.clientWidth;
+    p.tx += dx * scaleX; p.ty += dy * scaleX;
+    applyTransform(key);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt =>
+    wrap.addEventListener(evt, () => { dragging = false; wrap.classList.remove('grabbing'); }));
+}
+
+// =============================================================================
+// Tabs
+// =============================================================================
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const tabEl = e.target.closest('.tab');
+  if (!tabEl) return;
+  const target = tabEl.dataset.tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+  document.querySelectorAll('.stage .pane').forEach(d => d.classList.remove('active'));
+  document.getElementById('pane-' + target).classList.add('active');
+  document.querySelectorAll('.tab.mm-related').forEach(t => t.classList.remove('mm-related'));
+});
+
+// =============================================================================
+// Boot
+// =============================================================================
+renderFlowchart();
+renderFlowchart(FLOW_SRC, 'flow');
+renderFlowchart(VERIFY_SRC, 'verify');
+renderMindmap();
+setupWheelAndDrag('overview');
+setupWheelAndDrag('flow');
+setupWheelAndDrag('verify');
+setupWheelAndDrag('mindmap');
+</script>
+</body>
+</html>

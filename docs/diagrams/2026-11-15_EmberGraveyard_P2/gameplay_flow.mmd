@@ -1,0 +1,89 @@
+%%{init: {'theme':'dark','flowchart': {'rankSpacing': 70, 'nodeSpacing': 30, 'curve': 'basis'}} }%%
+flowchart LR
+
+  %% col=0 row=0
+  subgraph BOOT[🚪 開場]
+    START([開啟頁面]):::input
+    BUILD[/固定種子擺設世界<br/>畫翻頁圖集與地形/]:::pipeline
+    PICK[選模式<br/>故事・自由試玩]:::ui
+  end
+
+  %% col=1 row=0
+  subgraph STORY[📖 故事一幕 × 4]
+    TALK[對白＋語音<br/>遊戲暫停]:::ui
+    CLEAR1[/清怪<br/>18・24・28・30 隻/]:::pipeline
+    GOTO[/跟著箭頭與光柱<br/>前往燈塔/]:::pipeline
+    IGNITE[/站在塔下 3 秒點燃<br/>離開會倒退・引來 6 隻突襲/]:::pipeline
+    UNLOCK[解鎖一招<br/>焰三連・鏈雷・星墜・血環]:::worker
+  end
+
+  %% col=1 row=1
+  subgraph FREE[🌊 自由試玩]
+    SPAWN[/一波 50 隻<br/>清空後 +5 隻・+25% 血/]:::pipeline
+  end
+
+  %% col=2 row=0
+  subgraph BOSSF[👁️ 首領戰]
+    LORD[無燈之主出現]:::worker
+    SHOCK[/每 5 秒紫色衝擊波<br/>推倒經過的墓碑/]:::pipeline
+    PHASE[/66%・33% 召喚亡者<br/>50% 墓園變暗 9 秒/]:::pipeline
+    LAVA[/引牠站上熔岩<br/>受重傷/]:::pipeline
+    END[(結局畫面<br/>用時・擊倒數・地形擊殺比例)]:::output
+  end
+
+  %% col=3 row=0
+  subgraph CASTF[🪄 一次施法]
+    PRESS([按鍵或滑鼠]):::input
+    CD[/解鎖與冷卻檢查/]:::pipeline
+    FLY[/飛行・命中・殘留/]:::pipeline
+    DMG[/傷害 12% 爆擊/]:::pipeline
+    DROP[(掉寶 → 行囊 → 換裝)]:::output
+  end
+
+  %% col=4 row=0
+  subgraph TERR[🪨 地形循環 P2]
+    CHANGE[/落點改地形<br/>燒草・帶電・熔岩坑・血沼/]:::pipeline
+    EVOLVE[/每 0.2 秒自己演變<br/>蔓延・流動・冷卻成牆/]:::pipeline
+    TOPPLE[/墓碑倒下・枯樹燒倒<br/>壓死路徑上的怪/]:::pipeline
+    TK[地形殺<br/>1.2 秒內連殺 → 連鎖 ×N]:::worker
+  end
+
+  %% col=5 row=0
+  DEAD([生命歸零<br/>從本幕重來・地形還原]):::safety
+
+  START --> BUILD
+  BUILD --> PICK
+  PICK --> TALK
+  PICK --> SPAWN
+  TALK --> CLEAR1
+  CLEAR1 --> GOTO
+  GOTO --> IGNITE
+  IGNITE --> UNLOCK
+  UNLOCK -. 下一幕 .-> TALK
+  UNLOCK -. 第四座點亮 .-> LORD
+  LORD --> SHOCK
+  SHOCK --> PHASE
+  PHASE --> LAVA
+  LAVA --> END
+  CLEAR1 -. 戰鬥中 .-> PRESS
+  SPAWN -. 戰鬥中 .-> PRESS
+  PRESS --> CD
+  CD --> FLY
+  FLY --> DMG
+  DMG --> DROP
+  DROP -. 數值改變 .-> CD
+  FLY -. 落點 .-> CHANGE
+  CHANGE --> EVOLVE
+  EVOLVE --> TOPPLE
+  TOPPLE --> TK
+  TK -. 多掉寶 .-> DROP
+  SHOCK -. 推倒墓碑 .-> TOPPLE
+  PRESS -. 被咬到歸零 .-> DEAD
+  DEAD -. 重來 .-> TALK
+
+  classDef input fill:#74c7ec,stroke:#1e6091,color:#000
+  classDef ui fill:#cba6f7,stroke:#5b2d8a,color:#000
+  classDef pipeline fill:#fdd97a,stroke:#7d6608,color:#000
+  classDef safety fill:#fab387,stroke:#7a3f10,color:#000
+  classDef output fill:#f5c2e7,stroke:#7a2e6d,color:#000
+  classDef worker fill:#94e2d5,stroke:#1d6e62,color:#000
