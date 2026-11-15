@@ -134,7 +134,8 @@ async function mermaidChecks() {
     for (const f of readdirSync(dir).filter((x) => x.endsWith('.mmd'))) blocks.push([`${folder}/${f}`, readFileSync(join(dir, f), 'utf8')]); }
   const p = await openPage('data:text/html,<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>');
   try {
-    if (!(await p.waitFor('typeof mermaid !== "undefined"', 20000))) { rep.ok(false, 'mermaid parser loaded (needs network)'); return; }
+    // 3.3 MB from the CDN: took 34 s when other jobs saturated the network (DEVLOG #39), so allow 90 s
+    if (!(await p.waitFor('typeof mermaid !== "undefined"', 90000))) { rep.ok(false, 'mermaid parser loaded (needs network)'); return; }
     const control = await p.evaluate(`(async () => { try { await mermaid.parse('flowchart LR\\n  A[open --> '); return 'ok'; } catch (e) { return 'rejected'; } })()`);
     rep.ok(control === 'rejected', 'negative control: the parser rejects broken mermaid');
     for (const [name, src] of blocks) {
