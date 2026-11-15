@@ -20,6 +20,8 @@ var embers: GPUParticles3D
 var light: OmniLight3D
 var blast: Array[GPUParticles3D] = []
 var t := 0.0
+var flash_light: OmniLight3D
+var flash_t := 0.0
 var exploded := false
 
 
@@ -150,7 +152,7 @@ func _build_ball() -> void:
 	# embers: 35 per second, 0.5-0.9 s, 0.14 -> 0.04, drifting up, drag 1.2
 	embers = _emitter({"rate": 35.0, "life": 0.9, "life_rand": 0.44, "s_min": 0.14, "s_max": 0.14, "shrink": 0.29,
 		"dir": Vector3.UP, "spread": 35.0, "v_min": 0.6, "v_max": 1.4, "drag": 1.2, "tex": "glow", "anim": 0.0,
-		"anim_off_min": 0.0, "anim_off_max": 0.0, "col": Color(1, 0.6, 0.25)})  # frame 0 = the round dot, as on the web
+		"anim_off_min": 0.5, "anim_off_max": 0.99, "col": Color(1, 0.6, 0.25)})  # glow frames 9-16, the small dots
 	ball.add_child(embers)
 	# following light: orange 0xff7a2e, energy 2.3, range 8
 	light = OmniLight3D.new(); light.light_color = ORANGE; light.light_energy = 2.3; light.omni_range = 8.0
@@ -161,19 +163,21 @@ func _build_blast() -> void:
 	var specs := [
 		# explosion: 3 flipbooks played once over 0.45-0.62 s, 2.5 -> 3.7
 		{"count": 3, "life": 0.62, "life_rand": 0.27, "explosive": 1.0, "one_shot": true, "s_min": 2.5, "s_max": 2.5, "shrink": 1.48,
-			"tex": "explosion", "anim": 1.0, "anim_off_min": 0.0, "anim_off_max": 0.0},
+			"tex": "explosion", "anim": 1.0, "anim_off_min": 0.0, "anim_off_max": 0.0, "a0": 1.0, "a1": 1.0},
 		# flash: 1 quad, 0.14 s, 5 -> 6.5
 		{"count": 1, "life": 0.14, "explosive": 1.0, "one_shot": true, "s_min": 5.0, "s_max": 5.0, "shrink": 1.3, "tex": "glow",
-			"anim": 0.0, "anim_off_min": 0.0, "anim_off_max": 0.0, "col": Color(1, 0.85, 0.6)},
+			"anim": 0.0, "anim_off_min": 0.0, "anim_off_max": 0.0, "a0": 0.9, "a1": 0.0, "col": Color(1, 0.75, 0.4)},
 		# sparks: 40, 0.45-0.9 s, 0.22 -> 0.05, speed 5-12, gravity 16, drag 1.4 (the web version also bounces off the ground)
 		{"count": 40, "life": 0.9, "life_rand": 0.5, "explosive": 1.0, "one_shot": true, "s_min": 0.22, "s_max": 0.22, "shrink": 0.23,
-			"v_min": 5.0, "v_max": 12.0, "gravity": Vector3(0, -16, 0), "drag": 1.4, "tex": "glow", "anim": 0.0,
-			"anim_off_min": 0.0, "anim_off_max": 0.0, "col": Color(1, 0.7, 0.3)},
+			"dir": Vector3.UP, "spread": 84.0, "v_min": 5.0, "v_max": 12.0, "gravity": Vector3(0, -16, 0), "drag": 1.4, "tex": "glow", "anim": 0.0,
+			"anim_off_min": 0.5, "anim_off_max": 0.99, "col": Color(1, 0.75, 0.35)},  # web: frame 8 + randi(0, 7)
 		# smoke: 6 puffs, normal blending, 1.1-1.8 s, 1.4 -> 3.6, up 0.6-1.4, alpha 0.55 -> 0
 		{"count": 6, "life": 1.8, "life_rand": 0.39, "explosive": 1.0, "one_shot": true, "s_min": 1.4, "s_max": 1.4, "shrink": 2.57,
 			"dir": Vector3.UP, "spread": 25.0, "v_min": 0.6, "v_max": 1.4, "tex": "smoke", "additive": false, "anim": 1.0,
-			"anim_off_min": 0.0, "anim_off_max": 0.0, "a0": 0.55, "a1": 0.0, "col": Color(0.35, 0.32, 0.32)},
+			"anim_off_min": 0.0, "anim_off_max": 0.0, "a0": 0.55, "a1": 0.0, "col": Color(0.5, 0.46, 0.44)},
 	]
+	flash_light = OmniLight3D.new(); flash_light.light_color = Color8(255, 138, 58); flash_light.omni_range = 10.0
+	flash_light.light_energy = 0.0; add_child(flash_light)
 	for s in specs:
 		var p := _emitter(s)
 		p.emitting = false
@@ -201,3 +205,8 @@ func _process(delta: float) -> void:
 		for p in blast:
 			p.global_position = ball.position
 			p.restart()
+		flash_light.position = ball.position + Vector3(0, 0.6, 0)
+		flash_t = 0.4
+	if flash_t > 0.0:
+		flash_t = max(0.0, flash_t - delta)
+		flash_light.light_energy = 4.5 * flash_t / 0.4
