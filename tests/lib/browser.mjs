@@ -62,6 +62,8 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
   await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   if (mobile) await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  // CPU_THROTTLE=6 reproduces a slow CI runner locally (Chrome slows its own CPU by that factor)
+  if (+process.env.CPU_THROTTLE > 1) await send('Emulation.setCPUThrottlingRate', { rate: +process.env.CPU_THROTTLE });
   await send('Page.navigate', { url });
   const waitFor = async (expr, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await evaluate(expr).catch(() => false)) return true; await sleep(200); } return false; };
   // real input

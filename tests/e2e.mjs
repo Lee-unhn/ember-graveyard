@@ -113,11 +113,20 @@ async function terrainFlow() {
       spawnEnemy('spider', .5, -5.5, 1); for (const [x, z] of [[-2.5, -5.5], [3.5, -5.5], [.5, -8.5]]) spawnEnemy('spider', x, z, .6);
       for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); window.__tk0 = terrainKills; })()`);
     const aim = await p.evaluate(`(() => { const v = new THREE.Vector3(.5, 1, -5.5).project(camera); return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight]; })()`);
-    await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]); await sleep(120); await p.mouse('mouseReleased', aim[0], aim[1]);
-    rep.ok(await p.waitFor(`(() => { let n = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE) n++; return n >= 3; })()`, 4000), 'a real left click sets the dry grass on fire');
-    rep.ok(await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) { const t = TT[cellOf(x + .5, z + .5)]; if (t === TER.FIRE || t === TER.ASH) n++; } return n >= 20; })()`, 15000), 'the fire spreads across the field on its own');
-    rep.ok(await p.waitFor(`terrainKills > window.__tk0`, 25000), 'monsters standing in the fire die as terrain kills');
-    rep.ok(await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) if (TT[cellOf(x + .5, z + .5)] === TER.ASH) n++; return n >= 5; })()`, 12000), 'burnt grass turns to ash and stays on the map');
+    // hold the button until the game has actually cast: on a slow software-GPU CI box a short click can fall between two frames
+    await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]);
+    const cast = await p.waitFor(`projs.some(q => q.kind === 'fire') || cds.fire > 0`, 10000); await p.mouse('mouseReleased', aim[0], aim[1]);
+    const diag = () => p.evaluate(`(() => { let fire = 0, ash = 0; for (let i = 0; i < TT.length; i++) { if (TT[i] === TER.FIRE) fire++; if (TT[i] === TER.ASH) ash++; }
+      return { fireballs: projs.filter(q => q.kind === 'fire').length, cdFire: +cds.fire.toFixed(2), fireCells: fire, ashCells: ash, terrainKills, kills: player.kills, fps: document.querySelector('#sFps').textContent, gameTime: +time.toFixed(1) }; })()`);
+    rep.ok(cast, 'holding the left button casts a fireball at the grass', cast ? undefined : await diag());
+    const lit = await p.waitFor(`(() => { let n = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE) n++; return n >= 3; })()`, 30000);
+    rep.ok(lit, 'the fireball sets the dry grass on fire', lit ? undefined : await diag());
+    const spread = await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) { const t = TT[cellOf(x + .5, z + .5)]; if (t === TER.FIRE || t === TER.ASH) n++; } return n >= 20; })()`, 60000);
+    rep.ok(spread, 'the fire spreads across the field on its own', spread ? undefined : await diag());
+    const tk = await p.waitFor(`terrainKills > window.__tk0`, 60000);
+    rep.ok(tk, 'monsters standing in the fire die as terrain kills', tk ? undefined : await diag());
+    const ash = await p.waitFor(`(() => { let n = 0; for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) if (TT[cellOf(x + .5, z + .5)] === TER.ASH) n++; return n >= 5; })()`, 60000);
+    rep.ok(ash, 'burnt grass turns to ash and stays on the map', ash ? undefined : await diag());
     rep.ok(p.errors.length === 0, 'terrain flow: no console errors', p.errors.slice(0, 3));
   } finally { await p.close(); }
 }
