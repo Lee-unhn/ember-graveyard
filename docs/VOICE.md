@@ -1,7 +1,7 @@
 # 語音實測 · Voice Test (P3d)
 
-> 故事模式 24 句對白，比較兩種配音來源：目前用的瀏覽器內建朗讀，與本機開源模型預先錄好的語音。遊戲本身尚未更動，要不要替換由作者決定。
-> English summary: the 24 story lines were rendered with a local open-source TTS (Kokoro-82M-v1.1-zh, Apache-2.0, CPU only) and checked by machine with Whisper. The game still uses browser speech; whether to switch is the author's call.
+> 故事模式 24 句對白，比較兩種配音來源：瀏覽器內建朗讀，與本機開源模型預先錄好的語音。2026-11-16 作者決定改用預錄語音，遊戲已換上（見文末「採用」）。
+> English summary: the 24 story lines were rendered with a local open-source TTS (Kokoro-82M-v1.1-zh, Apache-2.0, CPU only) and checked by machine with Whisper. Since 2026-11-16 the game plays these recordings and falls back to browser speech only when a file cannot play.
 
 ## 做法
 
@@ -40,7 +40,7 @@
 
 ## 兩種做法的差異
 
-| 項目 | 瀏覽器內建朗讀（目前） | 本機模型預錄 |
+| 項目 | 瀏覽器內建朗讀（備案） | 本機模型預錄（採用） |
 |---|---|---|
 | 聲音 | 依玩家的作業系統與瀏覽器而定，每台電腦不同 | 每台電腦都一樣 |
 | 角色區分 | 同一個聲音，只調音高與語速 | 三個不同的聲線 |
@@ -48,3 +48,15 @@
 | 改台詞 | 改文字就生效 | 要重跑腳本重新產生語音檔 |
 | 離線 | 部分瀏覽器的中文聲音要連網 | 語音檔載入後就可離線播放 |
 | 授權 | 依瀏覽器與作業系統 | Apache-2.0（權重與聲線） |
+
+## 採用（2026-11-16）
+
+| 項目 | 內容 |
+|---|---|
+| 檔案 | 24 個 Opus 檔放在 `assets/voice/`，檔名＝對白代號_第幾句_說話者，例如 `intro_0_elder.ogg` |
+| 播放 | 每句對白出現時播放對應的檔；音量跟著設定裡的「語音」與「主音量」；點下一句、跳過或關閉對白會停止 |
+| 備案 | 檔案放不出來時（例如不支援 Ogg Opus 的舊版 Safari）自動改用瀏覽器內建朗讀，字幕照常 |
+| 載入 | 每句播放時才下載該句的檔，進遊戲不必先下載全部 |
+| 測試 | 單元測試三項：24 句都有對應檔、對白播的是自己那句且關閉會停、放不出來時改用內建朗讀 |
+| 改台詞時 | 用 `scripts/voice_test.py` 重新產生 WAV，再用 `ffmpeg -i 句.wav -c:a libopus -b:a 32k assets/voice/句.ogg` 轉成 Opus 32 kbps 單聲道覆蓋同名檔；單元測試會檢查句數與檔案是否對得上（不檢查內容是否為新台詞，改台詞後要重跑 Whisper 比對） |
+

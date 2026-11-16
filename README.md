@@ -14,7 +14,7 @@ A single-file WebGL prototype that rebuilds four top-down 3D spells — fireball
 
 ## Two ways to play
 
-- **Story mode · Chapter 1** (about 15 minutes) — you are an apprentice fire mage keeping a graveyard whose four lighthouses have gone dark. Clear each wave, stand under the next lighthouse to relight it, and every lighthouse teaches you one spell. Dialogue between waves has portraits and browser text-to-speech. The chapter ends with a boss, the Lord of the Unlit, who sends out expanding shockwaves, summons the dead and plunges the graveyard into darkness at half health.
+- **Story mode · Chapter 1** (about 15 minutes) — you are an apprentice fire mage keeping a graveyard whose four lighthouses have gone dark. Clear each wave, stand under the next lighthouse to relight it, and every lighthouse teaches you one spell. Dialogue between waves has portraits and voiced lines, prerecorded with a local open-source speech model (browser speech as a fallback). The chapter ends with a boss, the Lord of the Unlit, who sends out expanding shockwaves, summons the dead and plunges the graveyard into darkness at half health.
 - **Free play** — all four spells unlocked, endless waves, and the Lab panel to switch texture routes and basic/upgraded spells.
 
 ## Destructible terrain (P2)
@@ -103,7 +103,7 @@ flowchart LR
     ACTS[/Act state machine · talk, clear, go, ignite, unlock/]:::pipeline
     TOWER[(Four lighthouses)]:::model
     BOSS[/Boss AI · shockwave, summons, darkness/]:::pipeline
-    VOICE[Browser text-to-speech]:::worker
+    VOICE[Prerecorded voice · browser speech fallback]:::worker
   end
   subgraph LOGIC[⚙️ Game logic · logic dt]
     CAST[/Casting · unlocks, cooldowns, gestures/]:::pipeline
@@ -284,7 +284,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 | P0 ✅ | Public repo, GitHub Pages, smoke harness, diagrams |
 | P1 ✅ | Story mode chapter 1: four lighthouses, spell unlocks, dialogue with voice, the Lord of the Unlit |
 | P2 ✅ | Destructible terrain and terrain kills: spells reshape the ground, terrain spreads and flows, tombstones topple onto monsters |
-| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c image-model flipbooks compared side by side · P3d ✅ voice test ([report](docs/VOICE.md)) |
+| P3 🟡 | New skin. P3a ✅ screens and game feel · P3b 🟡 animated mage ✅, monsters waiting on the download · P3c ✅ Gemini and ChatGPT flipbooks compared side by side ([report](docs/ROUTES.md)) · P3d ✅ dialogue now uses prerecorded local-model voices, browser speech as fallback ([report](docs/VOICE.md)) |
 | P4 ✅ | Touch controls for phones (joystick, tap-to-cast with auto-aim) and key remapping |
 | P5 ✅ | Fireball emitters ported to Godot 4.7 and compared side by side ([report](docs/GODOT.md)); sizes match after keeping particle scale on billboards; remaining gaps come from linear-light blending and are measured in the report |
 
@@ -304,7 +304,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 
 ### 兩種玩法
 
-- **故事模式・第一章**（約 15 分鐘）：你是見習火術師，墓園的四座燈塔全熄了，亡者醒了過來。每一幕先清掉一波怪，再站到下一座燈塔下把它點亮，每點亮一座就學會一招法術。波次之間有附頭像的對白，並用瀏覽器內建語音朗讀。最後的首領是「無燈之主」：會放往外擴散的衝擊波、召喚亡者，血量剩一半時讓整座墓園陷入黑暗。
+- **故事模式・第一章**（約 15 分鐘）：你是見習火術師，墓園的四座燈塔全熄了，亡者醒了過來。每一幕先清掉一波怪，再站到下一座燈塔下把它點亮，每點亮一座就學會一招法術。波次之間有附頭像的對白，配音是本機開源語音模型預先錄好的（放不出來時改用瀏覽器朗讀）。最後的首領是「無燈之主」：會放往外擴散的衝擊波、召喚亡者，血量剩一半時讓整座墓園陷入黑暗。
 - **自由試玩**：四招全開、波次無限，可以用拆解台切換貼圖路線與基礎／升級法術。
 
 ### 地形破壞與地形殺（P2）
@@ -416,7 +416,7 @@ npm test
 | P0 ✅ | 公開 repo、GitHub Pages、驗收工具、架構圖與流程圖 |
 | P1 ✅ | 故事模式第一章：四座燈塔、法術解鎖、有語音的對白、首領無燈之主 |
 | P2 ✅ | 地形破壞與地形殺：法術改寫地面、地形會蔓延流動、墓碑倒下壓死怪 |
-| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c 用繪圖模型畫的翻頁圖並排實測・P3d ✅ 語音實測（[報告](docs/VOICE.md)） |
+| P3 🟡 | 換皮：P3a ✅ 畫面與手感・P3b 🟡 會動的法師 ✅、怪物等下載・P3c ✅ Gemini 與 ChatGPT 畫的翻頁圖並排實測（[報告](docs/ROUTES.md)）・P3d ✅ 對白改用本機模型預錄語音，瀏覽器朗讀當備案（[報告](docs/VOICE.md)） |
 | P4 ✅ | 手機觸控操作（搖桿、點技能自動瞄準）與按鍵重設 |
 | P5 ✅ | 火球發射器已移植到 Godot 4.7 並排比較（[報告](docs/GODOT.md)）；保留粒子大小後尺寸一致，剩下的差異來自線性光相加，報告裡有量測數字 |
 

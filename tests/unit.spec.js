@@ -401,6 +401,30 @@ window.__runUnit = async (only) => {
     const s0 = EGChar.state.failed; try { EGChar.attach(fake, THREE); ok(!fake.skinned, 'not skinned'); ok(EGChar.state.failed, 'marked failed'); }
     finally { window.MAGE_GLB = keep; EGChar.state.failed = s0; }
   });
+  // ---------------------------------------------------------------- P3d: prerecorded dialogue voice
+  const dlgFiles = () => Object.entries(DLG).flatMap(([id, lines]) => lines.map(([who], i) => `${id}_${i}_${who}`));
+  test('every dialogue line has its prerecorded voice file', async () => {
+    const files = dlgFiles(); eq(files.length, 24, 'dialogue lines');
+    const missing = []; for (const f of files) { const r = await fetch(`assets/voice/${f}.ogg`, { method: 'HEAD' }); if (!r.ok) missing.push(f); }
+    eq(missing.join(','), '', 'missing recordings');
+  });
+  test('a dialogue line plays its own recording; closing the dialogue stops it', () => {
+    const keepTts = tts; let said = 0; tts = () => { said++; }; const v0 = voiceOn; voiceOn = true;
+    try {
+      playDialog('intro', null); eq(window.__voiceFile, 'intro_0_elder', 'first line'); ok(vAudio && /assets\/voice\/intro_0_elder\.ogg$/.test(vAudio.src), 'audio source');
+      nextLine(); nextLine(); eq(window.__voiceFile, 'intro_1_mu', 'second line'); endDialog(); eq(vAudio, null, 'stopped');
+    } finally { tts = keepTts; voiceOn = v0; hush(); }
+  });
+  test('a recording that cannot play falls back to the built-in voice', async () => {
+    // a browser that cannot play Ogg Opus (older Safari) rejects play(); the line must still be spoken
+    const keepTts = tts, keepAudio = window.Audio; let said = ''; tts = (t) => { said = t; }; const v0 = voiceOn; voiceOn = true;
+    window.Audio = class { play() { return Promise.reject(new Error('NotSupportedError')); } pause() {} };
+    try {
+      speak('測試句', SPEAKERS.mu, 'intro_1_mu');
+      for (let k = 0; k < 20 && !said; k++) await new Promise((r) => setTimeout(r, 50));
+      eq(said, '測試句', 'built-in voice used');
+    } finally { window.Audio = keepAudio; tts = keepTts; voiceOn = v0; hush(); }
+  });
   // ---------------------------------------------------------------- P4: key remapping and touch
   // dispatch from the page like a real key press (window capture -> element -> bubble to window); dispatching on window
   // itself runs same-target listeners in registration order, which no real key press does

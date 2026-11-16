@@ -57,10 +57,10 @@ if (!args.includes('--skip-mutation') && !url) {
 
 // every suite must close its headless Chrome completely: leftovers slowed local runs from about 2 to 8 minutes (DEVLOG #32, #34)
 if (process.platform === 'win32') {
-  // taskkill returns before every child has exited, so give the tree up to 5 s to disappear before judging
+  // taskkill returns before every child has exited, so give the tree up to 15 s to disappear before judging (5 s was too short on a loaded machine, DEVLOG #48)
   const count = () => parseInt(spawnSync('powershell', ['-NoProfile', '-Command', "@(Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -match 'remote-debugging-port=0' -and $_.CommandLine -match 'headless' }).Count"], { encoding: 'utf8' }).stdout, 10);
   let left = count();
-  for (let k = 0; k < 10 && left; k++) { spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); left = count(); }
+  for (let k = 0; k < 30 && left; k++) { spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); left = count(); }
   rows.push(['no leftover headless Chrome', { code: left === 0 ? 0 : 1, secs: '0.0' }]);
   if (left) console.log(`  ${left} headless Chrome processes are still running after the suites`);
 }
