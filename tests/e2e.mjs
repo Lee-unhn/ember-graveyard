@@ -114,7 +114,9 @@ async function terrainFlow() {
       player.pos.set(0, 0, 0); for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) setT(cellOf(x + .5, z + .5), TER.GRASS);
       // three spiders 3 cells from the impact: outside the blast radius, so only the spreading fire can kill them
       spawnEnemy('spider', .5, -5.5, 1); for (const [x, z] of [[-2.5, -5.5], [3.5, -5.5], [.5, -8.5]]) spawnEnemy('spider', x, z, .6);
-      for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); window.__tk0 = terrainKills; })()`);
+      for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); window.__tk0 = terrainKills;
+      // the camera glides after the mage was moved; snap it now, or the aim point below is projected through a camera that is still on its way (DEVLOG #44, #51)
+      camSnap = true; updateCamera(1 / 60); })()`);
     const aim = await p.evaluate(`(() => { const v = new THREE.Vector3(.5, 1, -5.5).project(camera); return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight]; })()`);
     // hold the button until the game has actually cast: on a slow software-GPU CI box a short click can fall between two frames
     await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]);
