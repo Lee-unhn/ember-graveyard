@@ -64,6 +64,8 @@ body.on-title .hud{display:none!important}
 #msg{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);font-size:13px;color:var(--ink);background:rgba(0,0,0,.55);padding:4px 12px;border-radius:3px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:6;white-space:nowrap}
 .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,rgba(30,22,14,.72),rgba(5,6,10,.94));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow:auto}
 .card{max-width:780px;width:100%;padding-block:28px}
+/* 內容比畫面高時從頂端排起、可捲動；夠放時仍置中（設定畫面同一修法，DEVLOG #41） */
+#credits,#help{align-items:flex-start}#credits>.card,#help>.card{margin-block:auto}
 .card h1{font-family:var(--f-head);font-weight:900;font-size:clamp(40px,7vw,68px);letter-spacing:.2em;margin:0;color:var(--ink);text-shadow:0 0 30px rgba(255,122,46,.35)}
 .card .sub{color:var(--gold);letter-spacing:.3em;font-size:13px;margin:6px 0 22px}
 .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
@@ -290,6 +292,7 @@ body.on-title .hud{display:none!important}
 <div class="overlay" id="settings" hidden>
   <div class="card panel">
     <h2>設定</h2>
+    <div class="srow"><label for="sBright">畫面亮度</label><input id="sBright" type="range" min="50" max="250" step="10"><output id="oBright" for="sBright"></output></div>
     <div class="srow"><label for="sMaster">總音量</label><input id="sMaster" type="range" min="0" max="100" step="5"><output id="oMaster" for="sMaster"></output></div>
     <div class="srow"><label for="sMusic">音樂</label><input id="sMusic" type="range" min="0" max="100" step="5"><output id="oMusic" for="sMusic"></output></div>
     <div class="srow"><label for="sSfx">音效</label><input id="sSfx" type="range" min="0" max="100" step="5"><output id="oSfx" for="sSfx"></output></div>
@@ -1186,7 +1189,7 @@ function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],
   play();musicTimer=setInterval(play,6000)}
 
 // 設定：四種音量、粒子密度、減少震動與停格、字幕大小、掉寶形狀標記（存在瀏覽器裡，讀不到就用預設）
-const SET_DEFAULT={master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
+const SET_DEFAULT={bright:1,master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
 const SET=Object.assign({},SET_DEFAULT);
 try{const s=JSON.parse(localStorage.getItem('eg-settings')||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
 let DENSITY=1;
@@ -1350,7 +1353,8 @@ function updateTowers(dt){
   const T=story.on&&(story.phase==='goto'||story.phase==='ignite')?TOWERS[story.act]:null;
   if(T){const dx=T.x-player.pos.x,dz=T.z-player.pos.z,d=Math.hypot(dx,dz)||1;guide.visible=d>3;guide.material.color.setHex(T.col);
     guide.position.set(player.pos.x+dx/d*1.8,.2,player.pos.z+dz/d*1.8);guide.rotation.set(Math.PI/2,Math.atan2(dx,dz),0)}else guide.visible=false;
-  dark+=(darkT-dark)*Math.min(1,dt*1.5);scene.fog.density=.026+.032*dark;hemi.intensity=.6-.44*dark;moon.intensity=.5-.38*dark}
+  dark+=(darkT-dark)*Math.min(1,dt*1.5);// 畫面亮度（設定）：只放大環境光與月光、霧變薄；法術與燈塔的光不變，特效不會被沖淡
+  const B=SET.bright;scene.fog.density=(.026+.032*dark)/Math.max(1,B);hemi.intensity=(.6-.44*dark)*B;moon.intensity=(.5-.38*dark)*B}
 
 const ACTS=[{dlg:'intro',n:18,mix:[1,0,0],after:'t1'},{n:24,mix:[.6,.4,0],after:'t2'},{n:28,mix:[.45,.35,.2],after:'t3'},{n:30,mix:[.35,.35,.3],after:'t4'}];
 function obj(main,sub){const o=$('#objective');o.hidden=false;o.innerHTML=main+(sub?`<small>${sub}</small>`:'')}
@@ -1473,7 +1477,7 @@ let menuOpen=false,pickups=0,resultThen=null;
 function titleMode(on){document.body.classList.toggle('on-title',on)}titleMode(true);
 const MENUS=['pause','settings','help','credits','result'];
 function syncMenu(){menuOpen=MENUS.some(id=>!$('#'+id).hidden);if(menuOpen)lmb=false}
-function openSub(id,from){const el=$('#'+id);el.dataset.from=from||'';if(from)$('#'+from).hidden=true;el.hidden=false;if(id==='settings')loadSettingsUI();syncMenu();const f=el.querySelector('button,input,select');if(f)f.focus()}
+function openSub(id,from){const el=$('#'+id);el.dataset.from=from||'';if(from)$('#'+from).hidden=true;el.hidden=false;if(id==='settings')loadSettingsUI();syncMenu();const f=el.querySelector('button,input,select');if(f)f.focus({preventScroll:true});el.scrollTop=0}  // 焦點在底部按鈕時不要把畫面捲下去，手機上才看得到標題（DEVLOG #50）
 function backSub(id){const el=$('#'+id);el.hidden=true;const f=el.dataset.from;if(f)$('#'+f).hidden=false;syncMenu()}
 function togglePause(force){if(!running||!player.alive||dlg)return;const p=$('#pause'),open=force!==undefined?force:p.hidden;
   if(open){if(menuOpen)return;p.hidden=false;$('#pConfirm').hidden=true;hush()}else p.hidden=true;syncMenu();if(open)$('#pResume').focus()}
@@ -1496,11 +1500,12 @@ function closeResult(){if($('#result').hidden)return;$('#result').hidden=true;sy
 // 設定畫面
 const SLIDERS=[['sMaster','oMaster','master'],['sMusic','oMusic','music'],['sSfx','oSfx','sfx'],['sVoice','oVoice','voice']];
 function loadSettingsUI(){for(const [i,o,k] of SLIDERS){$('#'+i).value=Math.round(SET[k]*100);$('#'+o).textContent=Math.round(SET[k]*100)}
-  $('#sParticles').value=SET.particles;$('#sShake').checked=SET.reduceShake;$('#sShapes').checked=SET.lootShapes;$('#sSub').value=Math.round(SET.subSize*100);$('#oSub').textContent=Math.round(SET.subSize*100)+'%'}
+  $('#sParticles').value=SET.particles;$('#sShake').checked=SET.reduceShake;$('#sShapes').checked=SET.lootShapes;$('#sSub').value=Math.round(SET.subSize*100);$('#oSub').textContent=Math.round(SET.subSize*100)+'%';$('#sBright').value=Math.round(SET.bright*100);$('#oBright').textContent=Math.round(SET.bright*100)+'%'}
 for(const [i,o,k] of SLIDERS)$('#'+i).addEventListener('input',e=>{SET[k]=e.target.value/100;$('#'+o).textContent=e.target.value;applySettings();saveSettings()});
 $('#sParticles').addEventListener('change',e=>{SET.particles=e.target.value;applySettings();saveSettings()});
 $('#sShake').addEventListener('change',e=>{SET.reduceShake=e.target.checked;if(SET.reduceShake){shakeAmt=0;hitStop=0}saveSettings()});
 $('#sShapes').addEventListener('change',e=>{SET.lootShapes=e.target.checked;saveSettings();for(const L of loots)L.el.textContent=rarMark(L.it.rar)+L.it.name;if(!$('#inv').hidden)renderInv()});
+$('#sBright').addEventListener('input',e=>{SET.bright=e.target.value/100;$('#oBright').textContent=e.target.value+'%';saveSettings()});
 $('#sSub').addEventListener('input',e=>{SET.subSize=e.target.value/100;$('#oSub').textContent=e.target.value+'%';applySettings();saveSettings()});
 $('#sReset').onclick=()=>{Object.assign(SET,SET_DEFAULT);applySettings();saveSettings();loadSettingsUI();note('設定已恢復預設')};
 // 按鈕

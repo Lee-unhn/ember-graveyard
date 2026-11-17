@@ -317,6 +317,17 @@ window.__runUnit = async (only) => {
     const s = JSON.parse(localStorage.getItem('eg-settings')); eq(s.music, .25); eq(s.particles, 'mid');
     Object.assign(SET, SET_DEFAULT); saveSettings();
   });
+  test('brightness setting lifts the world light and thins the fog, but not the spell lights', () => {
+    fresh(); setDark(0, true); const step = () => visuals(1 / 60);
+    SET.bright = 1; step(); const h1 = hemi.intensity, m1 = moon.intensity, f1 = scene.fog.density;
+    SET.bright = 2; step(); near(hemi.intensity, h1 * 2, 1e-6, 'sky light doubles'); near(moon.intensity, m1 * 2, 1e-6, 'moon doubles');
+    near(scene.fog.density, f1 / 2, 1e-6, 'fog halves');
+    SET.bright = .5; step(); near(hemi.intensity, h1 * .5, 1e-6, 'darker'); near(scene.fog.density, f1, 1e-6, 'fog never thicker than normal');
+    const el = document.querySelector('#sBright'); el.value = '170'; el.dispatchEvent(new Event('input'));
+    eq(SET.bright, 1.7, 'slider sets the value'); eq(JSON.parse(localStorage.getItem('eg-settings')).bright, 1.7, 'saved');
+    eq(document.querySelector('#oBright').textContent, '170%', 'shown as a percentage');
+    Object.assign(SET, SET_DEFAULT); saveSettings(); step();
+  });
   test('save slot: only a valid act number is accepted', () => {
     fresh(); clearSave(); eq(readSave(), null, 'empty');
     writeSave(2); eq(readSave().act, 2);

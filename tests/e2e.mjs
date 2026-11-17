@@ -143,9 +143,10 @@ async function menusFlow() {
     rep.ok(await p.evaluate(`getComputedStyle(document.querySelector('#bottom')).display === 'none' && getComputedStyle(document.querySelector('#lab')).display === 'none'`), 'title screen hides the battle HUD');
     // settings: keyboard on the first slider, value is saved
     await p.clickSel('#btnSettings');
-    rep.ok(await p.evaluate(`${shown('#settings')} && document.activeElement.id === 'sMaster'`), 'settings opens with focus on the first slider');
+    rep.ok(await p.evaluate(`${shown('#settings')} && document.activeElement.id === 'sBright'`), 'settings opens with focus on the first slider (brightness)');
     await p.key('ArrowLeft', 'ArrowLeft');
-    rep.ok(await p.waitFor(`SET.master === .75 && JSON.parse(localStorage.getItem('eg-settings')).master === .75`, 3000), 'arrow key lowers master volume and the value is saved');
+    rep.ok(await p.waitFor(`Math.abs(SET.bright - .9) < 1e-9 && JSON.parse(localStorage.getItem('eg-settings')).bright === .9`, 3000), 'arrow key lowers screen brightness and the value is saved');
+    await p.key('ArrowRight', 'ArrowRight');                // one press back up to 100% so the rest of the run sees the normal picture
     await p.key('Escape', 'Escape');
     rep.ok(await p.evaluate(`document.querySelector('#settings').hidden && ${shown('#intro')}`), 'Esc returns from settings to the title');
     // story start, skip the opening
