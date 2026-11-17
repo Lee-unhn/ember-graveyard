@@ -115,6 +115,15 @@ window.__runUnit = async (only) => {
     unequip('light'); updateLamp(); eq(lampLight.intensity, 0, 'off again'); fresh();
   });
   test('default screen brightness is 140%', () => { eq(SET_DEFAULT.bright, 1.4); });
+  test('story mode hands out one common lantern, equipped; never a second one', () => {
+    fresh(); startStory(0); while (dlg) endDialog();
+    ok(equipped.light && equipped.light.rar === RAR[0], 'common lantern equipped'); eq(equipped.light.name, '燼燈'); eq(stats.light, LAMP_R[0], 'lights 5 m');
+    startStory(0); while (dlg) endDialog();
+    eq(inv.filter((i) => i.slot === 'light').length, 0, 'no spare lantern in the bag'); eq(stats.light, LAMP_R[0]);
+    const better = lantern(3); place(better); equip(better); startStory(1); while (dlg) endDialog();
+    eq(equipped.light, better, 'continuing keeps the better lantern'); eq(inv.filter((i) => i.slot === 'light').length, 1, 'the old one stays in the bag, no new one');
+    fresh();
+  });
   test('the ground is subdivided so point lights (lantern, spells) can light it', () => {
     // Lambert lights per vertex: a plane with only its four corners shows no light circle at all (DEVLOG #54)
     const terr = scene.children.find((o) => o.isMesh && o.material === terrMat);

@@ -63,7 +63,7 @@ On a touch-only device the game switches to touch controls: drag anywhere on the
 | Three texture routes | **Flipbook atlas** (16 frames drawn once), **procedural shader** (noise computed per pixel, no images), **quads only** (outlines, to see the trick) |
 | Bring your own atlas | Draw a black-background 4×4 sheet with any image model and upload it from the Lab panel; black turns transparent automatically |
 | Basic → upgraded | single → triple fireball, single hit → lightning that chains 6 times, one meteor → 10-meteor rain |
-| A small ARPG loop | 50 monsters per wave, damage numbers, health bars, loot beams, a shape-based grid inventory (staff 1×4, helmet 2×2, armour 2×3, lantern 1×2) and stats that change when you equip; a lantern lights a circle around the mage, 5 to 12 m by rarity |
+| A small ARPG loop | 50 monsters per wave, damage numbers, health bars, loot beams, a shape-based grid inventory (staff 1×4, helmet 2×2, armour 2×3, lantern 1×2) and stats that change when you equip; a lantern lights a circle around the mage, 5 to 12 m by rarity (story mode starts you with a common one) |
 
 Everything — textures, rune circle, rock, sounds — is generated in code. No downloaded art assets.
 
@@ -353,7 +353,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 | 三條貼圖路線 | 翻頁圖集（16 格一次畫好）、程式即時算（每個像素用雜訊公式算，不用圖片）、只看方塊（只畫外框，看穿效果怎麼做出來） |
 | 換上自己畫的圖 | 用任何繪圖模型畫一張黑底 4×4 圖，從拆解台上傳，黑色會自動變透明 |
 | 基礎與升級 | 單發變三連發、單擊變彈跳 6 次、單顆隕石變十顆連落 |
-| 小型動作遊戲循環 | 每波 50 隻怪、傷害數字、血條、掉寶光柱、照形狀占格的背包（法杖 1×4、頭盔 2×2、胸甲 2×3、提燈 1×2），穿上裝備數值會變；提燈在主角身邊照出一圈光，半徑依稀有度 5 到 12 公尺 |
+| 小型動作遊戲循環 | 每波 50 隻怪、傷害數字、血條、掉寶光柱、照形狀占格的背包（法杖 1×4、頭盔 2×2、胸甲 2×3、提燈 1×2），穿上裝備數值會變；提燈在主角身邊照出一圈光，半徑依稀有度 5 到 12 公尺（故事模式開場送一盞普通提燈） |
 
 貼圖、法陣、石頭、音效全部由程式產生，沒有使用任何下載的美術素材。
 
