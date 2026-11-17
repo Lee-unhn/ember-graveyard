@@ -98,8 +98,28 @@ window.__runUnit = async (only) => {
   test('makeItem: forced rarity gives the right stat count and in-range values', () => {
     for (let r = 0; r < 4; r++) for (let n = 0; n < 40; n++) {
       const it = makeItem(r); eq(Object.keys(it.st).length, RAR[r].k, 'stat count');
-      for (const [k, v] of Object.entries(it.st)) { const [lo, hi] = RANGE[k]; ok(v >= Math.round(lo * RAR[r].mul) - 1 && v <= Math.round(hi * RAR[r].mul) + 1, `${k}=${v} rarity ${r}`); }
+      for (const [k, v] of Object.entries(it.st)) { if (k === 'light') { eq(v, LAMP_R[r], 'lantern radius by rarity'); continue; } const [lo, hi] = RANGE[k]; ok(v >= Math.round(lo * RAR[r].mul) - 1 && v <= Math.round(hi * RAR[r].mul) + 1, `${k}=${v} rarity ${r}`); }
     }
+  });
+  const lantern = (r) => { for (let n = 0; n < 500; n++) { const it = makeItem(r); if (it.slot === 'light') return it; } throw new Error('no lantern rolled'); };
+  test('lanterns drop with a light radius set by rarity and one ordinary stat fewer', () => {
+    for (let r = 0; r < 4; r++) { const it = lantern(r); eq(it.st.light, LAMP_R[r], 'radius'); eq(Object.keys(it.st).length - 1, RAR[r].k - 1, 'other stats'); }
+    ok(LAMP_R.every((v, i) => i === 0 || v > LAMP_R[i - 1]), 'rarer lanterns light a wider circle');
+  });
+  test('equipping a lantern lights a circle around the mage; taking it off turns it off', () => {
+    fresh(); updateLamp(); eq(lampLight.intensity, 0, 'no lantern, no light');
+    const it = lantern(2); place(it); equip(it); updateLamp();
+    eq(stats.light, LAMP_R[2], 'stat'); ok(lampLight.intensity > 0, 'light on'); near(lampLight.distance, LAMP_R[2] * 1.6, 1e-9, 'reach follows the radius');
+    near(lampLight.position.x, player.pos.x, 1e-9); near(lampLight.position.z, player.pos.z, 1e-9);
+    ok(/照明半徑<span class="v">9 公尺/.test(document.querySelector('#sheet').innerHTML), 'shown on the character sheet');
+    unequip('light'); updateLamp(); eq(lampLight.intensity, 0, 'off again'); fresh();
+  });
+  test('default screen brightness is 140%', () => { eq(SET_DEFAULT.bright, 1.4); });
+  test('the ground is subdivided so point lights (lantern, spells) can light it', () => {
+    // Lambert lights per vertex: a plane with only its four corners shows no light circle at all (DEVLOG #54)
+    const terr = scene.children.find((o) => o.isMesh && o.material === terrMat);
+    ok(terr && terr.geometry.attributes.position.count >= GN * GN, `terrain vertices ${terr && terr.geometry.attributes.position.count}`);
+    ok(ground.geometry.attributes.position.count >= 70 * 70, `ground vertices ${ground.geometry.attributes.position.count}`);
   });
   test('grid placement: 60 single cells fit, the 61st does not', () => {
     fresh(); let placed = 0; for (let i = 0; i < 61; i++) { const it = makeItem(0); Object.assign(it, { w: 1, h: 1 }); if (place(it)) placed++; } eq(placed, 60);
