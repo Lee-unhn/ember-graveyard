@@ -117,13 +117,18 @@ async function browserProbe(root, liveUrl) {
     const page = ver.find((t) => t.type === 'page');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
     await new Promise((r) => ws.addEventListener('open', r));
-    let id = 0; const pending = new Map(); const errors = [];
+    let id = 0; const pending = new Map(); const errors = [], fontMiss = [];
     ws.addEventListener('message', (ev) => {
       const m = JSON.parse(ev.data);
       if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
       if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
       if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(m.params.args.map((a) => a.value ?? a.description).join(' '));
-      if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push(m.params.entry.text + ' ' + (m.params.entry.url || ''));
+      if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') {
+        // the web font is decoration: when Google Fonts drops the connection the page falls back to system fonts and still
+        // works, so report it instead of failing (a CI runner lost the connection once, DEVLOG #53); every other load error still fails
+        const u = m.params.entry.url || '';
+        if (FONT_URL.test(u)) fontMiss.push(u); else errors.push(m.params.entry.text + ' ' + u);
+      }
     });
     const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
     const evaluate = async (expr) => {
@@ -196,6 +201,7 @@ async function browserProbe(root, liveUrl) {
     st.shocksSeen && st.darkTriggered ? ok('boss shockwave and darkness phase triggered') : bad(`boss mechanics shock=${st.shocksSeen} dark=${st.darkTriggered}`);
     st.ending ? ok('ending screen shown') : bad('ending not shown, phase ' + st.phaseEnd);
     errors.length === 0 ? ok('console errors 0') : bad('console errors: ' + errors.slice(0, 5).join(' | '));
+    if (fontMiss.length) console.log(`  NOTE web font did not load (${fontMiss.length}), the page used system fonts: ${fontMiss[0]}`);
     ws.close();
   } catch (e) { bad('probe crashed: ' + e.message); }
   // Windows: proc.kill() leaves Chrome's child processes running and they slow every later suite (DEVLOG #32, #34)
@@ -203,7 +209,14 @@ async function browserProbe(root, liveUrl) {
 }
 
 // ---------------------------------------------------------------- self-test
+// load failures from these hosts are reported as a note, not an error (the page falls back to system fonts)
+const FONT_URL = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
 function selftest() {
+  // only the web font may fail quietly: the 3D library, the model loader and look-alike hosts must still count as errors
+  const quiet = ['https://fonts.googleapis.com/css2?family=Noto+Sans+TC', 'https://fonts.gstatic.com/s/notosanstc/v1/a.woff2'];
+  const loud = ['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+    'https://fonts.googleapis.com.evil.example/x.css', 'http://fonts.googleapis.com/css2'];
+  quiet.every((u) => FONT_URL.test(u)) && loud.every((u) => !FONT_URL.test(u)) ? ok('only Google Fonts load failures are treated as a note') : bad('font-failure filter lets other hosts through or misses fonts');
   console.log('[selftest] gates must turn red on a poisoned copy');
   const dir = mkdtempSync(join(tmpdir(), 'eg-self-'));
   const poisoned = readFileSync(join(ROOT, 'index.html'), 'utf8')
