@@ -368,10 +368,11 @@ body.on-title .hud{display:none!important}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- 觸控與改鍵排第一：延後載入的程式依序執行，排在外部模型載入器後面時，網路慢就要等它下載完手機操作才生效（DEVLOG #52） -->
+<script src="assets/controls.js" defer></script>
 <!-- 人偶模型延後載入：遊戲先能玩，1.2 MB 的模型下載完才換上（不擋畫面，DEVLOG #40） -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>
 <script src="assets/character.js" defer></script>
-<script src="assets/controls.js" defer></script>
 <script>
 'use strict';
 const $=s=>document.querySelector(s);

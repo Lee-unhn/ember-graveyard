@@ -27,6 +27,9 @@ function staticChecks() {
   const blocking = [...html.matchAll(/<script\s+([^>]*)>/g)].map((m) => m[1]).filter((a) => !/\b(defer|async)\b/.test(a))
     .map((a) => (a.match(/src="([^"]+)"/) || [])[1]).filter((s) => s && !/^https?:/.test(s)).filter((s) => statSync(join(ROOT, s)).size > 100 * 1024);
   rep.ok(blocking.length === 0, 'no local script over 100 KB loads in a way that blocks the page', blocking);
+  // phone controls must not wait for a third-party download: deferred scripts run in document order (DEVLOG #52)
+  const srcs = [...html.matchAll(/<script\s+[^>]*src="([^"]+)"[^>]*\bdefer\b/g)].map((m) => m[1]);
+  rep.ok(srcs.indexOf('assets/controls.js') >= 0 && srcs.slice(0, srcs.indexOf('assets/controls.js')).every((s) => !/^https?:/.test(s)), 'touch controls load before any deferred third-party script', srcs);
   // Godot port: billboarded particles drop their own scale unless the material keeps it; every quad then drew at 1 unit (DEVLOG #45)
   const gd = readFileSync(join(ROOT, 'godot', 'main.gd'), 'utf8');
   rep.ok(!/BILLBOARD_PARTICLES/.test(gd) || /billboard_keep_scale\s*=\s*true/.test(gd), 'Godot particle materials keep each particle\'s own scale');
