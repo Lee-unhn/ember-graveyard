@@ -27,6 +27,7 @@ The graveyard floor is an 88×88 grid of 15 terrain types (dry grass, grave soil
 - **Terrain evolves on its own** every 0.2 s near the player: fire spreads and burns out to ash, lava flows into craters, meets water and hardens into obsidian walls, puddles fill craters, wisp graves blow up in chains.
 - **Terrain kills**: fire, lava, charged water, blood pools, steam and explosions hurt monsters; only lava hurts you. Monsters killed by terrain drop extra loot 60% of the time, and terrain kills within 1.2 s build a **terrain chain ×N**.
 - **Destructibles**: tombstones topple away from a blast and crush whatever is in their path, dead trees burn for 6 s and fall, fence sections break, sarcophagi crack open and release two ghosts plus a guaranteed drop. The Lord of the Unlit takes heavy damage standing in lava, and its shockwave knocks tombstones over.
+- **Look (P6)**: camera at about 50 degrees; pixel-art mage and monsters in a full-resolution scene that still hides them behind tombstones; bloom, soft top and bottom edges, colour grading, moonlight shadows (quality high); grass tufts, pebbles and bone shards that follow the terrain. All drawn by code, no extra downloads.
 
 ## Screens and game feel (P3a)
 
@@ -317,6 +318,7 @@ GitHub Actions runs `npm test` on every push and pull request.
 - **地形自己演變**：每 0.2 秒掃一次玩家附近，火會蔓延、燒完變灰燼；熔岩流進坑洞，碰到水凝成黑曜石牆；積水流進坑洞；磷火墳會連鎖爆炸。
 - **地形殺**：火、熔岩、帶電水、血沼、蒸氣與爆炸會傷怪物，只有熔岩會傷玩家。被地形殺死的怪物有 60% 機率多掉一件裝備，1.2 秒內連續地形擊殺累積「地形連鎖 ×N」。
 - **可破壞物**：墓碑朝爆炸反方向倒下，壓死路徑上的怪物；枯樹著火燒 6 秒後倒下；柵欄可分段撞斷；石棺裂開會放出兩隻殘魂並必掉一件裝備。無燈之主站在熔岩上會受重傷，牠的衝擊波會推倒墓碑。
+- **畫面（P6）**：鏡頭斜約 50 度；法師與怪物是像素畫，場景維持高解析度，躲在墓碑後面仍會被擋住；光暈、上下柔焦、調色、月光陰影（畫質高）；草叢、碎石、碎骨跟著地形變化。全部由程式畫，不另外下載。
 
 ### 畫面與手感（P3a）
 

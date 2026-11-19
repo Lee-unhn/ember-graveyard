@@ -136,6 +136,14 @@ window.__runUnit = async (only) => {
     SET.fx = 'low'; EGPost.render(); ok(!renderer.shadowMap.enabled && !moon.castShadow, 'shadows off at low quality');
     Object.assign(SET, SET_DEFAULT); EGPost.render();
   });
+  test('ground detail: tufts on grass, pebbles on paving; burnt grass loses its tufts', () => {
+    EGPost.render(); const grass = EGDetail.sets[0], peb = EGDetail.sets[1];
+    ok(grass.spots.length > 300 && peb.spots.length > 100, `tufts ${grass.spots.length}, pebbles ${peb.spots.length}`);
+    eq(grass.mesh.count, grass.spots.length, 'one instance per tuft');
+    const j = grass.shown.indexOf(1), cell = grass.spots[j].cell, keep = TT[cell];
+    setT(cell, TER.ASH); EGDetail.refresh(false); eq(grass.shown[j], 0, 'tuft hidden on ash');
+    setT(cell, keep); EGDetail.refresh(false); eq(grass.shown[j], 1, 'back when the grass is back');
+  });
   test('without a graphics card the first visit starts at quality low', () => {
     // the test browser renders in software (SwiftShader), like a computer whose graphics acceleration is off
     ok(EGPost.state.software, 'software rendering detected in the test browser');
