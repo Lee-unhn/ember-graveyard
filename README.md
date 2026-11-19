@@ -36,7 +36,7 @@ P3 (new skin) starts with a checklist of the screen types commercial games ship 
 
 - **Screens**: loading screen with progress and a gameplay tip; title screen with a slowly circling camera, continue / new game / free play / settings / controls / credits and a version tag; pause (Esc or P, and automatically when the tab is hidden) with restart and a confirmed return to title; an act result after each lighthouse (time, kills, terrain kills, best terrain chain, loot picked up); a death screen that names what killed you and gives the matching tip; credits.
 - **Continue**: the browser remembers which act you reached, so the title offers "continue · act N". No accounts.
-- **Settings**: screen brightness (50–250%, default 140%: lifts the world light and thins the fog, spell lights unchanged); master, music, effects and voice volume; particle density; subtitle size; reduce shake and hit-stop; shape marks on loot rarity (not colour alone). Saved in the browser.
+- **Settings**: picture quality (high: bloom, soft top and bottom edges, colour grading; phones default to low); screen brightness (50–250%, default 140%: lifts the world light and thins the fog, spell lights unchanged); master, music, effects and voice volume; particle density; subtitle size; reduce shake and hit-stop; shape marks on loot rarity (not colour alone). Saved in the browser.
 - **Game feel**: a short hit-stop on explosions and critical hits, and monsters squash when hit.
 - **Terrain look**: borders between terrain types are ragged instead of square (each pixel samples a jittered position), and only the changed strips of the ground texture are re-uploaded to the GPU.
 - **Screen self-check**: `npm run test:screens` photographs 11 screens at desktop and phone size and checks the layout rules (card inside the screen, no sideways scroll, buttons at least 24 px, nothing behind the title screen, one overlay at a time). Shots for this phase: [`docs/screens/p3a/`](docs/screens/p3a/).
@@ -326,7 +326,7 @@ P3 換皮的第一步，是整理市面遊戲的整套畫面類型做成檢核�
 
 - **畫面**：讀取畫面（進度條＋一則玩法提示）；標題畫面（鏡頭繞著墓園轉，繼續／新遊戲／自由試玩／設定／操作說明／製作群，附版本號）；暫停（Esc 或 P，切到別的分頁會自動暫停；可重來這一幕，回標題前先確認）；每點亮一座燈塔的階段結算（用時、擊倒、地形擊殺、最高地形連鎖、撿到裝備）；失敗畫面寫出死因並給對應提示；製作群。
 - **繼續遊戲**：瀏覽器記住玩到第幾幕，標題出現「繼續・第 N 幕」。不做帳號。
-- **設定**：畫面亮度（50–250%，預設 140%，調亮環境光、霧變薄，法術的光不變）；總音量、音樂、音效、語音分開調；粒子密度；字幕大小；減少震動與停格；掉寶稀有度加形狀標記（不只靠顏色分辨）。設定存在瀏覽器裡。
+- **設定**：畫質（高：光暈、上下柔焦、調色；手機預設低）；畫面亮度（50–250%，預設 140%，調亮環境光、霧變薄，法術的光不變）；總音量、音樂、音效、語音分開調；粒子密度；字幕大小；減少震動與停格；掉寶稀有度加形狀標記（不只靠顏色分辨）。設定存在瀏覽器裡。
 - **打擊感**：爆炸與爆擊時短暫停格，怪物受擊時壓扁抖動。
 - **地形外觀**：地形交界從方格改成不規則邊緣（每個像素抖動取樣位置），地面貼圖只把變動的橫條重新送上顯示卡。
 - **截圖自查**：`npm run test:screens` 在桌機與手機尺寸各拍 11 個畫面，並檢查版面規則（卡片在畫面內、頁面不左右捲動、按鈕至少 24 像素、標題畫面後面沒有戰鬥介面、同時只開一個覆蓋層）。本階段截圖在 [`docs/screens/p3a/`](docs/screens/p3a/)。

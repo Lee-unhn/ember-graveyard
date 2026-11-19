@@ -298,6 +298,7 @@ body.on-title .hud{display:none!important}
     <div class="srow"><label for="sSfx">音效</label><input id="sSfx" type="range" min="0" max="100" step="5"><output id="oSfx" for="sSfx"></output></div>
     <div class="srow"><label for="sVoice">語音</label><input id="sVoice" type="range" min="0" max="100" step="5"><output id="oVoice" for="sVoice"></output></div>
     <div class="srow"><label for="sParticles">粒子密度</label><select id="sParticles"><option value="low">低</option><option value="mid">中</option><option value="high">高</option></select><span></span></div>
+    <div class="srow"><label for="sFx">畫質</label><select id="sFx"><option value="low">低</option><option value="high">高</option></select><span class="hintc">高：光暈、上下柔焦、調色</span></div>
     <div class="srow"><label for="sSub">字幕大小</label><input id="sSub" type="range" min="80" max="160" step="10"><output id="oSub" for="sSub"></output></div>
     <div class="srow"><label for="sShake">減少震動與停格</label><input id="sShake" type="checkbox"><span></span></div>
     <div class="srow"><label for="sShapes">掉寶加形狀標記</label><input id="sShapes" type="checkbox"><span class="hintc">○ 普通　● 魔法　▲ 稀有　◆ 傳奇</span></div>
@@ -370,6 +371,8 @@ body.on-title .hud{display:none!important}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- 觸控與改鍵排第一：延後載入的程式依序執行，排在外部模型載入器後面時，網路慢就要等它下載完手機操作才生效（DEVLOG #52） -->
 <script src="assets/controls.js" defer></script>
+<!-- 後製：光暈、上下柔焦、調色、暗角（設定「畫質」可關） -->
+<script src="assets/postfx.js" defer></script>
 <!-- 人偶模型延後載入：遊戲先能玩，1.2 MB 的模型下載完才換上（不擋畫面，DEVLOG #40） -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>
 <script src="assets/character.js" defer></script>
@@ -434,6 +437,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
 renderer.setClearColor(0x090b11);
 const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x0b0e16,.026);
 const camera=new THREE.PerspectiveCamera(42,1,.1,220);
+// 鏡頭在主角後上方：高 13、後 11，約斜 50 度往下看、距離 17（原本高 18.5、斜 59 度，幾乎正上方）
+const CAM_H=13,CAM_B=11;
 function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 const hemi=new THREE.HemisphereLight(0x6f84b8,0x1c1410,.6);scene.add(hemi);
@@ -1199,7 +1204,7 @@ function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],
   play();musicTimer=setInterval(play,6000)}
 
 // 設定：四種音量、粒子密度、減少震動與停格、字幕大小、掉寶形狀標記（存在瀏覽器裡，讀不到就用預設）
-const SET_DEFAULT={bright:1.4,master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
+const SET_DEFAULT={fx:'high',bright:1.4,master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
 const SET=Object.assign({},SET_DEFAULT);
 try{const s=JSON.parse(localStorage.getItem('eg-settings')||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
 let DENSITY=1;
@@ -1444,9 +1449,9 @@ function updateCamera(dt){
   // 標題畫面：鏡頭繞著墓園慢慢轉
   if(!running){const a=time*.06,w=new V3(Math.cos(a)*26,16,Math.sin(a)*26);camPos.lerp(w,Math.min(1,dt*2));camera.position.copy(camPos);camera.lookAt(0,0,0);camSnap=true;return}
   // 離開標題後第一格直接跳到角色身後，不從環繞位置滑回來（滑行中瞄準點會偏，DEVLOG #36）
-  const off=new V3(0,18.5*zoom,11*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);if(camSnap){camPos.copy(want);camSnap=false}else camPos.lerp(want,Math.min(1,dt*6));
+  const off=new V3(0,CAM_H*zoom,CAM_B*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);if(camSnap){camPos.copy(want);camSnap=false}else camPos.lerp(want,Math.min(1,dt*6));
   camera.position.copy(camPos);if(shakeAmt>.001){camera.position.x+=rand(-1,1)*shakeAmt;camera.position.y+=rand(-1,1)*shakeAmt;camera.position.z+=rand(-1,1)*shakeAmt;shakeAmt*=Math.exp(-dt*9)}
-  camera.lookAt(camPos.x,0,camPos.z-11*zoom+.0001)}
+  camera.lookAt(camPos.x,0,camPos.z-CAM_B*zoom+.0001)}
 let ambAcc={};
 function ambient(dt){rate(ambAcc,'m',6,dt,()=>{const a=rand(0,TAU),r=rand(4,20);SMOKE.emit({x:player.pos.x+Math.cos(a)*r,y:rand(.2,.8),z:player.pos.z+Math.sin(a)*r,vx:rand(-.3,.3),vz:rand(-.3,.3),kind:2,fm:1,life:rand(5,8),s0:4,s1:7,rs:rand(-.1,.1),r:.55,g:.62,b:.8,a0:.12,a1:0,fadeIn:.3})})}
 const NOTES=['火焰、爆炸、濃煙都是預先畫好的 4×4 共 16 格翻頁圖，貼在永遠面向鏡頭的方塊上輪播。對應影片第二條路線（請繪圖模型一次畫 16 格）；這版由程式畫，零花費。',
@@ -1482,7 +1487,7 @@ const clock=new THREE.Clock();
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);time+=dt;shared.uTime.value=time;
   // 停格：命中瞬間遊戲規則幾乎停住（只走 8%），畫面照常更新
   if(running&&!paused&&!menuOpen){if(hitStop>0){hitStop-=dt;logic(dt*.08)}else logic(dt)}
-  visuals(dt);renderer.render(scene,camera)}
+  visuals(dt);if(window.EGPost)EGPost.render();else renderer.render(scene,camera)}
 
 /* ---------- 畫面：讀取、標題、暫停、設定、操作說明、製作群、階段結算、存檔 ---------- */
 const VERSION='v0.4・P3a 換皮';
@@ -1513,9 +1518,10 @@ function closeResult(){if($('#result').hidden)return;$('#result').hidden=true;sy
 // 設定畫面
 const SLIDERS=[['sMaster','oMaster','master'],['sMusic','oMusic','music'],['sSfx','oSfx','sfx'],['sVoice','oVoice','voice']];
 function loadSettingsUI(){for(const [i,o,k] of SLIDERS){$('#'+i).value=Math.round(SET[k]*100);$('#'+o).textContent=Math.round(SET[k]*100)}
-  $('#sParticles').value=SET.particles;$('#sShake').checked=SET.reduceShake;$('#sShapes').checked=SET.lootShapes;$('#sSub').value=Math.round(SET.subSize*100);$('#oSub').textContent=Math.round(SET.subSize*100)+'%';$('#sBright').value=Math.round(SET.bright*100);$('#oBright').textContent=Math.round(SET.bright*100)+'%'}
+  $('#sParticles').value=SET.particles;$('#sFx').value=SET.fx;$('#sShake').checked=SET.reduceShake;$('#sShapes').checked=SET.lootShapes;$('#sSub').value=Math.round(SET.subSize*100);$('#oSub').textContent=Math.round(SET.subSize*100)+'%';$('#sBright').value=Math.round(SET.bright*100);$('#oBright').textContent=Math.round(SET.bright*100)+'%'}
 for(const [i,o,k] of SLIDERS)$('#'+i).addEventListener('input',e=>{SET[k]=e.target.value/100;$('#'+o).textContent=e.target.value;applySettings();saveSettings()});
 $('#sParticles').addEventListener('change',e=>{SET.particles=e.target.value;applySettings();saveSettings()});
+$('#sFx').addEventListener('change',e=>{SET.fx=e.target.value;saveSettings()});
 $('#sShake').addEventListener('change',e=>{SET.reduceShake=e.target.checked;if(SET.reduceShake){shakeAmt=0;hitStop=0}saveSettings()});
 $('#sShapes').addEventListener('change',e=>{SET.lootShapes=e.target.checked;saveSettings();for(const L of loots)L.el.textContent=rarMark(L.it.rar)+L.it.name;if(!$('#inv').hidden)renderInv()});
 $('#sBright').addEventListener('input',e=>{SET.bright=e.target.value/100;$('#oBright').textContent=e.target.value+'%';saveSettings()});

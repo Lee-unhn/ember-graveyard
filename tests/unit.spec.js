@@ -115,6 +115,24 @@ window.__runUnit = async (only) => {
     unequip('light'); updateLamp(); eq(lampLight.intensity, 0, 'off again'); fresh();
   });
   test('default screen brightness is 140%', () => { eq(SET_DEFAULT.bright, 1.4); });
+  test('camera sits behind and above the mage at about 50 degrees', () => {
+    const deg = Math.atan2(CAM_H, CAM_B) * 180 / Math.PI; ok(deg > 45 && deg < 55, `pitch ${deg.toFixed(1)}`);
+    near(Math.hypot(CAM_H, CAM_B), 17, 0.5, 'distance');
+  });
+  test('quality setting turns the post effects on and off, and is saved', () => {
+    SET.fx = 'high'; EGPost.render(); ok(EGPost.state.on, 'high: effects on');
+    SET.fx = 'low'; EGPost.render(); ok(!EGPost.state.on, 'low: plain render');
+    const el = document.querySelector('#sFx'); el.value = 'low'; el.dispatchEvent(new Event('change'));
+    eq(JSON.parse(localStorage.getItem('eg-settings')).fx, 'low', 'saved');
+    Object.assign(SET, SET_DEFAULT); saveSettings(); EGPost.render(); ok(EGPost.state.on, 'default is high on a computer');
+  });
+  test('post effects keep the picture at least as bright as the plain render in the centre', () => {
+    // the scene is dark on purpose; grading and vignette must not make the middle of the screen darker (author feedback 2026-11-17)
+    const g = renderer.getContext(), W = g.drawingBufferWidth, H = g.drawingBufferHeight, px = new Uint8Array(4 * 64 * 64);
+    const centre = () => { g.readPixels((W >> 1) - 32, (H >> 1) - 32, 64, 64, g.RGBA, g.UNSIGNED_BYTE, px); let s = 0; for (let i = 0; i < px.length; i += 4) s += px[i] + px[i + 1] + px[i + 2]; return s / (px.length / 4 * 3); };
+    fresh(); SET.fx = 'low'; EGPost.render(); const plain = centre(); SET.fx = 'high'; EGPost.render(); const fx = centre();
+    ok(fx >= plain, `centre brightness plain ${plain.toFixed(1)}, with effects ${fx.toFixed(1)}`); Object.assign(SET, SET_DEFAULT);
+  });
   test('story mode hands out one common lantern, equipped; never a second one', () => {
     fresh(); startStory(0); while (dlg) endDialog();
     ok(equipped.light && equipped.light.rar === RAR[0], 'common lantern equipped'); eq(equipped.light.name, '燼燈'); eq(stats.light, LAMP_R[0], 'lights 5 m');
@@ -416,7 +434,7 @@ window.__runUnit = async (only) => {
   test('leaving the title screen snaps the camera behind the mage (aim is right on the first frame)', () => {
     fresh(); running = false; for (let k = 0; k < 30; k++) updateCamera(1 / 60);
     running = true; updateCamera(1 / 60);
-    const want = new THREE.Vector3(player.pos.x, 0, player.pos.z).add(new THREE.Vector3(0, 18.5 * zoom, 11 * zoom));
+    const want = new THREE.Vector3(player.pos.x, 0, player.pos.z).add(new THREE.Vector3(0, CAM_H * zoom, CAM_B * zoom));
     near(camPos.distanceTo(want), 0, 1e-6, 'camera on target after one frame');
   });
   // ---------------------------------------------------------------- P3b: skinned mage

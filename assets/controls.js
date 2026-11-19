@@ -120,7 +120,7 @@ body.touch #lab{display:none}`;
     }
     // phone defaults on first visit: medium particles, camera a little further back
     let saved = null; try { saved = localStorage.getItem('eg-settings'); } catch (e) {}
-    if (!saved) { SET.particles = 'mid'; applySettings(); }
+    if (!saved) { SET.particles = 'mid'; SET.fx = 'low'; applySettings(); }   // phones: medium particles, post effects off
     zoom = Math.max(zoom, 1.2);
     const note = $('#introNote');
     if (note) note.textContent = '手機操作：左半邊拖曳移動；點下方技能施放，會自動瞄準最近的怪物；按住焰核彈連發。右上角是行囊與暫停。故事模式約 15 分鐘。';

@@ -68,7 +68,7 @@ func _world() -> void:
 	add_child(env)
 	var cam := Camera3D.new()
 	cam.fov = 42.0                                     # web PerspectiveCamera(42)
-	cam.position = Vector3(0, 18.5, 11.0)              # web camera offset from the player
+	cam.position = Vector3(0, 13.0, 11.0)              # web camera offset from the player (CAM_H, CAM_B)
 	add_child(cam)
 	cam.look_at(Vector3.ZERO)
 	var ground := MeshInstance3D.new()
