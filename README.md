@@ -139,7 +139,7 @@ flowchart LR
     E2E[End-to-end · 55 checks with real input]:::safety
     CHECKS[Checks · 54 for perf, leaks, licences, no blocking loads]:::safety
     SCRQA[Screens · 26 checks, 11 screens at desktop and phone size]:::safety
-    MUT[Mutation · 8 planted defects must turn red]:::safety
+    MUT[Mutation · 9 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
   end
   KEYS --> CAST
@@ -272,7 +272,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
 | Checks | `npm run test:checks` | 54 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
-| Mutation | part of `npm test` | Copies the project, plants eight known defects and requires the unit and check suites to turn red |
+| Mutation | part of `npm test` | Copies the project, plants nine known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
 
 GitHub Actions runs `npm test` on every push and pull request.
@@ -404,7 +404,7 @@ npm test
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
-| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋八個已知缺陷，單元與其他驗證必須變紅 |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋九個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 
 每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。

@@ -29,7 +29,7 @@ rows.push(['checks', run('tests/checks.mjs', url ? [url] : [])]);
 rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant eight defects in a scratch copy; the suites must notice
+  // plant nine defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -49,6 +49,9 @@ if (!args.includes('--skip-mutation') && !url) {
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)
     if (!gd.includes('m.billboard_keep_scale = true')) throw new Error('mutation did not apply: billboard_keep_scale');
     writeFileSync(g, gd.replace('m.billboard_keep_scale = true', 'pass'));
+    const px = join(dir, 'assets', 'pixel.js'), pj = readFileSync(px, 'utf8'), keepClear = 'renderer.autoClear = false; renderer.render(quadScene, quadCam);'; // 9. pixel overlay wipes the scene (P6 bug)
+    if (!pj.includes(keepClear)) throw new Error('mutation did not apply: pixel overlay autoClear');
+    writeFileSync(px, pj.replace(keepClear, 'renderer.render(quadScene, quadCam);'));
     const env = { EG_ROOT: dir };
     const u = run('tests/unit.mjs', [], env), c = run('tests/checks.mjs', [], env);
     rows.push(['mutation (must be red)', { code: u.code !== 0 && c.code !== 0 ? 0 : 1, secs: (+u.secs + +c.secs).toFixed(1) }]);

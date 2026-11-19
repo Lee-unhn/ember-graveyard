@@ -115,6 +115,18 @@ window.__runUnit = async (only) => {
     unequip('light'); updateLamp(); eq(lampLight.intensity, 0, 'off again'); fresh();
   });
   test('default screen brightness is 140%', () => { eq(SET_DEFAULT.bright, 1.4); });
+  test('pixel characters: mage drawn at low resolution, the HD scene around it untouched', () => {
+    fresh(); SET.fx = 'low'; player.pos.set(0, 0, 0); camSnap = true; updateCamera(1 / 60);
+    const g = renderer.getContext(), W = g.drawingBufferWidth, H = g.drawingBufferHeight, px = new Uint8Array(4 * 48 * 48);
+    const sum = (x, y) => { g.readPixels(x, y, 48, 48, g.RGBA, g.UNSIGNED_BYTE, px); let s = 0; for (let i = 0; i < px.length; i += 4) s += px[i] + px[i + 1] + px[i + 2]; return s; };
+    const mageAt = () => { const v = player.pos.clone().setY(1).project(camera); return [Math.round((v.x * .5 + .5) * W) - 24, Math.round((v.y * .5 + .5) * H) - 24]; };
+    EGPixel.state.on = true; EGPost.render(); const [mx, my] = mageAt(); const onMage = sum(mx, my), onCorner = sum(8, 8);
+    ok(EGPixel.state.scale >= 2, `pixel size ${EGPixel.state.scale}`);
+    const L = new THREE.Layers(); L.set(EGPixel.CHAR); let tagged = true; EGP.g.traverse((o) => { if (!o.layers.test(L)) tagged = false; }); ok(tagged, 'mage on the character layer');
+    EGPixel.state.on = false; EGPost.render(); const offMage = sum(mx, my), offCorner = sum(8, 8); EGPixel.state.on = true;
+    ok(Math.abs(onMage - offMage) > 48 * 48 * 3, 'the mage is drawn by the pixel pass'); eq(onCorner, offCorner, 'the scene away from the mage is not touched');
+    Object.assign(SET, SET_DEFAULT);
+  });
   test('camera sits behind and above the mage at about 50 degrees', () => {
     const deg = Math.atan2(CAM_H, CAM_B) * 180 / Math.PI; ok(deg > 45 && deg < 55, `pitch ${deg.toFixed(1)}`);
     near(Math.hypot(CAM_H, CAM_B), 17, 0.5, 'distance');
