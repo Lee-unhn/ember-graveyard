@@ -298,7 +298,7 @@ body.on-title .hud{display:none!important}
     <div class="srow"><label for="sSfx">音效</label><input id="sSfx" type="range" min="0" max="100" step="5"><output id="oSfx" for="sSfx"></output></div>
     <div class="srow"><label for="sVoice">語音</label><input id="sVoice" type="range" min="0" max="100" step="5"><output id="oVoice" for="sVoice"></output></div>
     <div class="srow"><label for="sParticles">粒子密度</label><select id="sParticles"><option value="low">低</option><option value="mid">中</option><option value="high">高</option></select><span></span></div>
-    <div class="srow"><label for="sFx">畫質</label><select id="sFx"><option value="low">低</option><option value="high">高</option></select><span class="hintc">高：光暈、上下柔焦、調色</span></div>
+    <div class="srow"><label for="sFx">畫質</label><select id="sFx"><option value="low">低</option><option value="high">高</option></select><span class="hintc">高：光暈、柔焦、調色、陰影</span></div>
     <div class="srow"><label for="sSub">字幕大小</label><input id="sSub" type="range" min="80" max="160" step="10"><output id="oSub" for="sSub"></output></div>
     <div class="srow"><label for="sShake">減少震動與停格</label><input id="sShake" type="checkbox"><span></span></div>
     <div class="srow"><label for="sShapes">掉寶加形狀標記</label><input id="sShapes" type="checkbox"><span class="hintc">○ 普通　● 魔法　▲ 稀有　◆ 傳奇</span></div>
@@ -373,6 +373,7 @@ body.on-title .hud{display:none!important}
 <script src="assets/controls.js" defer></script>
 <!-- 後製：光暈、上下柔焦、調色、暗角（設定「畫質」可關） -->
 <script src="assets/pixel.js" defer></script>
+<script src="assets/lighting.js" defer></script>
 <script src="assets/postfx.js" defer></script>
 <!-- 人偶模型延後載入：遊戲先能玩，1.2 MB 的模型下載完才換上（不擋畫面，DEVLOG #40） -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>

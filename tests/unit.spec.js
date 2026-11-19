@@ -127,6 +127,25 @@ window.__runUnit = async (only) => {
     ok(Math.abs(onMage - offMage) > 48 * 48 * 3, 'the mage is drawn by the pixel pass'); eq(onCorner, offCorner, 'the scene away from the mage is not touched');
     Object.assign(SET, SET_DEFAULT);
   });
+  test('quality high: moonlight shadows from props and the mage; low: none', () => {
+    fresh(); SET.fx = 'high'; for (let i = 0; i < 25; i++) EGPost.render();
+    ok(renderer.shadowMap.enabled && moon.castShadow, 'shadows on'); ok(EGLight.state.casters > 20, `casters ${EGLight.state.casters}`);
+    let mageCasts = false; EGP.g.traverse((o) => { if (o.isMesh && o.castShadow) mageCasts = true; }); ok(mageCasts, 'the mage casts a shadow');
+    ok(moon.shadow.camera.layers.mask === 0xffffffff || moon.shadow.camera.layers.mask === -1, 'shadow camera sees the character layer');
+    near(moon.target.position.x, player.pos.x, 1e-6, 'shadow box follows the mage');
+    SET.fx = 'low'; EGPost.render(); ok(!renderer.shadowMap.enabled && !moon.castShadow, 'shadows off at low quality');
+    Object.assign(SET, SET_DEFAULT); EGPost.render();
+  });
+  test('without a graphics card the first visit starts at quality low', () => {
+    // the test browser renders in software (SwiftShader), like a computer whose graphics acceleration is off
+    ok(EGPost.state.software, 'software rendering detected in the test browser');
+    eq(EGPost.state.bootFx, 'low', 'quality at boot');
+  });
+  test('an equipped lantern flickers a little, never off', () => {
+    fresh(); const it = lantern(0); place(it); equip(it); const v = [];
+    for (let i = 0; i < 60; i++) { updateLamp(); EGLight.update(false); v.push(lampLight.intensity); }
+    const lo = Math.min(...v), hi = Math.max(...v); ok(hi - lo > .02, `varies ${lo.toFixed(2)}-${hi.toFixed(2)}`); ok(lo > 1.2 && hi < 1.8, 'stays within about 10 %'); fresh();
+  });
   test('camera sits behind and above the mage at about 50 degrees', () => {
     const deg = Math.atan2(CAM_H, CAM_B) * 180 / Math.PI; ok(deg > 45 && deg < 55, `pitch ${deg.toFixed(1)}`);
     near(Math.hypot(CAM_H, CAM_B), 17, 0.5, 'distance');

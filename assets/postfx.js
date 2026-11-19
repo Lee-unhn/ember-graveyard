@@ -67,6 +67,7 @@
     // SET is a top-level const of the page: shared by name between classic scripts, but not a property of window
     state.on = typeof SET !== 'undefined' && SET.fx === 'high' && !failed && ensure();
     if (window.EGPixel) EGPixel.prepare();                            // characters move to their own layer, drawn as pixel art below
+    if (window.EGLight) EGLight.update(typeof SET !== 'undefined' && SET.fx === 'high' && !failed); // shadows only at quality high
     if (!state.on) { renderer.setRenderTarget(null); renderer.render(scene, camera); if (window.EGPixel) EGPixel.overlay(null); return; }
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
     if (window.EGPixel) EGPixel.overlay(rt);                         // pixel-art characters drawn into the frame (stage 3)
@@ -78,5 +79,15 @@
     pass(finalMat, null);
     state.frames++;
   }
+  // no graphics card (software rendering such as SwiftShader or llvmpipe): start at quality low on a first visit,
+  // the effects and shadows would roughly double the frame time there (measured 112 vs 245 ms per frame)
+  let swRender = false;
+  try {
+    const g = renderer.getContext(), ext = g.getExtension('WEBGL_debug_renderer_info');
+    swRender = /swiftshader|llvmpipe|software|basic render/i.test(String(g.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : g.RENDERER)));
+    let saved = null; try { saved = localStorage.getItem('eg-settings'); } catch (e) {}
+    if (swRender && !saved && typeof SET !== 'undefined') SET.fx = 'low';
+  } catch (e) {}
+  state.software = swRender; state.bootFx = typeof SET !== 'undefined' ? SET.fx : '';
   window.EGPost = { render, state, uniforms: finalMat.uniforms };
 })();
