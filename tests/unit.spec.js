@@ -117,6 +117,7 @@ window.__runUnit = async (only) => {
   test('default screen brightness is 140%', () => { eq(SET_DEFAULT.bright, 1.4); });
   test('pixel characters: mage drawn at low resolution, the HD scene around it untouched', () => {
     fresh(); SET.fx = 'low'; player.pos.set(0, 0, 0); camSnap = true; updateCamera(1 / 60);
+    EGMist.state.on = false;                      // the mist drifts between the two renders compared below
     const g = renderer.getContext(), W = g.drawingBufferWidth, H = g.drawingBufferHeight, px = new Uint8Array(4 * 48 * 48);
     const sum = (x, y) => { g.readPixels(x, y, 48, 48, g.RGBA, g.UNSIGNED_BYTE, px); let s = 0; for (let i = 0; i < px.length; i += 4) s += px[i] + px[i + 1] + px[i + 2]; return s; };
     const mageAt = () => { const v = player.pos.clone().setY(1).project(camera); return [Math.round((v.x * .5 + .5) * W) - 24, Math.round((v.y * .5 + .5) * H) - 24]; };
@@ -125,7 +126,7 @@ window.__runUnit = async (only) => {
     const L = new THREE.Layers(); L.set(EGPixel.CHAR); let tagged = true; EGP.g.traverse((o) => { if (!o.layers.test(L)) tagged = false; }); ok(tagged, 'mage on the character layer');
     EGPixel.state.on = false; EGPost.render(); const offMage = sum(mx, my), offCorner = sum(8, 8); EGPixel.state.on = true;
     ok(Math.abs(onMage - offMage) > 48 * 48 * 3, 'the mage is drawn by the pixel pass'); eq(onCorner, offCorner, 'the scene away from the mage is not touched');
-    Object.assign(SET, SET_DEFAULT);
+    EGMist.state.on = true; Object.assign(SET, SET_DEFAULT);
   });
   test('quality high: moonlight shadows from props and the mage; low: none', () => {
     fresh(); SET.fx = 'high'; for (let i = 0; i < 25; i++) EGPost.render();
@@ -143,6 +144,14 @@ window.__runUnit = async (only) => {
     const j = grass.shown.indexOf(1), cell = grass.spots[j].cell, keep = TT[cell];
     setT(cell, TER.ASH); EGDetail.refresh(false); eq(grass.shown[j], 0, 'tuft hidden on ash');
     setT(cell, keep); EGDetail.refresh(false); eq(grass.shown[j], 1, 'back when the grass is back');
+  });
+  test('ground mist: three drifting layers that follow the mage and hide nobody', () => {
+    fresh(); EGPost.render(); eq(EGMist.sheets.length, 3, 'layers');
+    const S = EGMist.sheets[0].m; player.pos.set(7, 0, -3); EGPost.render();
+    near(S.position.x, 7, 1e-9, 'follows x'); near(S.position.z, -3, 1e-9, 'follows z');
+    ok(EGMist.sheets.every(({ m }) => m.material.transparent && !m.material.depthWrite && !m.castShadow), 'see-through, writes no depth, casts no shadow');
+    const o0 = S.material.map.offset.clone(); const t = performance.now(); while (performance.now() - t < 120) {} EGPost.render();
+    ok(!S.material.map.offset.equals(o0), 'drifts over time'); fresh();
   });
   test('without a graphics card the first visit starts at quality low', () => {
     // the test browser renders in software (SwiftShader), like a computer whose graphics acceleration is off

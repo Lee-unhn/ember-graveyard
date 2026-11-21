@@ -66,7 +66,8 @@
   function render() {
     // SET is a top-level const of the page: shared by name between classic scripts, but not a property of window
     state.on = typeof SET !== 'undefined' && SET.fx === 'high' && !failed && ensure();
-    if (window.EGDetail) EGDetail.update();                          // grass tufts and pebbles follow the terrain
+    if (window.EGDetail) EGDetail.update();
+    if (window.EGMist) EGMist.update();                              // drifting ground mist in three layers                          // grass tufts and pebbles follow the terrain
     if (window.EGPixel) EGPixel.prepare();                            // characters move to their own layer, drawn as pixel art below
     if (window.EGLight) EGLight.update(typeof SET !== 'undefined' && SET.fx === 'high' && !failed); // shadows only at quality high
     if (!state.on) { renderer.setRenderTarget(null); renderer.render(scene, camera); if (window.EGPixel) EGPixel.overlay(null); return; }
