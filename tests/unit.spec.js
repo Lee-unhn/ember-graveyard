@@ -516,13 +516,13 @@ window.__runUnit = async (only) => {
   const dlgFiles = () => Object.entries(DLG).flatMap(([id, lines]) => lines.map(([who], i) => `${id}_${i}_${who}`));
   test('every dialogue line has its prerecorded voice file', async () => {
     const files = dlgFiles(); eq(files.length, 24, 'dialogue lines');
-    const missing = []; for (const f of files) { const r = await fetch(`assets/voice/${f}.ogg`, { method: 'HEAD' }); if (!r.ok) missing.push(f); }
+    const missing = []; for (const f of files) { const r = await fetch(`${CONTENT.voiceDir}${f}.ogg`, { method: 'HEAD' }); if (!r.ok) missing.push(f); }
     eq(missing.join(','), '', 'missing recordings');
   });
   test('a dialogue line plays its own recording; closing the dialogue stops it', () => {
     const keepTts = tts; let said = 0; tts = () => { said++; }; const v0 = voiceOn; voiceOn = true;
     try {
-      playDialog('intro', null); eq(window.__voiceFile, 'intro_0_elder', 'first line'); ok(vAudio && /assets\/voice\/intro_0_elder\.ogg$/.test(vAudio.src), 'audio source');
+      playDialog('intro', null); eq(window.__voiceFile, 'intro_0_elder', 'first line'); ok(vAudio && vAudio.src.endsWith(CONTENT.voiceDir + 'intro_0_elder.ogg'), 'audio source');
       nextLine(); nextLine(); eq(window.__voiceFile, 'intro_1_mu', 'second line'); endDialog(); eq(vAudio, null, 'stopped');
     } finally { tts = keepTts; voiceOn = v0; hush(); }
   });

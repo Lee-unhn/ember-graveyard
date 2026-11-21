@@ -5,6 +5,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { ROOT, serve, openPage, reporter } from './lib/browser.mjs';
+import { pageSources, splitViolations } from './lib/pagesrc.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 const rep = reporter('checks');
@@ -14,28 +15,44 @@ const STEP = `window.__step = (n, dt = 1/60) => { for (let k = 0; k < n; k++) { 
 
 // ---------------------------------------------------------------- static: docs and diagrams
 function staticChecks() {
-  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const { html, scripts: pageScripts, localFiles } = pageSources(ROOT);
   rep.ok(/^<!doctype html>/i.test(html), 'index.html starts with <!doctype html> (standards mode)');
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]); const dup = ids.filter((v, i) => ids.indexOf(v) !== i);
   rep.ok(dup.length === 0, `no duplicate ids among ${ids.length}`, dup);
   const lower = ids.map((s) => s.toLowerCase()); const ci = lower.filter((v, i) => lower.indexOf(v) !== i);
   rep.ok(ci.length === 0, 'no ids that collide case-insensitively', ci);
   // a second `function name(){}` silently replaces the first one everywhere (hoisting): P3a's terrain noise broke the atlas tiling this way
-  const fns = [...html.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]); const dupFn = [...new Set(fns.filter((v, i) => fns.indexOf(v) !== i))];
-  rep.ok(dupFn.length === 0, `no function declared twice among ${fns.length}`, dupFn);
+  // (since the engine/content split the game is several classic scripts that share one global scope, so the whole page's code is checked together)
+  // the former inline game script = every blocking script (content + kit core files + start-up line) shares one scope and is checked as one; each deferred module is wrapped in its own IIFE and is checked on its own
+  const dups = (code) => { const f = [...code.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1]); return [f.length, [...new Set(f.filter((v, i) => f.indexOf(v) !== i))]]; };
+  const [nShared, dupShared] = dups(pageScripts.filter((s) => s.text && !s.defer).map((s) => s.text).join('\n'));
+  const dupModules = pageScripts.filter((s) => s.text && s.defer).flatMap((s) => dups(s.text)[1].map((n) => `${s.src}:${n}`));
+  rep.ok(dupShared.length === 0 && dupModules.length === 0, `no function declared twice among ${nShared} (shared scope) and within each deferred module`, [...dupShared, ...dupModules]);
   // a plain <script src> blocks parsing until it has downloaded: a 1.2 MB model loaded that way kept the live page in "loading" for 15 s+ (DEVLOG #40)
-  const blocking = [...html.matchAll(/<script\s+([^>]*)>/g)].map((m) => m[1]).filter((a) => !/\b(defer|async)\b/.test(a))
-    .map((a) => (a.match(/src="([^"]+)"/) || [])[1]).filter((s) => s && !/^https?:/.test(s)).filter((s) => statSync(join(ROOT, s)).size > 100 * 1024);
+  const blocking = pageScripts.filter((s) => s.local && !s.defer && !s.async).map((s) => s.src).filter((s) => statSync(join(ROOT, s)).size > 100 * 1024);
   rep.ok(blocking.length === 0, 'no local script over 100 KB loads in a way that blocks the page', blocking);
   // phone controls must not wait for a third-party download: deferred scripts run in document order (DEVLOG #52)
-  const srcs = [...html.matchAll(/<script\s+[^>]*src="([^"]+)"[^>]*\bdefer\b/g)].map((m) => m[1]);
-  rep.ok(srcs.indexOf('assets/controls.js') >= 0 && srcs.slice(0, srcs.indexOf('assets/controls.js')).every((s) => !/^https?:/.test(s)), 'touch controls load before any deferred third-party script', srcs);
+  const srcs = pageScripts.filter((s) => s.defer).map((s) => s.src);
+  rep.ok(srcs.indexOf('kit/controls.js') >= 0 && srcs.slice(0, srcs.indexOf('kit/controls.js')).every((s) => !/^https?:/.test(s)), 'touch controls load before any deferred third-party script', srcs);
+  // engine/content split (DEVLOG §4 #40): kit/ must run with any content pack, a content pack must be plain data
+  const rd = (dir) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.js')).map((f) => ({ name: `${dir}/${f}`, text: readFileSync(join(ROOT, dir, f), 'utf8') }));
+  const kitFiles = rd('kit'), contentFiles = rd('content/demo');
+  const viol = splitViolations(kitFiles, contentFiles);
+  rep.ok(viol.length === 0, `kit/ holds no demo content and content/ holds no engine logic (${kitFiles.length} kit files, ${contentFiles.length} content files)`, viol);
+  // the detector itself must be able to turn red (proved by hand in DEVLOG §4 #40; kept here so it cannot rot into a no-op)
+  const probe = splitViolations([{ name: 'kit/x.js', text: "const s = '灰翁';" }], [{ name: 'content/y.js', text: 'window.CONTENT = { f: function () { return new THREE.Mesh(); } };' }]);
+  rep.ok(probe.length >= 3, `split check flags a planted name and planted engine code (${probe.length} findings)`, probe);
+  // load order: content pack first, then kit/ (the kit reads window.CONTENT while loading), and only then the deferred scripts
+  const order = pageScripts.filter((s) => s.local).map((s) => s.src);
+  const lastContent = Math.max(...order.map((s, i) => (s.startsWith('content/') ? i : -1))), firstKit = order.findIndex((s) => s.startsWith('kit/'));
+  rep.ok(lastContent >= 0 && lastContent < firstKit, 'content scripts load before the first kit script', order);
+  rep.ok(!pageScripts.some((s) => s.local && /^kit\//.test(s.src) && !s.defer && pageScripts.indexOf(s) > pageScripts.findIndex((x) => x.defer)), 'blocking kit scripts all come before the first deferred script');
   // Godot port: billboarded particles drop their own scale unless the material keeps it; every quad then drew at 1 unit (DEVLOG #45)
   const gd = readFileSync(join(ROOT, 'godot', 'main.gd'), 'utf8');
   rep.ok(!/BILLBOARD_PARTICLES/.test(gd) || /billboard_keep_scale\s*=\s*true/.test(gd), 'Godot particle materials keep each particle\'s own scale');
-  // every third-party asset shipped in assets/ is credited in NOTICE.md and the in-game credits
+  // every third-party asset shipped in content/ is credited in NOTICE.md and the in-game credits
   const notice = readFileSync(join(ROOT, 'NOTICE.md'), 'utf8');
-  rep.ok(existsSync(join(ROOT, 'assets', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');
+  rep.ok(existsSync(join(ROOT, 'content', 'demo', 'models', 'mage-model.js')) && /Universal Animation Library/.test(notice) && /CC0/.test(notice) && /Universal Animation Library/.test(html), 'shipped mage model is credited (NOTICE + in-game credits, CC0)');
   // relative links in markdown
   const mds = ['README.md', 'NOTICE.md', 'docs/METHOD.md', 'docs/SCREENS.md', 'docs/DEVLOG.md', 'docs/VOICE.md', 'docs/GODOT.md', 'docs/ROUTES.md'];
   let broken = [];

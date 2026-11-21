@@ -138,7 +138,7 @@ flowchart LR
     STATIC[Static gates · size, hosts, compile, privacy]:::safety
     UNIT[Unit · 68 tests incl. every terrain reaction]:::safety
     E2E[End-to-end · 55 checks with real input]:::safety
-    CHECKS[Checks · 54 for perf, leaks, licences, no blocking loads]:::safety
+    CHECKS[Checks · 68 for perf, leaks, licences, no blocking loads, kit/content split]:::safety
     SCRQA[Screens · 26 checks, 11 screens at desktop and phone size]:::safety
     MUT[Mutation · 9 planted defects must turn red]:::safety
     CI[(GitHub Actions on every push)]:::output
@@ -244,6 +244,18 @@ flowchart LR
 
 Interactive versions with pan, zoom and a clickable mind map: open [`docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html`](docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html) locally (works offline). Earlier snapshots are kept: [P2 terrain](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html), [P1 story + verification](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html) and the launch-day baseline in [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html).
 
+## Code layout: engine and content
+
+The page is split so that a second game can take only the engine. `kit/` is the engine, `content/demo/` is this demo's story and data, and `index.html` is only the page structure, styles, load order and one start-up line.
+
+| Folder | What is in it |
+|---|---|
+| `kit/` | Engine, no story: `core.js` (noise, flipbook atlas, renderer, particle system, light pool), `world.js` (ground, terrain grid and cellular automaton, destructibles, player), `combat.js` (state, monsters, projectiles, meteor, blood ring, gear and inventory), `systems.js` (sound, settings, input), `story.js` (dialogue player, act state machine, towers, boss), `ui.js` (camera, HUD, main loop, menus, save), `boot.js` (loading screen). Also the former `assets/*.js` modules: `controls.js`, `pixel.js`, `lighting.js`, `detail.js`, `mist.js`, `postfx.js`, `character.js`. `CONTENT-API.md` lists the fields the engine reads |
+| `content/demo/` | `story.js` (speakers, portraits, dialogue), `world.js` (towers, acts, boss name, file paths), `voice/` (24 dialogue recordings), `models/mage-model.js` (CC0 mage) |
+| `index.html` | HTML, CSS, script load order, `loop()` |
+
+Load order: three.js, then `content/demo/*.js`, then `kit/*.js`, then the deferred scripts. All of them are classic scripts sharing one global scope (top-level `const`, `let` and `function` are visible across files by name), so every function and variable keeps its old name. `tests/checks.mjs` fails if `kit/` contains demo story text or if `content/` contains engine logic.
+
 ## Development log
 
 [`docs/DEVLOG.md`](docs/DEVLOG.md) records every request, decision, bug (symptom, how it was found, root cause, fix, the test that now guards it) and the release loop, as raw material for a course on building games with an AI coding assistant.
@@ -271,7 +283,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | Smoke | `npm run test:smoke` | Static gates (size, allowed hosts, script compiles, privacy scan) plus an integration probe: four spells deal damage, three texture routes render, story mode runs from opening to ending |
 | Unit | `npm run test:unit` | 68 tests on the page's own functions: noise, atlas borders and loop seam, particle pool, light pool, items and shaped inventory, damage and crits, spell locks, dialogue engine, story state machine, boss shockwave, every terrain reaction, the terrain automaton, wisp chain explosions, terrain kills and chains, toppling tombstones, burning trees, fences, sarcophagi; save slot, settings, pause, act results, death causes, hit-stop, soft terrain edges and strip uploads |
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
-| Checks | `npm run test:checks` | 54 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice |
+| Checks | `npm run test:checks` | 68 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice, engine/content boundary (no story text in `kit/`, no engine logic in `content/`), script load order |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
 | Mutation | part of `npm test` | Copies the project, plants nine known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
@@ -377,6 +389,18 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 
 上方三張 mermaid 圖（系統架構、遊戲流程、驗證流程）在 GitHub 上直接顯示。可縮放、可點選心智圖的互動版在 [`docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html`](docs/diagrams/2026-11-16_EmberGraveyard_P3/architecture.html)，下載後離線開啟即可；先前的版本都保留：[P2 地形](docs/diagrams/2026-11-15_EmberGraveyard_P2/architecture.html)、[P1 故事＋驗收](docs/diagrams/2026-11-15_EmberGraveyard/architecture.html)，以及上線第一天的版本在 [`docs/diagrams/2026-11-15_EmberGraveyard_預設圖/`](docs/diagrams/2026-11-15_EmberGraveyard_預設圖/architecture.html)。
 
+### 程式在哪裡：引擎與內容分開
+
+頁面拆成引擎與內容，之後另一個遊戲可以只取引擎。`kit/` 是引擎，`content/demo/` 是這個示範的劇情與資料，`index.html` 只剩頁面結構、樣式、載入順序與一行啟動。
+
+| 資料夾 | 內容 |
+|---|---|
+| `kit/` | 引擎，不含劇情：`core.js`（雜訊、翻頁圖集、渲染器、粒子系統、燈光池）、`world.js`（地面、地形網格與細胞自動機、可破壞物、主角）、`combat.js`（狀態、怪物、投射物、星墜、血環、裝備與行囊）、`systems.js`（音效、設定、操作）、`story.js`（對白播放、幕的狀態機、燈塔、首領）、`ui.js`（鏡頭、HUD、主迴圈、選單、存檔）、`boot.js`（讀取畫面）；另有原本在 `assets/` 的 `controls.js`、`pixel.js`、`lighting.js`、`detail.js`、`mist.js`、`postfx.js`、`character.js`。`CONTENT-API.md` 列出引擎讀哪些內容欄位 |
+| `content/demo/` | `story.js`（說話者、頭像、對白）、`world.js`（塔與幕、首領名稱、檔案路徑）、`voice/`（24 句預錄語音）、`models/mage-model.js`（CC0 人偶） |
+| `index.html` | HTML、CSS、script 載入順序、`loop()` |
+
+載入順序：three.js、`content/demo/*.js`、`kit/*.js`、最後是 `defer` 腳本。全是一般 script、共用同一個全域範圍（頂層 `const`、`let`、`function` 在檔案之間以名稱共用），所以每個函式與變數維持原名。`tests/checks.mjs` 會在 `kit/` 出現示範劇情文字、或 `content/` 出現引擎邏輯時變紅。
+
 ### 開發紀錄
 
 [`docs/DEVLOG.md`](docs/DEVLOG.md) 記錄每一個需求、決定、bug（症狀、怎麼發現、根因、修法、現在由哪個測試防止再犯）與上線流程，是之後做「用 AI 寫遊戲」課程的素材。
@@ -404,7 +428,7 @@ npm test
 | 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
 | 單元測試 | `npm run test:unit` | 68 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳 |
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
-| 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次 |
+| 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次、引擎與內容的邊界（`kit/` 沒有劇情文字、`content/` 沒有引擎邏輯）、script 載入順序 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
 | 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋九個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |

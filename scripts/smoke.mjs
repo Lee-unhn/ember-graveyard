@@ -12,9 +12,11 @@ import { tmpdir } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import http from 'node:http';
 import vm from 'node:vm';
+import { pageSources } from '../tests/lib/pagesrc.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BYTES = 150 * 1024;
+const MAX_CODE_BYTES = 200 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
@@ -35,25 +37,35 @@ function walk(dir, out = []) {
 
 export function staticGates(root) {
   const page = join(root, 'index.html');
-  const html = readFileSync(page, 'utf8');
+  const { html, scripts: pageScripts, localFiles } = pageSources(root);
+  const localText = pageScripts.filter((s) => s.local && s.text).map((s) => s.text).join('\n');
   console.log('[static] ' + relative(process.cwd(), page) || page);
 
   // 1. size
   const bytes = Buffer.byteLength(html);
   bytes <= MAX_BYTES ? ok(`size ${bytes} B <= ${MAX_BYTES}`) : bad(`size ${bytes} B > ${MAX_BYTES}`);
+  // the game code used to sit inside index.html; after the engine/content split the same budget idea covers page + kit/ + content/ code (the model and voice files are data, not counted)
+  const codeBytes = bytes + pageScripts.filter((s) => s.local && s.text && /^(kit|content)\//.test(s.src)).reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+  codeBytes <= MAX_CODE_BYTES ? ok(`page code (index + kit + content) ${codeBytes} B <= ${MAX_CODE_BYTES}`) : bad(`page code ${codeBytes} B > ${MAX_CODE_BYTES}`);
+  const missing = pageScripts.filter((s) => s.local && s.text === null).map((s) => s.src);
+  missing.length === 0 ? ok(`all ${localFiles.length} local scripts exist`) : bad(`missing script files: ${missing.join(', ')}`);
 
   // 2. external hosts
-  const hosts = [...html.matchAll(/https?:\/\/([^/"'\s)`]+)/g)].map((m) => m[1]);
+  const hosts = [...(html + '\n' + localText).matchAll(/https?:\/\/([^/"'\s)`]+)/g)].map((m) => m[1]);
   const unknown = [...new Set(hosts.filter((h) => !ALLOWED_HOSTS.has(h)))];
   unknown.length === 0 ? ok(`external hosts all allow-listed (${[...new Set(hosts)].join(', ')})`) : bad(`unexpected hosts: ${unknown.join(', ')}`);
 
   // 3. inline script compiles
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  if (scripts.length === 0) bad('no inline game script found');
+  if (scripts.length === 0) bad('no inline start-up script found');
   scripts.forEach((s, i) => {
     try { new vm.Script(s, { filename: `inline-${i}.js` }); ok(`inline script #${i} compiles (${s.length} chars)`); }
     catch (e) { bad(`inline script #${i}: ${e.message}`); }
   });
+  for (const s of pageScripts.filter((x) => x.local && x.text)) {
+    try { new vm.Script(s.text, { filename: s.src }); ok(`${s.src} compiles (${s.text.length} chars)`); }
+    catch (e) { bad(`${s.src}: ${e.message}`); }
+  }
 
   // 4. required anchors (things the README and probe rely on)
   for (const id of ['id="c"', 'id="go"', 'id="segRoute"', 'id="sheetFile"', 'id="inv"', 'id="grid"']) {

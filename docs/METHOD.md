@@ -113,3 +113,17 @@
 
 - 粒子上限：疊加發光 12000 片、濃煙 3000 團，各自一次畫完。
 - 50 隻怪＋十顆隕石雨＋燃燒地面同時發生：場上約 1700 片，畫面維持約 43–48 格每秒（內建瀏覽器、筆電等級顯示卡）。
+
+### 8. 每個零件的程式在哪裡
+
+引擎在 `kit/`，示範內容在 `content/demo/`（欄位見 [kit/CONTENT-API.md](../kit/CONTENT-API.md)）。想對照本文的數字去改，照下表找檔案；函式與變數名稱沒有改，用名稱搜尋即可。
+
+| 零件 | 檔案與名稱 |
+|---|---|
+| 翻頁圖集（火焰、爆炸、濃煙、光點的 4×4 表）、三條貼圖路線的著色 | `kit/core.js`：`buildAtlas()`、`shared.uMode` |
+| 粒子系統（疊加發光 `ADD`、濃煙 `SMOKE`）、燈光池 | `kit/core.js` |
+| 四招法術的發射器、投射物、星墜、血環 | `kit/combat.js`：`SPELLS`、`updateProjs`、`updateMeteors`、`updateRites` |
+| 地形網格、反應表、細胞自動機、地形殺 | `kit/world.js`：`TER`、`TP`、`updateTerrain` |
+| 地面法陣材質（三種路線各一） | `kit/world.js` |
+| 對白播放、幕、燈塔、首領 | `kit/story.js`（文字與數值來自 `content/demo/`） |
+| 後製、像素角色、光影、地面細節、霧 | `kit/postfx.js`、`pixel.js`、`lighting.js`、`detail.js`、`mist.js` |

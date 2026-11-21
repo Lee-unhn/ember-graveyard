@@ -1,6 +1,6 @@
 // Skinned mage for Ember Graveyard (P3b).
 // Model and animations: Universal Animation Library by Quaternius, CC0 1.0 (see NOTICE.md), slimmed by scripts/slim_glb.py
-// into assets/mage-model.js. If the loader or the model is missing (offline, blocked CDN), the page keeps its
+// into CONTENT.modelScript. If the loader or the model is missing (offline, blocked CDN), the page keeps its
 // procedural block mage: EGChar.attach() simply never marks the player as skinned.
 (function () {
   'use strict';
@@ -79,14 +79,15 @@
   }
 
   // The page loads this file with `defer` and never waits for the 1.2 MB model: the game is playable at once with the
-  // block mage, and the skinned mage swaps in when assets/mage-model.js has arrived. A blocking <script> for the model
+  // block mage, and the skinned mage swaps in when CONTENT.modelScript has arrived. A blocking <script> for the model
   // kept the live page in "loading" for over 15 s on GitHub Pages (DEVLOG #40).
   function start() {
     if (S.ready || S.loading || !window.EGP || !window.THREE) return;
     if (window.MAGE_GLB) { attach(window.EGP, window.THREE); return; }
+    if (!(window.CONTENT && CONTENT.modelScript)) return; // 內容包沒給人偶模型：維持程式拼的方塊法師
     S.loading = true;
     const s = document.createElement('script');
-    s.src = 'assets/mage-model.js'; s.async = true;
+    s.src = CONTENT.modelScript; s.async = true;
     s.onload = () => { S.loading = false; attach(window.EGP, window.THREE); };
     s.onerror = () => { S.loading = false; S.failed = true; };
     document.head.appendChild(s);

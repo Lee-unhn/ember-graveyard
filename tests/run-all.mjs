@@ -7,7 +7,7 @@
 //   screens   every menu/result screen at desktop + phone size: screenshot + layout rules (tests/screens.mjs)
 //   mutation  copy the project, plant defects, require the suites to turn red
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -33,23 +33,27 @@ if (!args.includes('--skip-mutation') && !url) {
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
-    const f = join(dir, 'index.html');
-    let h = readFileSync(f, 'utf8');
-    h = h.replace(/^<!doctype html>\n/i, '')                                         // 1. drop doctype (the quirks-mode bug from P0)
-      .replace("if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}", '') // 2. lose the spell lock
-      .replace('A*=ss(.47,.4,', 'A*=ss(.5,.42,')                                     // 3. reintroduce atlas edge bleed
-      .replace('if(Math.random()<spreadP(nt))ch.push(', 'if(false)ch.push(')             // 4. fire stops spreading (P2 terrain)
-      .replace('Math.random=mulberry32(20261115);', '')                                 // 5. world props no longer seeded
-      .replace('if(!running||paused||menuOpen||!player.alive)return;', 'if(!running||paused||!player.alive)return;') // 6. spells cast behind the pause menu (P3a)
-      .replace('function tnoise(x,y){', 'function vnoise(x,y){').replace(/tnoise\(/g, 'vnoise(');         // 7. terrain noise shadows the atlas noise (P3a bug)
-    for (const needle of ['<!doctype html>', "if(!story.unlocked.has(id))", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push(', 'Math.random=mulberry32(20261115);',
-      'if(!running||paused||menuOpen||!player.alive)return;', 'function tnoise(x,y){'])
-      if (readFileSync(f, 'utf8').includes(needle) && h.includes(needle)) throw new Error('mutation did not apply: ' + needle);
-    writeFileSync(f, h);
+    // the game code now lives in kit/*.js (engine) next to index.html; each defect is planted in whichever file holds its line (DEVLOG §4 #40)
+    const codeFiles = ['index.html', ...readdirSync(join(dir, 'kit')).filter((x) => x.endsWith('.js')).map((x) => 'kit/' + x)];
+    const src = Object.fromEntries(codeFiles.map((x) => [x, readFileSync(join(dir, x), 'utf8')]));
+    const plant = (needle, replacement) => {
+      const hit = codeFiles.find((x) => src[x].includes(needle));
+      if (!hit) throw new Error('mutation did not apply: ' + needle);
+      src[hit] = src[hit].replace(needle, () => replacement);
+    };
+    plant('<!doctype html>\n', '');                                                                   // 1. drop doctype (the quirks-mode bug from P0)
+    plant("if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}", '');   // 2. lose the spell lock
+    plant('A*=ss(.47,.4,', 'A*=ss(.5,.42,');                                                           // 3. reintroduce atlas edge bleed
+    plant('if(Math.random()<spreadP(nt))ch.push(', 'if(false)ch.push(');                              // 4. fire stops spreading (P2 terrain)
+    plant('Math.random=mulberry32(20261115);', '');                                                    // 5. world props no longer seeded
+    plant('if(!running||paused||menuOpen||!player.alive)return;', 'if(!running||paused||!player.alive)return;'); // 6. spells cast behind the pause menu (P3a)
+    plant('function tnoise(x,y){', 'function vnoise(x,y){');                                           // 7. terrain noise shadows the atlas noise (P3a bug)
+    src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
+    for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)
     if (!gd.includes('m.billboard_keep_scale = true')) throw new Error('mutation did not apply: billboard_keep_scale');
     writeFileSync(g, gd.replace('m.billboard_keep_scale = true', 'pass'));
-    const px = join(dir, 'assets', 'pixel.js'), pj = readFileSync(px, 'utf8'), keepClear = 'renderer.autoClear = false; renderer.render(quadScene, quadCam);'; // 9. pixel overlay wipes the scene (P6 bug)
+    const px = join(dir, 'kit', 'pixel.js'), pj = readFileSync(px, 'utf8'), keepClear = 'renderer.autoClear = false; renderer.render(quadScene, quadCam);'; // 9. pixel overlay wipes the scene (P6 bug)
     if (!pj.includes(keepClear)) throw new Error('mutation did not apply: pixel overlay autoClear');
     writeFileSync(px, pj.replace(keepClear, 'renderer.render(quadScene, quadCam);'));
     const env = { EG_ROOT: dir };
