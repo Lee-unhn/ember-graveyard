@@ -149,6 +149,7 @@
 - **首領倒下後死亡**：首領倒下到結局畫面之間（結尾階段）玩家死亡，按重來不會回到上一幕、也不會抹掉首領戰；直接接著播 `flow.down` 的對白，再進結局。已在結局畫面時按重來，留在結局畫面。
 - **首領戰重來不重播首領對白**：重來只是重新生出首領，登場對白（`flow.preBoss`）不會再播。
 - **對白中不開行囊**：對白顯示時，I、Tab 與行囊按鈕都不會打開行囊（已經開著的行囊仍可關掉）。
+- **施法動作中按下的招式會記住**：按下招式鍵（或點技能格、按右鍵）時，若主角正在做另一招的施法動作，這一次按鍵不會被丟掉，而是記下來（只記最後一次），在目前的動作結束的那一格施放，瞄準用那一格的游標位置。那一格冷卻還沒好、暫停、選單或對白開著、擴充暫停或主角倒下時就不施放，也不再留著。目前的動作被中斷（例如主角倒下）時，記下的按鍵作廢。按住左鍵的連發不會蓋掉記下的按鍵。冷卻未好、還沒學會、暫停中按下的鍵，照舊不施放、也不記住。
 - **改鍵等待不外漏**：設定裡某一列正在等按鍵時，只要「設定」畫面被關上（返回鈕、Esc、回標題、開始遊玩，任何方式），等待立刻取消、不綁任何鍵，下一個按鍵照常交給遊戲。
 - **回應狀態的塔**（`towers[i].respond: true`）：「點燃」進行中與完成時都不放火焰與爆炸粒子，只有心跳明暗。
 
@@ -199,8 +200,42 @@
 |---|---|
 | `EG.player()` | `{ x, z, hp, maxHp, alive }`：主角的水平位置、目前與上限生命（引擎內部叫 `player.maxhp`）、是否活著 |
 | `EG.towers()` | 每座塔一筆 `{ index, name, spell, x, z, lit, active }`，順序同 `CONTENT.towers`。`lit`＝已完成（一般塔是點亮了；`respond` 塔是已應答，它的 `T.lit` 永遠是 `false`，這裡用完成狀態回報）；`active`＝故事模式中、目前這一幕要去的那座塔，而且還沒完成（自由試玩時全部是 `false`） |
-| `EG.ui()` | `{ running, dialog, menu, result, ending, inventory, settings }` 布林值：`running` 遊戲進行中（不在標題畫面）；`dialog` 對白框開著；`menu` 任何會擋住遊戲的選單開著（暫停、設定、說明、製作群、階段結算，即引擎的 `menuOpen`）；`result` 階段結算；`ending` 結局畫面；`inventory` 行囊；`settings` 設定 |
+| `EG.ui()` | `{ running, story, dialog, menu, result, ending, inventory, settings }` 布林值：`running` 遊戲進行中（不在標題畫面）；`story` 故事模式（自由試玩與標題畫面是 `false`）；`dialog` 對白框開著；`menu` 任何會擋住遊戲的選單開著（暫停、設定、說明、製作群、階段結算，即引擎的 `menuOpen`）；`result` 階段結算；`ending` 結局畫面；`inventory` 行囊；`settings` 設定 |
 | `EG.isTouch()` | 觸控模式是否開著（與 `kit/controls.js` 的 `EGControls.touch` 同一個答案） |
+| `EG.enemyCount()` | 場上活著的怪物數（含首領） |
+| `EG.nearestEnemy()` | 離主角最近的活怪 `{ distance, type }`（水平距離、種類 `spider`／`lizard`／`ghost`／`lord`）；沒有活怪時 `null` |
+
+### 背景音樂（Background music）
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.music(on)` | `false`：停掉引擎內建的背景和弦（不再排下一段），正在響的那一段在約 0.5 秒內淡出，並換上一條新的音樂音量匯流排；之後引擎不會自己再開。`true`：從下一段和弦開始重新播放。在聲音還沒啟動（玩家第一次點擊之前）就呼叫 `false` 也有效 |
+| `EG.musicBus()` | 音樂音量的 `GainNode`（設定的「音樂」滑桿控制它；聲音還沒啟動時是 `null`）。擴充腳本把自己的配樂接到這裡，玩家調音樂音量就會跟著變。**`EG.music(false)` 會換一條新的匯流排**，所以要在關掉內建音樂之後再取，或每次用到時再取 |
+
+```js
+// 用自己的配樂取代內建音樂（第一次點擊之後聲音才會啟動）
+EG.music(false);
+addEventListener('pointerdown', () => { const bus = EG.musicBus(); if (bus && !window.myScore) window.myScore = startMyScore(bus.context, bus); });
+```
+
+### 後製參數（Post-processing uniforms）
+
+`EGPost.uniforms` 是最後一道合成的 shader 參數，擴充腳本可以每格改（例如做漸變）。**只在畫質「高」（後製開著）時有作用**；畫質低、或沒有顯示卡而自動關掉後製時，畫面直接輸出，這些值不影響畫面。`tMain`、`tSoft`、`tBloom` 是引擎每格填的貼圖，不要改。
+
+| 欄位 | 預設 | 建議範圍 | 作用 |
+|---|---|---|---|
+| `uExp.value` | 1.22 | 0.5–2 | 整體亮度倍率（在對比與飽和度之前） |
+| `uBloom.value` | 0.9 | 0–2 | 亮部光暈強度 |
+| `uTilt.value` | 1 | 0–1 | 畫面上下緣的模糊（移軸）；0＝整張清楚 |
+| `uSat.value` | 0.9 | 0–2 | 飽和度；0＝黑白 |
+| `uCon.value` | 1.1 | 0.5–2 | 對比（以偏暗的 0.22 為中心） |
+| `uVig.value` | 0.3 | 0–1 | 四角變暗 |
+| `uTint.value` | `(1, 1, 1)` | 每個分量 0–2 | 色調：最後輸出的紅、綠、藍各乘上這三個數（`THREE.Vector3`，用 `EGPost.uniforms.uTint.value.set(r, g, b)` 改） |
+| `uCA.value` | 0 | 0–0.05 | 色差：紅色往畫面外、藍色往畫面內偏移，偏移量＝到畫面中心的距離 × 這個值（畫面角落約為值的一半，以畫面寬高為 1 計）；0＝關閉 |
+
+- 預設值下的輸出與加入色調、色差之前的版本逐像素相同（`tests/unit.spec.js` 拿目前的 shader 和拿掉這兩段的 shader 各畫一次，比對實際遊戲畫面與雜訊輸入兩種情況）。
+- 設定裡沒有獨立的「減少扭曲」選項；「減少震動與停格」打開時色差一律不作用（引擎每格把內部係數 `uCAk` 設為 0，擴充腳本設的 `uCA` 值保留，關掉這個選項後恢復）。色調不受影響。
+- `EGPost.finalMat` 是這道合成的 `ShaderMaterial`（給測試比對用，一般不需要動）。
 
 ### 保留按鍵（Reserved keys）
 
@@ -231,13 +266,15 @@
 | `actStart` | 幕的索引 | 每一幕開始（開幕對白之前）；死亡後從本幕重來也會再發一次 |
 | `bossStart` | — | 首領出場（重來首領戰也算一次） |
 | `bossDown` | — | 首領倒下 |
-| `cast` | 招式 `id` | 一次施放成立（已扣冷卻） |
+| `cast` | 招式 `id` | 一次施放成立（已扣冷卻）。施法動作中按下而記住的招式（見「引擎行為」），在它真的施放的那一格才發 |
 | `hit` | `{ spell, kind, source, target, amount }` | 每次對怪物造成傷害；`amount` 已含暴擊。`kind` 是傷害種類，也就是地形系統用的元素（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`）；`spell` 與 `kind` 相同（舊欄位，保留相容）。`source` 是**真正造成這一下的法術部位**：`'fire'` 火球爆炸、`'meteor'` 星墜落地、`'meteorBurn'` 星墜留下的燃燒地面、`'bolt'` 鏈雷直擊、`'boltChain'` 鏈雷彈跳、`'boltSplash'` 未升級鏈雷打中後的周圍濺射、`'blood'` 血環的血光（含目標已倒、落空時的小範圍爆開）；不是法術造成的（燃燒的草地與熔岩、磷火爆炸、倒下的墓碑、直接呼叫 `dealDamage`）是 `null`。例：星墜落地是 `kind: 'fire', source: 'meteor'`，它的燃燒地面是 `kind: 'burn', source: 'meteorBurn'` |
 | `kill` | 怪物種類（`spider`／`lizard`／`ghost`／`lord`） | 怪物倒下 |
 | `playerDeath` | 死因文字（死亡畫面上那一個） | 主角倒下 |
 | `restart` | — | 按下重來，清場之前 |
 | `ending` | — | 結局畫面出現 |
 | `blink` | `{ from: { x, z }, to: { x, z } }` | 一次閃現成立（已扣冷卻、主角已在新位置） |
+| `dialogStart` | 對白代號 | 一段對白開始：對白框已打開、遊戲已停（`EG.ui().dialog` 為 `true`），第一句出現之前。代號查不到時也會發，緊接著就是 `dialogEnd` |
+| `dialogEnd` | 對白代號 | 一段對白結束（播完、按「略過」或回標題）：對白框已關、遊戲已恢復，對白結束後要接的流程（例如首領登場）執行之前 |
 
 每個監聽函式各自包在 `try`／`catch` 裡：丟出例外只會 `console.warn` 一行，後面的監聽函式照跑，遊戲這一格照常走完。
 

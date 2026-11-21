@@ -303,7 +303,9 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
 /*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;
 /*H*/ // 擴充腳本介面 window.EG（kit/ 之後載入的 script 用，見 CONTENT-API.md）：法術參數、事件、暫停
-/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame blink'.split(' ');let egHeld=false;
+/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame blink dialogStart dialogEnd'.split(' ');let egHeld=false;
+/*H*/ // egQ＝施法動作中按下的招式與當時的動作（動作結束那格施放）；egMusicOff＝擴充腳本關掉內建音樂
+/*H*/ let egQ=[],egMusicOff=false;
 /*H*/ // 暫停的持有者、保留鍵、技能列數字（1–10 寫中文數字）
 /*H*/ const EG_PO=new Set(),EG_RK={},egZh=n=>n>0&&n<11?'一二三四五六七八九十'[n-1]:n;
 /*H*/ addEventListener('keydown',e=>{const b=EG_RK[e.code]&&$('.keybtn.waiting');if(b){e.preventDefault();e.stopImmediatePropagation();b.textContent='這個鍵保留給'+EG_RK[e.code]}},true);
@@ -325,8 +327,10 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/   pause(on,o='default'){EG_PO[on?'add':'delete'](o);egHeld=EG_PO.size>0},isPaused:()=>egHeld,pausedBy:()=>[...EG_PO],inCombat:()=>enemies.some(e=>e.alive)||story.phase==='boss',events:[...EG_EVENTS],
 /*H*/   player:()=>({x:player.pos.x,z:player.pos.z,hp:player.hp,maxHp:player.maxhp,alive:player.alive}),
 /*H*/   towers:()=>TOWERS.map((T,i)=>({index:i,name:T.name,spell:T.spell,x:T.x,z:T.z,lit:!!(T.lit||T.pulse),active:story.on&&i===story.act&&!T.lit&&!T.pulse})),
-/*H*/   ui(){const h=i=>!$('#'+i).hidden;return{running,dialog:!!dlg,menu:menuOpen,result:h('result'),ending:h('ending'),inventory:h('inv'),settings:h('settings')}},
+/*H*/   ui(){const h=i=>!$('#'+i).hidden;return{running,story:story.on,dialog:!!dlg,menu:menuOpen,result:h('result'),ending:h('ending'),inventory:h('inv'),settings:h('settings')}},
 /*H*/   isTouch:()=>!!(window.EGControls&&EGControls.touch),reservedKeys:()=>({...EG_RK}),
+/*H*/   enemyCount:()=>enemies.filter(e=>e.alive).length,nearestEnemy(){let b=null,d=1/0;for(const e of enemies){const k=Math.hypot(e.pos.x-player.pos.x,e.pos.z-player.pos.z);if(e.alive&&k<d){d=k;b=e}}return b&&{distance:d,type:b.type}},
+/*H*/   music(on){egMusicOff=!on;if(!AC)return;if(on)return startMusic();if(!musicTimer)return;clearInterval(musicTimer);musicTimer=null;const o=musicBus;o.gain.setTargetAtTime(0,AC.currentTime,.1);setTimeout(()=>o.disconnect(),900);(musicBus=AC.createGain()).connect(master);applySettings()},musicBus:()=>musicBus,
 /*H*/   reserveKey(c,l){if(typeof c!=='string'||!c)return egW('reserveKey: not a key code: '+c);EG_RK[c]=String(l||c);
 /*H*/     for(const n in KB)if(KB[n]===c){const d=KB_DEFAULT[n]===c?'':KB_DEFAULT[n];egW(`reserveKey: ${c} was bound to ${n}, now ${d||'unbound'}`);KB[n]=d}window.EGControls&&EGControls.redrawKeys()},
 /*H*/   seed(n){Math.random=n==null?_sysRandom:mulberry32(n)},

@@ -70,6 +70,14 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [
+  // key taps during another cast, dialogue events, built-in music switch, post-effect tint and aberration (DEVLOG timeline #48): a press made while another cast runs is
+  // kept and cast when that cast ends (the held left button polls with a flag so it cannot replace it); the defaults reproduce main's behaviour and picture
+  ["function tryCast(id,poll){", "function tryCast(id){"], ["if(player.cast&&!poll)egQ=[id,player.cast];", ""], ["if(lmb)tryCast('fire',1);", "if(lmb)tryCast('fire');"],
+  ["if(c.t>=c.dur){player.cast=null;if(egQ[1]===c)tryCast(egQ[0])}}", "if(c.t>=c.dur)player.cast=null}"], ["musicTimer||egMusicOff)return", "musicTimer)return"],
+  ["hidden=false;egEmit('dialogStart',id);nextLine()}", "hidden=false;nextLine()}"], ["const t=dlg.then,i=dlg.id;dlg=null;", "const t=dlg.then;dlg=null;"], ["hush();egEmit('dialogEnd',i);if(t)t()}", "hush();if(t)t()}"],
+  [", uCA, uCAk; uniform vec3 uTint;", ";"], [" if (uCA * uCAk > 0.0) { vec2 o = (vUv - .5) * uCA * uCAk; sharp.r = texture2D(tMain, vUv + o).r; sharp.b = texture2D(tMain, vUv - o).b; soft.r = texture2D(tSoft, vUv + o).r; soft.b = texture2D(tSoft, vUv - o).b; }", ""],
+  ["c * uTint, 0.0", "c, 0.0"], [", uCA: { value: 0 }, uCAk: { value: 1 }, uTint: { value: new T.Vector3(1, 1, 1) } });", " });"],
+  ["finalMat.uniforms.uCAk.value = SET.reduceShake ? 0 : 1; pass(finalMat, null);", "pass(finalMat, null);"], ["uniforms: finalMat.uniforms, finalMat };", "uniforms: finalMat.uniforms };"],
   // optional blink move, meteor arc minimum radius, remap wait (DEVLOG timeline #47): the blink itself lives in the new deferred module kit/blink.js;
   // in the parity files only the meteor table gains arcMinRadius (default 0 = main) and controls.js gains the line that ends a remap wait when settings close
   ["arcLength:8,arcMinRadius:0}", "arcLength:8}"],

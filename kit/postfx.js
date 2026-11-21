@@ -22,9 +22,9 @@
       gl_FragColor = vec4(s, 1.0); }`, { tSrc: { value: null }, uDir: { value: new T.Vector2() } });
   // final: sharp band in the middle, soft top and bottom; bloom added; grade; vignette
   const finalMat = mat(`uniform sampler2D tMain; uniform sampler2D tSoft; uniform sampler2D tBloom;
-    uniform float uBloom, uTilt, uSat, uCon, uVig, uExp; varying vec2 vUv;
+    uniform float uBloom, uTilt, uSat, uCon, uVig, uExp, uCA, uCAk; uniform vec3 uTint; varying vec2 vUv;
     void main(){
-      vec3 sharp = texture2D(tMain, vUv).rgb, soft = texture2D(tSoft, vUv).rgb;
+      vec3 sharp = texture2D(tMain, vUv).rgb, soft = texture2D(tSoft, vUv).rgb; if (uCA * uCAk > 0.0) { vec2 o = (vUv - .5) * uCA * uCAk; sharp.r = texture2D(tMain, vUv + o).r; sharp.b = texture2D(tMain, vUv - o).b; soft.r = texture2D(tSoft, vUv + o).r; soft.b = texture2D(tSoft, vUv - o).b; }
       float band = smoothstep(.18, .48, abs(vUv.y - .52));           // 0 in the middle band, 1 at the top and bottom edges
       vec3 c = mix(sharp, soft, band * uTilt);
       c += texture2D(tBloom, vUv).rgb * uBloom;
@@ -34,8 +34,8 @@
       c = max((c - .22) * uCon + .22, 0.0);                          // contrast around a dark pivot, so shadows are not pushed to black
       c *= mix(vec3(.92, .96, 1.08), vec3(1.08, 1.0, .9), smoothstep(.05, .6, l)); // cool shadows, warm highlights
       vec2 d = vUv - .5; c *= 1.0 - uVig * smoothstep(.35, .85, length(d * vec2(1.25, 1.0)));
-      gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0); }`,
-  { tMain: { value: null }, tSoft: { value: null }, tBloom: { value: null }, uBloom: { value: .9 }, uTilt: { value: 1 }, uSat: { value: .9 }, uCon: { value: 1.1 }, uVig: { value: .3 }, uExp: { value: 1.22 } });
+      gl_FragColor = vec4(clamp(c * uTint, 0.0, 1.0), 1.0); }`,
+  { tMain: { value: null }, tSoft: { value: null }, tBloom: { value: null }, uBloom: { value: .9 }, uTilt: { value: 1 }, uSat: { value: .9 }, uCon: { value: 1.1 }, uVig: { value: .3 }, uExp: { value: 1.22 }, uCA: { value: 0 }, uCAk: { value: 1 }, uTint: { value: new T.Vector3(1, 1, 1) } });
 
   let rt = null, soft = [], bloom = [], w = 0, h = 0, failed = false;
   const mk = (x, y) => new T.WebGLRenderTarget(x, y, { minFilter: T.LinearFilter, magFilter: T.LinearFilter, format: T.RGBAFormat, depthBuffer: false });
@@ -83,7 +83,7 @@
     // bloom: bright pass at quarter size, blurred twice
     brightMat.uniforms.tSrc.value = rt.texture; pass(brightMat, bloom[0]); blur(bloom[0].texture, bloom[0], bloom[1], 2);
     Object.assign(finalMat.uniforms.tMain, { value: rt.texture }); finalMat.uniforms.tSoft.value = soft[0].texture; finalMat.uniforms.tBloom.value = bloom[0].texture;
-    pass(finalMat, null);
+    finalMat.uniforms.uCAk.value = SET.reduceShake ? 0 : 1; pass(finalMat, null);
     state.frames++;
   }
   // no graphics card (software rendering such as SwiftShader or llvmpipe): start at quality low on a first visit,
@@ -98,5 +98,5 @@
   // lite picture without a graphics card: no mist, no ground detail, 0.75 render scale (measured 76.5 -> about 18 ms per frame)
   state.lite = swRender;
   state.software = swRender; state.bootFx = typeof SET !== 'undefined' ? SET.fx : '';
-  window.EGPost = { render, state, uniforms: finalMat.uniforms };
+  window.EGPost = { render, state, uniforms: finalMat.uniforms, finalMat };
 })();

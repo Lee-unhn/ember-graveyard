@@ -8,7 +8,7 @@ function initAudio(){if(AC)return;try{AC=new (window.AudioContext||window.webkit
   noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;applySettings();startMusic()}catch(e){AC=null}}
 // 背景音樂：程式即時合成的低沉和弦（Am－F－C－E 每 6 秒換一次），走獨立的音樂音量
 let musicTimer=null,musicStep=0;
-function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],[174.6,220,261.6],[130.8,196,261.6],[164.8,207.7,246.9]];
+function startMusic(){if(!AC||musicTimer||egMusicOff)return;const chords=[[220,261.6,329.6],[174.6,220,261.6],[130.8,196,261.6],[164.8,207.7,246.9]];
   const play=()=>{const t=AC.currentTime,ch=chords[musicStep++%chords.length];
     for(const f of ch)for(const det of [-4,4]){const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();o.type='sawtooth';o.frequency.value=f/2;o.detune.value=det;
       lp.type='lowpass';lp.frequency.value=520;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.022,t+2);g.gain.linearRampToValueAtTime(.018,t+5);g.gain.linearRampToValueAtTime(0,t+6.4);
@@ -59,9 +59,9 @@ for(const el of document.querySelectorAll('.sk'))el.addEventListener('click',()=
 function toggleInv(){if(egNoBag())return;const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
 $('#invClose').onclick=toggleInv;
 
-function tryCast(id){if(egHeld)return;if(!running||paused||menuOpen||!player.alive)return;
+function tryCast(id,poll){if(egHeld)return;if(!running||paused||menuOpen||!player.alive)return;
   if(!story.unlocked.has(id)){if(story.on)note(`這招還沒學會，先${EG_TERM.light}${EG_TERM.tower}`);return}
-  if(player.cast||cds[id]>0)return;
+  if(player.cast&&!poll)egQ=[id,player.cast];if(player.cast||cds[id]>0)return;
   const s=spellP(id),cs=castMul();
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
   player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);
@@ -81,14 +81,14 @@ function updatePlayer(dt){
   for(const k in cds)cds[k]=Math.max(0,cds[k]-dt);
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
   if(player.alive){
-    if(lmb)tryCast('fire');
+    if(lmb)tryCast('fire',1);
     let mx=(keys[KB.right]?1:0)-(keys[KB.left]?1:0),mz=(keys[KB.down]?1:0)-(keys[KB.up]?1:0);const l=Math.hypot(mx,mz);
     const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);
     if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a,EG_TERM.lava)}}
     if(l){player.pos.x+=mx/l*sp*dt;player.pos.z+=mz/l*sp*dt;player.walk+=dt*10*root}
     pushOut(player.pos,.4);
     if(!c)player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);
-    if(c){c.t+=dt;if(!c.released&&c.t/c.dur>=c.rel){c.released=true;releaseCast(c)}if(c.t>=c.dur)player.cast=null}
+    if(c){c.t+=dt;if(!c.released&&c.t/c.dur>=c.rel){c.released=true;releaseCast(c)}if(c.t>=c.dur){player.cast=null;if(egQ[1]===c)tryCast(egQ[0])}}
     player.hp=Math.min(player.maxhp,player.hp+dt*2);
     // 每招不同手勢：右臂前推／雙手前伸／高舉後下劈／雙手高舉浮空
     let tr=l?[Math.sin(player.walk)*.5,.12,-Math.sin(player.walk)*.5,-.12]:[0,.12,0,-.12],fl=0;

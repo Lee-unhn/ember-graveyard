@@ -960,7 +960,7 @@ window.__runUnit = async (only) => {
   });
   test('events: each of the ten fires once, with its payload, in a scripted run; EG.off removes a listener', () => {
     fresh(); const got = {}, fns = {}; for (const n of EG.events) { fns[n] = (a) => (got[n] = got[n] || []).push(a); EG.on(n, fns[n]); }
-    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending,newGame,continueGame,blink', 'the event list');
+    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending,newGame,continueGame,blink,dialogStart,dialogEnd', 'the event list');
     const TEN = EG.events.slice(0, 10); // newGame / continueGame have their own test below
     try { withContent({ combat: { critChance: 0 } }, () => {
       const e = still(spawnEnemy('lizard', 4, 0, 1) || enemies[0]);
@@ -1012,7 +1012,7 @@ window.__runUnit = async (only) => {
     const tw = EG.towers(); eq(tw.length, TOWERS.length, 'one row per tower');
     tw.forEach((r, i) => { eq(r.index, i); eq(r.x, TOWERS[i].x); eq(r.z, TOWERS[i].z); eq(r.name, TOWERS[i].name); eq(r.spell, TOWERS[i].spell); eq(typeof r.lit, 'boolean'); eq(r.active, false, 'free play: no active tower'); });
     tw[0].lit = !tw[0].lit; tw[0].x = 1e6; eq(EG.towers()[0].x, TOWERS[0].x, 'towers() is a copy'); eq(TOWERS[0].lit, !tw[0].lit);
-    eq(JSON.stringify(EG.ui()), JSON.stringify({ running: true, dialog: false, menu: false, result: false, ending: false, inventory: false, settings: false }), 'plain play');
+    eq(JSON.stringify(EG.ui()), JSON.stringify({ running: true, story: false, dialog: false, menu: false, result: false, ending: false, inventory: false, settings: false }), 'plain play');
     playDialog(Object.keys(CONTENT.dialog)[0], null); eq(EG.ui().dialog, true, 'dialog'); endDialog(); eq(EG.ui().dialog, false);
     togglePause(true); eq(EG.ui().menu, true, 'pause menu'); togglePause(false); eq(EG.ui().menu, false);
     toggleInv(); eq(EG.ui().inventory, true, 'inventory'); toggleInv(); eq(EG.ui().inventory, false);
@@ -1230,6 +1230,75 @@ window.__runUnit = async (only) => {
         bpress('Digit1'); ok(player.cast && player.cast.id === 'fire', how + ': 1 still casts the fireball'); player.cast = null;
       }
     } finally { Object.assign(KB, kb0); if (store === null) localStorage.removeItem(EG_KEY('eg-keys')); else localStorage.setItem(EG_KEY('eg-keys'), store); EGControls.redrawKeys(); fresh(); }
+  });
+
+  // ---------------------------------------------------------------- key taps and extension interface, third round (DEVLOG timeline #48)
+  const castUntil = (id, n = 400) => { while (player.cast && player.cast.id === id && n-- > 0) logic(1 / 60); };
+  test('a spell key pressed during another cast is cast in the frame that cast ends; the last press wins; a held left button does not replace it; a stale or not-ready press is dropped', () => {
+    fresh(); const got = [], f = (id) => got.push(id); EG.on('cast', f);
+    try {
+      tryCast('meteor'); bpress('Digit4'); eq(got.join(), 'meteor', 'the press during the meteor cast does not cast at once');
+      castUntil('meteor'); eq(got.join(), 'meteor,blood', 'blood is cast the moment the meteor cast ends'); eq(player.cast && player.cast.id, 'blood');
+      fresh(); got.length = 0; tryCast('bolt'); bpress('Digit3'); bpress('Digit1'); castUntil('bolt'); eq(got.join(), 'bolt,fire', 'only the last press is kept');
+      fresh(); got.length = 0; tryCast('bolt'); lmb = true; bpress('Digit4'); castUntil('bolt'); lmb = false; eq(got.slice(0, 2).join(), 'bolt,blood', 'the held fireball button does not push the pressed key aside');
+      fresh(); got.length = 0; tryCast('bolt'); bpress('Digit4'); player.cast = null; tryCast('meteor'); castUntil('meteor'); for (let i = 0; i < 30; i++) logic(1 / 60);
+      ok(!got.includes('blood'), 'a press kept for a cast that was cut short never fires later: ' + got.join());
+      fresh(); got.length = 0; cds.blood = 30; tryCast('bolt'); bpress('Digit4'); castUntil('bolt'); eq(got.join(), 'bolt', 'a spell still cooling down when the cast ends is not cast');
+    } finally { EG.off('cast', f); lmb = false; fresh(); }
+  });
+  test('dialogStart and dialogEnd carry the dialogue id: start fires with the box open, end after it closed and before the follow-up runs', () => {
+    fresh(); const log = [], s = (id) => log.push('start:' + id + ':' + EG.ui().dialog), e = (id) => log.push('end:' + id + ':' + EG.ui().dialog);
+    EG.on('dialogStart', s); EG.on('dialogEnd', e); const id = Object.keys(CONTENT.dialog)[0];
+    try {
+      ok(EG.events.includes('dialogStart') && EG.events.includes('dialogEnd'), 'listed in EG.events');
+      playDialog(id, () => log.push('then')); eq(log.join(), `start:${id}:true`, 'start');
+      for (let k = 0; dlg && k < 99; k++) nextLine(); eq(log.join(), `start:${id}:true,end:${id}:false,then`, 'end, then the follow-up');
+      log.length = 0; playDialog(id, null); document.querySelector('#dSkip').click(); eq(log.join(), `start:${id}:true,end:${id}:false`, 'skip button');
+    } finally { EG.off('dialogStart', s); EG.off('dialogEnd', e); fresh(); }
+  });
+  test('EG.ui().story is true in story mode and false in free play and on the title screen', () => {
+    fresh(); eq(EG.ui().story, false, 'free play');
+    try { startStory(0); while (dlg) endDialog(); eq(EG.ui().story, true, 'story mode'); goTitle(); eq(EG.ui().story, false, 'title'); startFree(); eq(EG.ui().story, false, 'free play again'); }
+    finally { fresh(); }
+  });
+  test('EG.enemyCount and EG.nearestEnemy count living monsters and report the closest one as a copy', () => {
+    fresh(); eq(EG.enemyCount(), 0, 'none'); eq(EG.nearestEnemy(), null, 'none: null');
+    // the nearer one is spawned first and a farther one after it, so "the last living monster" is not the right answer by accident
+    const b = still(spawnEnemy('ghost', 0, 3, 1) || enemies[0]), a = still(spawnEnemy('spider', 6, 0, 1) || enemies[1]); player.pos.set(0, 0, 0);
+    eq(EG.enemyCount(), 2, 'two'); const n = EG.nearestEnemy(); eq(JSON.stringify(n), JSON.stringify({ distance: 3, type: 'ghost' }), 'the ghost is nearer');
+    n.type = 'x'; eq(EG.nearestEnemy().type, 'ghost', 'a copy'); killEnemy(b); eq(EG.enemyCount(), 1, 'a dead one does not count');
+    eq(EG.nearestEnemy().type, 'spider', 'next nearest'); near(EG.nearestEnemy().distance, 6, 1e-9); fresh();
+  });
+  test('EG.music(false) stops the built-in score and hands out a fresh music bus at the music volume; nothing restarts it until EG.music(true)', () => {
+    fresh(); initAudio(); ok(AC, 'audio started');
+    try {
+      const was = musicBus; ok(musicTimer, 'the score plays'); eq(EG.musicBus(), was, 'musicBus() is the engine bus');
+      EG.music(false); eq(musicTimer, null, 'score timer stopped'); ok(EG.musicBus() && EG.musicBus() !== was, 'a new bus for the extension'); near(EG.musicBus().gain.value, SET.music, 1e-6, 'at the music volume');
+      startMusic(); eq(musicTimer, null, 'the engine cannot restart it while off'); EG.music(false); eq(musicTimer, null, 'twice is fine');
+      EG.music(true); ok(musicTimer, 'on again');
+    } finally { EG.music(true); fresh(); }
+  });
+  test('post effects: default tint and chromatic aberration give the same pixels as the shader without them; a tint and an aberration change them; reduce-shake switches the aberration off', () => {
+    fresh(); const M = EGPost.finalMat, U = M.uniforms, T = THREE, S = 64, fx = SET.fx;
+    ok(U.uTint && U.uCA && U.uTint.value.equals(new T.Vector3(1, 1, 1)) && U.uCA.value === 0, 'new uniforms with their defaults');
+    const old = M.fragmentShader.split(', uCA, uCAk; uniform vec3 uTint;').join(';').replace(/ if \(uCA \* uCAk > 0\.0\) \{[^}]*\}/, '').split('c * uTint, 0.0').join('c, 0.0');
+    ok(!/uCA|uTint/.test(old), 'the shader without the new code');
+    const oldM = new T.ShaderMaterial({ vertexShader: M.vertexShader, fragmentShader: old, uniforms: U, depthTest: false, depthWrite: false });
+    const tex = (k) => { const d = new Uint8Array(S * S * 4); for (let i = 0; i < d.length; i++) d[i] = i % 4 === 3 ? 255 : ((i * 2654435761 + k * 977) >>> 0) % 253; const t = new T.DataTexture(d, S, S, T.RGBAFormat); t.needsUpdate = true; return t; };
+    const rt = new T.WebGLRenderTarget(S, S), sc = new T.Scene(), cam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), q = new T.Mesh(new T.PlaneGeometry(2, 2)); q.frustumCulled = false; sc.add(q);
+    const shot = (m) => { q.material = m; renderer.setRenderTarget(rt); renderer.render(sc, cam); const px = new Uint8Array(S * S * 4); renderer.readRenderTargetPixels(rt, 0, 0, S, S, px); renderer.setRenderTarget(null); return px; };
+    const diff = (a, b) => { let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++; return n; };
+    try {
+      SET.fx = 'high'; EGPost.render(); ok(EGPost.state.on, 'post effects on'); eq(U.uCAk.value, 1, 'aberration allowed');
+      eq(diff(shot(M), shot(oldM)), 0, 'live game frame: default output pixel-identical');
+      U.tMain.value = tex(1); U.tSoft.value = tex(2); U.tBloom.value = tex(3);
+      const base = shot(M); eq(diff(base, shot(oldM)), 0, 'noise input: default output pixel-identical');
+      U.uTint.value.set(.5, 1, 1); const tinted = shot(M); let r = 0, g = 0; for (let i = 0; i < tinted.length; i += 4) { r += tinted[i] - base[i]; g += Math.abs(tinted[i + 1] - base[i + 1]); }
+      ok(r < -1000 && g === 0, `tint halves red only (red ${r}, green ${g})`); U.uTint.value.set(1, 1, 1);
+      U.uCA.value = .08; ok(diff(shot(M), base) > 500, 'aberration shifts the colour channels');
+      SET.reduceShake = true; EGPost.render(); U.tMain.value = tex(1); U.tSoft.value = tex(2); U.tBloom.value = tex(3);
+      eq(U.uCAk.value, 0, 'reduce-shake zeroes the aberration factor'); eq(diff(shot(M), base), 0, 'reduce-shake: no aberration'); eq(U.uCA.value, .08, 'the extension value itself is kept');
+    } finally { U.uCA.value = 0; U.uTint.value.set(1, 1, 1); SET.fx = fx; rt.dispose(); oldM.dispose(); fresh(); EGPost.render(); }
   });
 
   // ---------------------------------------------------------------- run

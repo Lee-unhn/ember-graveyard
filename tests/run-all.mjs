@@ -31,7 +31,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant twenty-one defects in a scratch copy; the suites must notice
+  // plant twenty-seven defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -62,6 +62,12 @@ if (!args.includes('--skip-mutation') && !url) {
     plant('||cds.blink>0)return false;', ')return false;');                                                    // 19. blink ignores its cooldown (DEVLOG timeline #47)
     plant('if(!inArena(x,z))break;', '');                                                                        // 20. blink can end outside the arena (DEVLOG timeline #47)
     plant('if (waiting && st.hidden) {', 'if (0) {');                                                            // 21. a remap wait survives leaving settings and binds the next key in play (DEVLOG timeline #47)
+    plant('if(egQ[1]===c)tryCast(egQ[0])', '');                                                                 // 22. a spell key pressed during another cast is lost again (DEVLOG timeline #48)
+    plant("hush();egEmit('dialogEnd',i);", 'hush();');                                                         // 23. the dialogEnd event never fires (DEVLOG timeline #48)
+    plant('if(e.alive&&k<d){d=k;b=e}', 'if(e.alive){d=k;b=e}');                                                 // 24. nearestEnemy reports the last monster, not the nearest (DEVLOG timeline #48)
+    plant('musicTimer||egMusicOff)return', 'musicTimer)return');                                                 // 25. the engine restarts its own music after an extension switched it off (DEVLOG timeline #48)
+    plant('SET.reduceShake ? 0 : 1;', '1;');                                                                     // 26. chromatic aberration ignores the reduce-shake setting (DEVLOG timeline #48)
+    plant('c * uTint, 0.0', 'c * uTint * .995, 0.0');                                                            // 27. the default picture is no longer pixel-identical (DEVLOG timeline #48)
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

@@ -266,7 +266,47 @@ async function blinkFlow() {
   } finally { await p.close(); }
 }
 
-try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); }
+async function keyTapFlow() {
+  // DEVLOG timeline #48: a real tap of a spell key, made while its cooldown is ready and nothing is paused, must always cast.
+  // KEYTAPS=n sets the number of presses (default 100, 25 per key); every press is a keyDown + keyUp sent back to back (shorter than a frame).
+  const N = +process.env.KEYTAPS || 100, ids = ['fire', 'bolt', 'meteor', 'blood'], code = { fire: 'Digit1', bolt: 'Digit2', meteor: 'Digit3', blood: 'Digit4' };
+  const p = await openPage(url, { width: 800, height: 500 });
+  try {
+    await p.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled`, 60000);
+    await p.clickSel('#go'); rep.ok(await p.waitFor('running', 30000), 'key taps: free play started');
+    // setup: harmless monsters far away, an unkillable mage, short cooldowns on 2-4 (the cooldown is not under test: every press waits until it is ready)
+    await p.evaluate(`(() => { player.maxhp = player.hp = 1e9; for (const e of enemies) { e.pos.set(30, 0, 30); e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); }
+      for (const id of ['bolt', 'meteor', 'blood']) EG.setSpellParams(id, { cd: .05 });
+      window.__kt = []; EG.on('cast', (id) => __kt.push(id)); window.__snap = null;
+      addEventListener('keydown', (e) => { if (/^Digit[1-4]$/.test(e.code)) __snap = { key: e.code, casting: player.cast && player.cast.id, cds: { ...cds } }; }, true); })()`);
+    const sc = ['tap', 'tap while walking', 'right after another spell', 'tap while the mouse moves', 'tap while holding the left button'];
+    const miss = {}, misses = [];
+    for (let i = 0; i < N; i++) {
+      const id = ids[i % 4], dir = ['KeyW', 'KeyA', 'KeyS', 'KeyD'][(i >> 2) % 4]; let s = sc[(i >> 2) % sc.length];
+      if (s === sc[4] && id === 'fire') s = sc[0]; // a held left button already casts the fireball on its own
+      await p.waitFor(`cds.${id} === 0 && running && !paused && !menuOpen && !dlg && !EG.isPaused()`, 8000);
+      if (s === sc[1]) await p.keyDown(dir);
+      if (s === sc[2]) { const o = ids[(i + 1 + (i >> 2) % 3) % 4]; await p.evaluate(`cds.${o} = 0`); await p.key(code[o], code[o].slice(-1)); await sleep((i * 37) % 250); }
+      if (s === sc[3]) for (let k = 0; k < 3; k++) await p.mouse('mouseMoved', 250 + (i * 13 + k * 40) % 300, 150 + (i * 7) % 200);
+      if (s === sc[4]) { await p.mouse('mouseMoved', 520, 180); await p.mouse('mousePressed', 520, 180); await p.waitFor(`player.cast && player.cast.id === 'fire'`, 3000); }
+      const n0 = await p.evaluate('__kt.length');
+      await p.key(code[id], code[id].slice(-1));
+      if (s === sc[4]) await p.mouse('mouseReleased', 520, 180);
+      if (s === sc[1]) await p.keyUp(dir);
+      // the press counts as cast if the cast event for this spell arrives before the mage is idle again (a press during another cast may wait for that cast to end)
+      await p.waitFor(`__kt.slice(${n0}).includes('${id}') || !player.cast`, 6000);
+      if (!(await p.evaluate(`__kt.slice(${n0}).includes('${id}')`))) { miss[s] = (miss[s] || 0) + 1; if (misses.length < 3) misses.push({ id, s, at: await p.evaluate('__snap') }); }
+      if (i % 8 === 7) await p.evaluate('player.pos.set(0, 0, 0)'); // setup: keep the mage in the middle
+    }
+    const total = Object.values(miss).reduce((a, b) => a + b, 0);
+    console.log(`  key taps: ${total} of ${N} presses did not cast (${(100 * total / N).toFixed(1)}%)`, JSON.stringify(miss));
+    rep.ok(total === 0, `every one of ${N} real spell-key taps casts when the spell is ready (taps, walking, right after another cast, mouse moving, left button held)`, { miss, first: misses });
+    rep.ok(p.errors.length === 0, 'key taps: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
+try { if (only === 'keytaps') await keyTapFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await keyTapFlow(); } }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);
