@@ -153,6 +153,11 @@ window.__runUnit = async (only) => {
     const o0 = S.material.map.offset.clone(); const t = performance.now(); while (performance.now() - t < 120) {} EGPost.render();
     ok(!S.material.map.offset.equals(o0), 'drifts over time'); fresh();
   });
+  test('without a graphics card the picture is lighter: no mist, no ground detail, 0.75 render scale', () => {
+    EGPost.render(); ok(EGPost.state.lite, 'lite profile on in the software-rendered test browser');
+    ok(EGMist.sheets.every(({ m }) => !m.visible), 'mist hidden'); ok(EGDetail.sets.every((S) => !S.mesh.visible), 'ground detail hidden');
+    ok(renderer.getPixelRatio() <= .75, `render scale ${renderer.getPixelRatio()}`);
+  });
   test('without a graphics card the first visit starts at quality low', () => {
     // the test browser renders in software (SwiftShader), like a computer whose graphics acceleration is off
     ok(EGPost.state.software, 'software rendering detected in the test browser');

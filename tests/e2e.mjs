@@ -109,7 +109,8 @@ async function terrainFlow() {
   const p = await openPage(url, { width: W, height: H });
   try {
     await p.waitFor(`!document.querySelector('#go').disabled`);
-    await p.clickSel('#go'); await sleep(150);
+    // wait until the game has really started: on the slow CI box the title screen can still cover the canvas, and the mouse never reaches the game (DEVLOG #59)
+    await p.clickSel('#go'); rep.ok(await p.waitFor(`running && document.querySelector('#intro').hidden`, 30000), 'free play has started before the terrain test');
     // setup: a dry-grass field north of the mage, one spider at the aim point, four lizards further out on the grass
     await p.evaluate(`(() => { for (const e of enemies) e.pos.set(30, 0, 30 - Math.random() * 5), e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
       player.pos.set(0, 0, 0); for (let z = -11; z <= -3; z++) for (let x = -4; x <= 4; x++) setT(cellOf(x + .5, z + .5), TER.GRASS);
@@ -123,7 +124,7 @@ async function terrainFlow() {
     await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]);
     const cast = await p.waitFor(`projs.some(q => q.kind === 'fire') || cds.fire > 0`, 10000); await p.mouse('mouseReleased', aim[0], aim[1]);
     const diag = () => p.evaluate(`(() => { let fire = 0, ash = 0; for (let i = 0; i < TT.length; i++) { if (TT[i] === TER.FIRE) fire++; if (TT[i] === TER.ASH) ash++; }
-      return { fireballs: projs.filter(q => q.kind === 'fire').length, cdFire: +cds.fire.toFixed(2), fireCells: fire, ashCells: ash, terrainKills, kills: player.kills, fps: document.querySelector('#sFps').textContent, gameTime: +time.toFixed(1), touch: !!(window.EGControls && EGControls.touch), aim: [+aim.x.toFixed(1), +aim.z.toFixed(1)] }; })()`);
+      return { running, intro: !document.querySelector('#intro').hidden, fireballs: projs.filter(q => q.kind === 'fire').length, cdFire: +cds.fire.toFixed(2), fireCells: fire, ashCells: ash, terrainKills, kills: player.kills, fps: document.querySelector('#sFps').textContent, gameTime: +time.toFixed(1), touch: !!(window.EGControls && EGControls.touch), aim: [+aim.x.toFixed(1), +aim.z.toFixed(1)] }; })()`);
     rep.ok(cast, 'holding the left button casts a fireball at the grass', cast ? undefined : await diag());
     const lit = await p.waitFor(`(() => { let n = 0; for (let i = 0; i < TT.length; i++) if (TT[i] === TER.FIRE) n++; return n >= 3; })()`, 30000);
     rep.ok(lit, 'the fireball sets the dry grass on fire', lit ? undefined : await diag());

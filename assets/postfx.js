@@ -66,8 +66,13 @@
   function render() {
     // SET is a top-level const of the page: shared by name between classic scripts, but not a property of window
     state.on = typeof SET !== 'undefined' && SET.fx === 'high' && !failed && ensure();
-    if (window.EGDetail) EGDetail.update();
-    if (window.EGMist) EGMist.update();                              // drifting ground mist in three layers                          // grass tufts and pebbles follow the terrain
+    if (window.EGDetail) EGDetail.update();                          // grass tufts and pebbles follow the terrain
+    if (state.lite) {                                                // no graphics card: lighter picture (DEVLOG #59)
+      if (window.EGMist) EGMist.state.on = false;
+      if (window.EGDetail) for (const S of EGDetail.sets) S.mesh.visible = false;
+      if (renderer.getPixelRatio() > .75) renderer.setPixelRatio(.75);
+    }
+    if (window.EGMist) EGMist.update();                              // drifting ground mist in three layers
     if (window.EGPixel) EGPixel.prepare();                            // characters move to their own layer, drawn as pixel art below
     if (window.EGLight) EGLight.update(typeof SET !== 'undefined' && SET.fx === 'high' && !failed); // shadows only at quality high
     if (!state.on) { renderer.setRenderTarget(null); renderer.render(scene, camera); if (window.EGPixel) EGPixel.overlay(null); return; }
@@ -90,6 +95,8 @@
     let saved = null; try { saved = localStorage.getItem('eg-settings'); } catch (e) {}
     if (swRender && !saved && typeof SET !== 'undefined') SET.fx = 'low';
   } catch (e) {}
+  // lite picture without a graphics card: no mist, no ground detail, 0.75 render scale (measured 76.5 -> about 18 ms per frame)
+  state.lite = swRender;
   state.software = swRender; state.bootFx = typeof SET !== 'undefined' ? SET.fx : '';
   window.EGPost = { render, state, uniforms: finalMat.uniforms };
 })();
