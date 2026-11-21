@@ -226,4 +226,4 @@ EG.on('ending', () => EG.resetSpellParams('fire'));
 - `kit/` 不得出現內容包擁有的字串：說話者名字、塔名、首領名與其他 `text` 文字、對白句子（比對是真的執行內容檔、從 `CONTENT` 讀出來的，不是固定字表；unicode 跳脫與字串拼接也會被還原後比對），並附「偵測器確實讀到內容」的自我檢查。示範內容擁有的名字見 `content/demo/`。
 - 內容包只能放資料：不得出現 `THREE`、`renderer`、`document`、`function`、箭頭函式、`if`／`for`／`while`／`switch`／`try`／`throw`、`new`、`class`、getter／setter、`localStorage`／`fetch`／`eval`／計時器等有副作用的名稱，樣板字串裡的 `${…}` 也一併檢查。閘門檢查 `content/*/` 底下全部的 `.js`，加上 index.html 實際載入的內容 script。
 - 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 208 KB 程式碼預算。
-- 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後商業版要換的話，再往 `CONTENT` 加欄位。
+- 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後其他內容包要換的話，再往 `CONTENT` 加欄位。

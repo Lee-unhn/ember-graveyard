@@ -413,7 +413,7 @@ window.__runUnit = async (only) => {
     withRandom(.99, () => dealDamage(e, 5, 'fire')); ok(e.flinch > 0, 'flinch timer set'); eq(hitStop, 0, 'normal hit: no stop');
     withRandom(.0, () => dealDamage(e, 5, 'fire')); ok(hitStop > 0, 'critical hit: hit-stop');
   });
-  test('a content pack can switch off crits and meteor-size damage (the commercial version gets damage only from its fate reels)', () => {
+  test('a content pack can switch off crits and meteor-size damage (a pack can keep damage fully deterministic or drive it from its own mechanic)', () => {
     fresh(); spawnEnemy('lizard', 3, 3, 1); const e = enemies[0]; e.hp = e.maxhp = 1e6;
     const keep = CONTENT.combat; try {
       withRandom(.0, () => dealDamage(e, 10, 'fire')); near(1e6 - e.hp, 18, 1e-9, 'demo: crit x1.8 with a low roll');
