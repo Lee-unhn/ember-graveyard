@@ -6,6 +6,10 @@ The MIT License in `LICENSE` covers the source code, diagrams and documentation 
 
 `LICENSE` 的 MIT 授權涵蓋本 repo 撰寫的程式碼、圖與文件，包含程式執行時產生的貼圖、音效與模型。
 
+**Excluded · 不在 MIT 範圍內**：`docs/media/p3c-routes.jpg` and `docs/media/p3c-sheets.jpg` contain flipbook sheets drawn by AI image models (Google Gemini and OpenAI ChatGPT) for the comparison in `docs/ROUTES.md`. They are shown for documentation only and are not licensed under MIT; their use is governed by those services' terms.
+
+`docs/media/p3c-routes.jpg` 與 `docs/media/p3c-sheets.jpg` 含 AI 繪圖模型（Google Gemini、OpenAI ChatGPT）畫的翻頁圖，只作 `docs/ROUTES.md` 比對說明之用，不在 MIT 授權範圍內，使用受各服務條款約束。
+
 ## Third-party components · 第三方元件（不在本專案 MIT 範圍內，依各自授權）
 
 | Component | Use | License | Source |
