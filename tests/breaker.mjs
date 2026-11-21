@@ -117,6 +117,8 @@ function kitHoldsNoDemo() {
   rep.ok(hits.length === 0, 'isolation: nothing under kit/ (docs included) names a demo speaker, tower or boss', hits);
   const html = read('index.html'); const inHtml = owned.filter((w) => html.includes(w));
   rep.ok(inHtml.length === 0, 'isolation: index.html (the page that is meant to be reused with another pack) names no demo speaker, tower or boss', inHtml);
+  const stale = ['README.md', 'docs/VOICE.md', 'docs/METHOD.md', 'docs/GODOT.md', 'docs/ROUTES.md', 'docs/SCREENS.md'].filter((f) => /assets\/(mage-model|voice|controls|character|pixel|postfx|lighting|detail|mist)/.test(read(f)));
+  rep.ok(stale.length === 0, 'docs: no document still points at the old assets/ locations of the model, voices or scripts (they moved to content/demo/ and kit/)', stale);
   const lit = [...read('kit/story.js').matchAll(/['"](intro|t[1-9]|dark|end)['"]/g)].map((m) => m[1]);
   rep.ok(lit.filter((x) => x !== 'dark' && x !== 'end').length === 0, 'isolation: kit/story.js refers to no dialogue id except the two documented ones (dark, end)', [...new Set(lit)]);
 }
