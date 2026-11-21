@@ -1,11 +1,18 @@
 // 開機：翻頁圖集換圖、讀取畫面、完成後開放按鈕（主迴圈由頁面最後一行 loop() 啟動）
-// 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
+// 依序載入的一般 script，頂層名稱在檔案之間共用（見 core.js）。
 'use strict';
 /* ---------- 開場 ---------- */
-/*H*/ // 頁面上與內容有關的文字（首領血條名字、開場說明、結局文字）由內容包填入，index.html 不寫死
+/*H*/ // 與內容有關的頁面文字由內容包填入
 /*H*/ $('#bossbar .nm').textContent=CONTENT.text.bossName;
 /*H*/ if(CONTENT.text.introNote)$('#introNote').textContent=CONTENT.text.introNote;
 /*H*/ if(CONTENT.text.endNote)$('#ending .note').textContent=CONTENT.text.endNote;
+/*H*/ // CONTENT.monsters.<種類>.name 覆寫怪物名稱（外觀覆寫在 core.js 的 egSkin）
+/*H*/ for(const [k,m] of Object.entries(EG_MON))if(m.name&&ETYPES[k])ETYPES[k].name=m.name;
+/*H*/ // 手機（寬 760 以下或橫放高 480 以下）的頂部排版：目標欄與血條排在狀態欄之下
+/*H*/ {const st=document.createElement('style'),sa='env(safe-area-inset-top,0px)';st.id='egPhoneHud';
+/*H*/   st.textContent='@media (max-width:760px){#objective{width:max-content;max-width:calc(100vw - 24px);white-space:normal;text-align:center;max-height:76px;overflow:hidden;box-sizing:border-box}}'
+/*H*/     +'@media (max-width:760px) and (orientation:portrait){body #rotateHint{top:calc(88px + '+sa+')}#objective{top:calc(124px + '+sa+')}#bossbar{top:calc(206px + '+sa+')}}'
+/*H*/     +'@media (max-width:760px) and (orientation:landscape),(max-height:480px) and (orientation:landscape){#objective{max-width:max(160px,calc(100vw - 440px))}#bossbar{top:calc(96px + '+sa+')}}';document.head.appendChild(st)}
 setRoute(0);setTier(1);
 if(matchMedia('(pointer:coarse)').matches&&!matchMedia('(pointer:fine)').matches)$('#introNote').textContent='這個試玩需要鍵盤與滑鼠，手機上只能看畫面。';
 let atlas=null,atlasTex=null,atlasOrig=null;

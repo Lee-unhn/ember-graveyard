@@ -1,5 +1,5 @@
 // 系統：音效、設定、操作
-// 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
+// 依序載入的一般 script，頂層名稱在檔案之間共用（見 core.js）。
 'use strict';
 /* ---------- 音效（全部即時合成） ---------- */
 let AC=null,master=null,sfxBus=null,musicBus=null,noiseBuf=null,soundOn=true,lastBoom=0;
@@ -16,7 +16,7 @@ function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],
     const b=AC.createOscillator(),bg=AC.createGain();b.type='sine';b.frequency.value=ch[2]*2;bg.gain.setValueAtTime(.05,t+.05);bg.gain.exponentialRampToValueAtTime(.001,t+3);b.connect(bg).connect(musicBus);b.start(t+.05);b.stop(t+3)};
   play();musicTimer=setInterval(play,6000)}
 
-// 設定：四種音量、粒子密度、減少震動與停格、字幕大小、掉寶形狀標記（存在瀏覽器裡，讀不到就用預設）
+// 設定：音量、粒子密度、減少震動、字幕大小、掉寶形狀（存在瀏覽器，讀不到用預設）
 const SET_DEFAULT={fx:'high',bright:1.4,master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
 const SET=Object.assign({},SET_DEFAULT);
 try{const s=JSON.parse(localStorage.getItem(EG_KEY('eg-settings'))||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
@@ -56,11 +56,11 @@ addEventListener('mouseup',e=>{if(e.button===0)lmb=false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('wheel',e=>{zoom=clamp(zoom+Math.sign(e.deltaY)*.08,.65,1.5)},{passive:true});
 for(const el of document.querySelectorAll('.sk'))el.addEventListener('click',()=>tryCast(el.dataset.s));
-function toggleInv(){const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
+function toggleInv(){if(egNoBag())return;const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
 $('#invClose').onclick=toggleInv;
 
 function tryCast(id){if(!running||paused||menuOpen||!player.alive)return;
-  if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}
+  if(!story.unlocked.has(id)){if(story.on)note(`這招還沒學會，先${EG_TERM.light}${EG_TERM.tower}`);return}
   if(player.cast||cds[id]>0)return;
   const s=SPELLS[id],cs=castMul();
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
@@ -72,7 +72,7 @@ function releaseCast(c){const h=handPos(),dir=new V3(c.target.x-h.x,0,c.target.z
   if(c.id==='fire'){if(tierOf('fire')){for(const a of [-.2,0,.2])spawnFireball(h,dir.clone().applyAxisAngle(new V3(0,1,0),a))}else spawnFireball(h,dir)}
   else if(c.id==='bolt')spawnOrb(h,dir);
   else if(c.id==='meteor')castMeteor(c.target)}
-function hurtPlayer(d,src='怪物'){if(!player.alive)return;player.hp-=d;player.lastHurt=src;player.hurtT=.25;sfx.hurt();$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,.55)';
+function hurtPlayer(d,src=EG_TERM.monster){if(!player.alive)return;player.hp-=d;player.lastHurt=src;player.hurtT=.25;sfx.hurt();$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,.55)';
   if(player.hp<=0){player.hp=0;player.alive=false;player.cast=null;
     $('#deadCause').textContent='擊倒你的是：'+player.lastHurt;$('#deadTip').textContent='提示：'+(DEATH_TIPS[player.lastHurt]||DEFAULT_TIP);
     $('#deadSub').textContent=story.on?(story.phase==='boss'?`倒在首領戰・重新挑戰${CONTENT.text.bossName}`:`倒在第 ${story.act+1} 幕・從本幕重來`):`撐到第 ${wave} 波・擊倒 ${player.kills} 隻`;setTimeout(()=>{if(running&&!player.alive)$('#dead').hidden=false},900)}}
@@ -84,7 +84,7 @@ function updatePlayer(dt){
     if(lmb)tryCast('fire');
     let mx=(keys[KB.right]?1:0)-(keys[KB.left]?1:0),mz=(keys[KB.down]?1:0)-(keys[KB.up]?1:0);const l=Math.hypot(mx,mz);
     const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);
-    if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a,'熔岩')}}
+    if(ptp.pd){player.tacc=(player.tacc||0)+ptp.pd*dt;if(player.tacc>=4){const a=player.tacc;player.tacc=0;hurtPlayer(a,EG_TERM.lava)}}
     if(l){player.pos.x+=mx/l*sp*dt;player.pos.z+=mz/l*sp*dt;player.walk+=dt*10*root}
     pushOut(player.pos,.4);
     if(!c)player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);

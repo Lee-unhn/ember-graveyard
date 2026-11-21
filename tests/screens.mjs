@@ -32,7 +32,13 @@ const SCENES = [
   ['pause-confirm', `$('#pTitle').click()`, '#pause', `$('#pNo').click()`],
   ['result', `togglePause(false);story.actT0=time-95;story.actKills0=player.kills-23;story.actTk0=terrainKills-6;story.actLoot0=pickups-2;story.bestChain=3;showResult(0,null)`, '#result', `closeResult()`],
   ['dead', `caAcc=0;player.hp=1;hurtPlayer(5,'熔岩')`, '#dead'],
+  // F14: the same HUD checks without touch controls (a desktop browser zoomed to 200% is 640 x 400 CSS pixels) and in the middle of an act, not only at the boss
+  ['fight-hud-desktop', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
+  ['boss-hud-desktop', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;startBoss();for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
   ['touch-play', `document.querySelector('#dead').hidden=true;EGControls.enableTouch();startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0})`, null],
+  // boss fight on a phone: the objective bar and the boss health bar must not cover each other or the status panel, the bag/pause buttons or the rotate hint (DEVLOG #84)
+  ['boss-hud', `EGControls.enableTouch();startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;startBoss();for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
+  ['fight-hud', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
 ];
 
 const LAYOUT = (sel) => `(() => {
@@ -40,6 +46,12 @@ const LAYOUT = (sel) => `(() => {
   const onTitle = !document.querySelector('#intro').hidden; // judge by what is on screen, not by the class the page sets
   const titleHud = onTitle ? [...document.querySelectorAll('.hud')].filter((e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width * r.height > 0; }).length : 0;
   out.titleHud = titleHud;
+  // gameplay HUD blocks that are on screen must not overlap each other and must stay inside the viewport
+  const hudIds = ['#status', '#objective', '#bossbar', '#bottom', '#hint', '#chainTag', '#touchBtns', '#rotateHint'], seen = [];
+  for (const id of hudIds) { const e = document.querySelector(id); if (!e || e.hidden || getComputedStyle(e).display === 'none') continue; const r = e.getBoundingClientRect(); if (r.width * r.height > 0) seen.push([id, r]); }
+  out.hudOverlap = []; out.hudOutside = seen.filter(([, r]) => r.left < -1 || r.right > vw + 1).map(([id]) => id);
+  for (let i = 0; i < seen.length; i++) for (let j = i + 1; j < seen.length; j++) { const a = seen[i][1], b = seen[j][1]; if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) out.hudOverlap.push(seen[i][0] + ' x ' + seen[j][0]); }
+  out.bossShown = !document.querySelector('#bossbar').hidden;
   // touch mode: every on-screen touch control is at least 44 px and fully inside the screen
   out.smallTouch = document.body.classList.contains('touch') ? [...document.querySelectorAll('#touchBtns button, .sk')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect())
     .filter((r) => r.width < 44 || r.height < 44 || r.left < 0 || r.right > vw + 1 || r.bottom > vh + 1).length : 0;
@@ -57,13 +69,16 @@ const LAYOUT = (sel) => `(() => {
 const srv = remote ? null : await serve();
 const url = remote || `http://127.0.0.1:${srv.address().port}/index.html`;
 const files = [];
-for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
+const HUD_SCENES = ['fight-hud-desktop', 'boss-hud-desktop', 'boss-hud', 'fight-hud'];
+for (const [vp, w, h, only] of [['desktop', 1280, 720], ['phone', 375, 667], ['phone-narrow', 320, 568, ['boss-hud']], ['phone-landscape', 667, 375, ['boss-hud']],
+  ['zoom-200', 640, 400, HUD_SCENES], ['phone-tall', 375, 812, HUD_SCENES], ['phone-wide', 812, 375, HUD_SCENES]]) {
   const page = await openPage(url, { width: w, height: h });
   try {
     R.ok(await page.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled`, 60000), `${vp}: loading screen finishes and unlocks the buttons`);
     await page.evaluate(`try{localStorage.clear()}catch(e){}`);
     let n = 0;
     for (const [name, js, sel, after, under = []] of SCENES) {
+      if (only && !only.includes(name)) continue;
       await page.evaluate(js);
       if (name === 'dead') await page.waitFor(`!document.querySelector('#dead').hidden`, 5000);
       await sleep(500);
@@ -74,6 +89,11 @@ for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
       if (L.sideScroll) bad.push('page scrolls sideways');
       if (L.titleHud) bad.push(`${L.titleHud} battle HUD panels behind the title`);
       if (L.smallTouch) bad.push(`${L.smallTouch} touch controls under 44 px or off screen`);
+      if (name.startsWith('boss-hud') || name.startsWith('fight-hud')) {
+        if (name.startsWith('boss-hud') && !L.bossShown) bad.push('boss health bar is not shown');
+        if (L.hudOverlap.length) bad.push('HUD blocks overlap: ' + L.hudOverlap.join(', '));
+        if (L.hudOutside.length) bad.push('HUD blocks leave the screen sideways: ' + L.hudOutside.join(', '));
+      }
       if (sel) {
         if (!L.visible) bad.push(sel + ' not visible');
         if (!L.cardInside) bad.push('card leaves the viewport');

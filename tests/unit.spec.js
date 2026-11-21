@@ -412,6 +412,15 @@ window.__runUnit = async (only) => {
     withRandom(.99, () => dealDamage(e, 5, 'fire')); ok(e.flinch > 0, 'flinch timer set'); eq(hitStop, 0, 'normal hit: no stop');
     withRandom(.0, () => dealDamage(e, 5, 'fire')); ok(hitStop > 0, 'critical hit: hit-stop');
   });
+  test('a content pack can switch off crits and meteor-size damage (the commercial version gets damage only from its fate reels)', () => {
+    fresh(); spawnEnemy('lizard', 3, 3, 1); const e = enemies[0]; e.hp = e.maxhp = 1e6;
+    const keep = CONTENT.combat; try {
+      withRandom(.0, () => dealDamage(e, 10, 'fire')); near(1e6 - e.hp, 18, 1e-9, 'demo: crit x1.8 with a low roll');
+      CONTENT.combat = { critChance: 0, meteorSizeDamage: false }; e.hp = 1e6; hitStop = 0;
+      withRandom(.0, () => dealDamage(e, 10, 'fire')); near(1e6 - e.hp, 10, 1e-9, 'crits off: damage unchanged'); eq(hitStop, 0, 'no crit hit-stop');
+      eq(combatCfg().meteorSizeDamage, false, 'meteor size no longer scales damage');
+    } finally { CONTENT.combat = keep; fresh(); }
+  });
   test('settings survive a reload through localStorage; broken values fall back to defaults', () => {
     fresh(); SET.music = .25; SET.particles = 'mid'; saveSettings();
     const s = JSON.parse(localStorage.getItem('eg-settings')); eq(s.music, .25); eq(s.particles, 'mid');
@@ -577,6 +586,263 @@ window.__runUnit = async (only) => {
   test('soft terrain jitter table: every pixel samples itself or a direct neighbour', () => {
     let self = 0; for (let q = 0; q < NBC.length; q++) { ok(NBC[q] <= 8, 'code in range'); if (NBC[q] === 4) self++; }
     const f = self / NBC.length; ok(f > .55 && f < .95, `share of pixels sampling their own cell ${f.toFixed(2)}`);
+  });
+
+  // ---------------------------------------------------------------- content fields: flow, terms, respond towers, monsters (DEVLOG timeline #43)
+  // every field is optional: left out = main's behaviour, given = takes effect, wrong type = a one-line error naming the field when the content loads
+  const tryContent = (mut) => { // run the load-time validation on a copy of the content, without touching the live pack
+    const live = window.CONTENT, n0 = CONTENT_WARNINGS.length, copy = structuredClone(live);
+    try { mut(copy); window.CONTENT = copy; egValidateContent(); return { err: null, warns: CONTENT_WARNINGS.slice(n0) }; }
+    catch (e) { return { err: String(e.message), warns: [] }; }
+    finally { window.CONTENT = live; CONTENT_WARNINGS.length = n0; }
+  };
+  const bossReady = (act) => { fresh(); startStory(act); while (dlg) endDialog(); };
+  const finishLastTower = () => { const T = TOWERS[TOWERS.length - 1]; story.phase = 'ignite'; igniteTower(T); logic(1.2); closeResult(); };
+  test('content flow: left out = no extra dialogue before the boss and before the ending, dark and end ids as before', () => {
+    eq(EG_FLOW.half, 'dark'); eq(EG_FLOW.down, 'end'); eq(EG_FLOW.preBoss, undefined); eq(EG_FLOW.preEnding, undefined);
+    bossReady(TOWERS.length - 1); finishLastTower(); eq(dlg && dlg.id, CONTENT.acts[TOWERS.length - 1].after, 'the last tower\'s own dialogue');
+    endDialog(); eq(dlg, null, 'then the boss comes straight away'); eq(story.phase, 'boss');
+    const b = story.boss; b.hp = 0; killEnemy(b); logic(3); eq(dlg && dlg.id, 'end', 'the existing end dialogue'); endDialog(); eq(dlg, null, 'no extra dialogue before the ending'); eq(story.phase, 'end');
+  });
+  test('content flow: preBoss plays before the boss appears, preEnding before the ending screen; half and down rename the two existing ones', () => {
+    const keep = { ...EG_FLOW };
+    try {
+      EG_FLOW.preBoss = 't1'; EG_FLOW.preEnding = 't2'; EG_FLOW.half = 't3'; EG_FLOW.down = 't4';
+      bossReady(TOWERS.length - 1); finishLastTower(); endDialog(); // the last tower's own dialogue
+      eq(dlg && dlg.id, 't1', 'preBoss dialogue first'); eq(story.boss, null, 'boss not spawned yet'); ok(!enemies.some((e) => e.type === 'lord'));
+      endDialog(); eq(story.phase, 'boss'); ok(story.boss, 'boss spawns when the dialogue ends');
+      const b = story.boss; b.hp = b.maxhp * .45; bossAI(b, .016); eq(dlg && dlg.id, 't3', 'half-health dialogue uses the content id'); endDialog();
+      b.hp = 0; killEnemy(b); logic(3); eq(dlg && dlg.id, 't4', 'down dialogue uses the content id'); endDialog();
+      eq(dlg && dlg.id, 't2', 'preEnding plays after it'); eq(story.phase, 'outro', 'ending screen not yet'); endDialog(); eq(story.phase, 'end'); ok(!$('#ending').hidden);
+      // a retry at the boss does not replay the pre-boss dialogue
+      fresh(); story.on = true; story.phase = 'boss'; restart(); eq(dlg, null); eq(story.phase, 'boss');
+    } finally { for (const k of ['preBoss', 'preEnding', 'half', 'down']) delete EG_FLOW[k]; Object.assign(EG_FLOW, keep); fresh(); }
+  });
+  test('content flow: a dialogue id that does not exist is skipped and the story goes on', () => {
+    const keep = { ...EG_FLOW };
+    try { EG_FLOW.preBoss = 'nope'; EG_FLOW.preEnding = 'nope'; bossReady(TOWERS.length - 1); finishLastTower(); endDialog(); endDialog(); eq(story.phase, 'boss', 'boss still appears'); }
+    finally { for (const k of ['preBoss', 'preEnding']) delete EG_FLOW[k]; Object.assign(EG_FLOW, keep); fresh(); }
+  });
+  test('content terms: left out = the demo wording; given = the objective, toasts and result title use it', () => {
+    eq(['tower', 'light', 'lit', 'ignite', 'go', 'undead'].map((k) => EG_TERM[k]).join(), '燈塔,點亮,點亮了,點燃,前往,亡者', 'defaults are the demo\'s own words');
+    const T0 = TOWERS[0], seen = () => $('#objective').textContent;
+    bossReady(0); updateStory(.016); eq(seen(), `擊倒甦醒的亡者　0 / ${ACTS[0].n}第 1 幕`);
+    story.phase = 'goto'; updateStory(.016); eq(seen(), `前往${T0.name}（${T0.dir}方）跟著地上的箭頭與光柱走`);
+    player.pos.set(T0.x, 0, T0.z); story.ign = .45; story.phase = 'ignite'; updateStory(.001); ok(seen().startsWith(`點燃${T0.name}　4`), 'ignite wording');
+    const keep = { ...EG_TERM };
+    try {
+      Object.assign(EG_TERM, { tower: '石碑', light: '觸碰', lit: '亮了', ignite: '觸碰中', go: '走向', undead: '亡靈' });
+      bossReady(0); updateStory(.016); ok(seen().startsWith('擊倒甦醒的亡靈'), seen());
+      story.phase = 'goto'; updateStory(.016); ok(seen().startsWith(`走向${T0.name}（`), seen());
+      player.pos.set(T0.x, 0, T0.z); story.ign = .45; story.phase = 'ignite'; updateStory(.001); ok(seen().startsWith(`觸碰中${T0.name}　4`), seen());
+      story.ign = 1; igniteTower(T0); eq($('#toast').textContent, `${T0.name}亮了`); ok($('#objective').textContent.startsWith(`${T0.name}亮了`));
+      showResult(0, null); eq($('#rTitle').textContent, `${T0.name}亮了`); closeResult();
+      fresh(); story.on = true; story.unlocked = new Set(['fire']); tryCast('bolt'); eq($('#msg').textContent, '這招還沒學會，先觸碰石碑', 'locked-spell hint');
+    } finally { Object.assign(EG_TERM, keep); fresh(); }
+  });
+  test('content tower respond state: left out = lights up as before; respond = no flame, heartbeat glow, own progress and finish words', () => {
+    const T = TOWERS[1], backup = { respond: T.respond, respondIgnite: T.respondIgnite, respondLit: T.respondLit };
+    try {
+      T.acc = {}; setTowerLit(T, true); eq(T.lit, true); near(T.light.intensity, 2.2, 1e-9); eq(T.pulse, undefined, 'a normal tower never pulses'); setTowerLit(T, false);
+      T.respond = true; setTowerLit(T, true); eq(T.lit, false, 'respond tower is not lit'); eq(T.pulse, true); eq(T.light.intensity, 0);
+      const seen = new Set(); for (let i = 0; i < 40; i++) { time = i * .05; updateTowers(.05); seen.add(T.light.intensity.toFixed(2)); ok(T.light.intensity >= .15 && T.light.intensity <= 1.3, 'heartbeat range ' + T.light.intensity); }
+      ok(seen.size > 8, 'the glow really changes over time'); eq(T.acc.f, undefined, 'no flame particles from this tower');
+      setTowerLit(T, false); eq(T.pulse, false); eq(T.light.intensity, 0, 'switched off again');
+      // words: no respondIgnite / respondLit -> the shared terms; given -> own words
+      bossReady(1); story.phase = 'ignite'; story.ign = .3; player.pos.set(T.x, 0, T.z); updateStory(.001); ok($('#objective').textContent.startsWith(`點燃${T.name}`), 'falls back to the shared ignite word');
+      igniteTower(T); eq($('#toast').textContent, `${T.name}點亮了`, 'falls back to the shared lit word'); eq(T.lit, false, 'still not lit after "igniting"');
+      bossReady(1); T.respondIgnite = '守候'; T.respondLit = '應答了'; story.phase = 'ignite'; story.ign = .3; player.pos.set(T.x, 0, T.z); updateStory(.001); ok($('#objective').textContent.startsWith(`守候${T.name}`), $('#objective').textContent);
+      igniteTower(T); eq($('#toast').textContent, `${T.name}應答了`); eq(story.unlocked.has(T.spell) || story.tier.fire === 1, true, 'the spell is still unlocked');
+      showResult(1, null); eq($('#rTitle').textContent, `${T.name}應答了`); closeResult();
+    } finally { for (const k in backup) { if (backup[k] === undefined) delete T[k]; else T[k] = backup[k]; } T.pulse = false; fresh(); setTowerLit(T, true); }
+  });
+  test('content monsters: left out = the engine models; given = colours, size, hidden parts and fade apply, and survive hit shake and flash', () => {
+    fresh(); spawnEnemy('spider', 0, 0, 1); let e = enemies[0];
+    eq(e.mats[0].color.getHex(), 0x2b2133, 'default body colour'); ok(e.g.children.length > 5, 'no wrapper group by default'); eq(ETYPES.spider.name, '墓蛛');
+    const keep = { ...EG_MON };
+    try {
+      EG_MON.spider = { color: 0x123456, color2: 0x654321, eye: 0x00ff00, glow: 0x010203, scale: 1.5, legs: 2 };
+      fresh(); spawnEnemy('spider', 0, 0, 1); e = enemies[0];
+      eq(e.mats[0].color.getHex(), 0x123456); eq(e.mats[1].color.getHex(), 0x654321); eq(e.mats[0].emissive.getHex(), 0x010203); eq(e.mats[0].userData.e0.getHex(), 0x010203, 'flash restores to the new glow');
+      const eyes = []; e.g.traverse((o) => { if (o.isMesh && o.material.isMeshBasicMaterial) eyes.push(o.material.color.getHex()); }); ok(eyes.length === 2 && eyes.every((c) => c === 0x00ff00), 'eyes recoloured');
+      eq(e.g.children.length, 1, 'body parts sit under one scaled wrapper'); near(e.g.children[0].scale.x, 1.5, 1e-9); near(e.g.scale.x, 1, 1e-9, 'the engine\'s own shake scale on the outer group is untouched');
+      eq(e.parts.legs.filter((l) => l.piv.visible).length, 4, 'two legs per side');
+      e.flinch = .14; updateEnemies(.001); ok(e.g.scale.x > 1.05, 'engine shake still works on the outer group'); e.flinch = 0; updateEnemies(.001); near(e.g.scale.x, 1, 1e-9); near(e.g.children[0].scale.x, 1.5, 1e-9, 'custom size survives');
+      e.flash = .05; updateEnemies(.001); near(e.mats[0].emissive.r, .85, 1e-6); e.flash = 0; updateEnemies(.1); eq(e.mats[0].emissive.getHex(), 0x010203, 'back to the content glow after the flash');
+      EG_MON.lizard = { tail: false, scale: 2 }; EG_MON.ghost = { skirt: false, opacity: .4 }; EG_MON.lord = { spikes: 3, opacity: .5 };
+      fresh(); spawnEnemy('lizard', 0, 0, 1); spawnEnemy('ghost', 0, 0, 1); spawnEnemy('lord', 0, 0, 1);
+      const [liz, gh, lord] = enemies;
+      eq(liz.parts.tail.visible, false, 'lizard tail hidden'); near(liz.g.children[0].scale.y, 2, 1e-9);
+      const cones = (en) => { const a = []; en.g.traverse((o) => { if (o.isMesh && o.geometry.type === 'ConeGeometry' && o.visible) a.push(o.geometry.parameters.openEnded); }); return a; };
+      eq(cones(gh).length, 0, 'ghost skirt hidden'); near(gh.mats[0].opacity, .4, 1e-9);
+      eq(cones(lord).filter((o) => !o).length, 3, 'three crown spikes left'); eq(cones(lord).filter((o) => o).length, 1, 'robe cone stays'); near(lord.mats[0].opacity, .5, 1e-9);
+      delete EG_MON.spider; fresh(); spawnEnemy('spider', 0, 0, 1); ok(enemies[0].g.children.length > 5 && enemies[0].mats[0].color.getHex() === 0x2b2133, 'a type with no entry is untouched');
+    } finally { for (const k of Object.keys(EG_MON)) delete EG_MON[k]; Object.assign(EG_MON, keep); fresh(); }
+  });
+  test('content validation: a wrong type in flow / terms / monsters / towers is one clear message that names the field; a good or missing field passes', () => {
+    const must = (what, mut, field) => { const r = tryContent(mut); ok(r.err && r.err.includes(field), `${what}: expected an error naming ${field}, got ${r.err}`); };
+    const pass = (what, mut) => { const r = tryContent(mut); eq(r.err, null, what); return r; };
+    pass('untouched content', () => {}); pass('flow, terms and monsters absent', (C) => { delete C.flow; delete C.terms; delete C.monsters; });
+    must('flow not an object', (C) => { C.flow = 5; }, 'CONTENT.flow'); must('flow.preBoss number', (C) => { C.flow = { preBoss: 3 }; }, 'CONTENT.flow.preBoss');
+    must('flow.preEnding empty', (C) => { C.flow = { preEnding: '' }; }, 'CONTENT.flow.preEnding'); must('flow.half array', (C) => { C.flow = { half: ['x'] }; }, 'CONTENT.flow.half');
+    must('terms not an object', (C) => { C.terms = 'x'; }, 'CONTENT.terms'); must('terms.tower number', (C) => { C.terms = { tower: 7 }; }, 'CONTENT.terms.tower'); must('terms.go empty', (C) => { C.terms = { go: '' }; }, 'CONTENT.terms.go');
+    must('monsters not an object', (C) => { C.monsters = []; }, 'CONTENT.monsters'); must('monster entry not an object', (C) => { C.monsters = { spider: 1 }; }, 'CONTENT.monsters.spider');
+    must('colour as text', (C) => { C.monsters = { ghost: { color: 'red' } }; }, 'CONTENT.monsters.ghost.color'); must('colour out of range', (C) => { C.monsters = { ghost: { eye: 0x1000000 } }; }, 'CONTENT.monsters.ghost.eye');
+    must('scale too big', (C) => { C.monsters = { lord: { scale: 9 } }; }, 'CONTENT.monsters.lord.scale'); must('scale as text', (C) => { C.monsters = { lord: { scale: '2' } }; }, 'CONTENT.monsters.lord.scale');
+    must('opacity above 1', (C) => { C.monsters = { ghost: { opacity: 2 } }; }, 'CONTENT.monsters.ghost.opacity'); must('name empty', (C) => { C.monsters = { spider: { name: '' } }; }, 'CONTENT.monsters.spider.name');
+    must('legs fraction', (C) => { C.monsters = { spider: { legs: 2.5 } }; }, 'CONTENT.monsters.spider.legs'); must('spikes too many', (C) => { C.monsters = { lord: { spikes: 20 } }; }, 'CONTENT.monsters.lord.spikes');
+    must('tail text', (C) => { C.monsters = { lizard: { tail: 'no' } }; }, 'CONTENT.monsters.lizard.tail'); must('skirt number', (C) => { C.monsters = { ghost: { skirt: 0 } }; }, 'CONTENT.monsters.ghost.skirt');
+    must('tower respond text', (C) => { C.towers[1].respond = 'yes'; }, 'CONTENT.towers[1].respond'); must('tower respondLit number', (C) => { C.towers[1].respond = true; C.towers[1].respondLit = 5; }, 'CONTENT.towers[1].respondLit');
+    must('tower respondIgnite empty', (C) => { C.towers[1].respondIgnite = ''; }, 'CONTENT.towers[1].respondIgnite');
+    const good = pass('a full valid set', (C) => { C.flow = { preBoss: 'dark', preEnding: 'end' }; C.terms = { tower: '石碑', undead: '亡靈' }; C.towers[1].respond = true; C.towers[1].respondIgnite = '守候';
+      C.monsters = { spider: { name: '甲', color: 0xff0000, scale: 1.2, legs: 3 }, lizard: { tail: false }, ghost: { skirt: true, opacity: .5 }, lord: { spikes: 0, glow: 0 } }; });
+    eq(good.warns.length, 0, 'no warnings for a valid set');
+    ok(tryContent((C) => { C.monsters = { spider: { tail: false }, wolf: {} }; C.flow = { preBoos: 'x' }; C.terms = { towr: 'x' }; C.flow.preBoss = 'ghost-id'; }).warns.length >= 4, 'typos, fields for another monster and unknown dialogue ids are warnings');
+    ok(tryContent((C) => { C.towers[0].respondLit = 'x'; }).warns.some((w) => w.includes('respond')), 'respondLit without respond: warned (it does nothing)');
+    eq(tryContent((C) => { C.flow = { preBoss: 'dark' }; }).err, null, 'valid flow leaves the pack loadable');
+    eq(EG_FLOW.half, 'dark', 'the live pack was not changed by the checks');
+  });
+
+  // ---------------------------------------------------------------- engine switches and fixes from the commercial slice's breaker report (DEVLOG timeline #44)
+  // every switch defaults to what the demo does today; the fixes (F06 F08 F10 F16) change only what was a bug
+  const withContent = (patch, fn) => { const keep = {}; for (const k of Object.keys(patch)) keep[k] = CONTENT[k]; try { Object.assign(CONTENT, patch); return fn(); } finally { for (const k of Object.keys(patch)) { if (keep[k] === undefined) delete CONTENT[k]; else CONTENT[k] = keep[k]; } } };
+  const mkSarc = () => ({ kind: 'sarc', x: 9, z: 9, state: 'up', hp: 1 });
+  test('F01 interface words that used to be fixed in the engine come from CONTENT.terms (defaults = the demo words)', () => {
+    const want = { monster: '怪物', sarcBreak: '石棺裂開，殘魂竄了出來', lampName: '燼燈', lampGet: '得到一盞燼燈：身邊照亮 5 公尺（按 I 看裝備）', bossShock: '首領衝擊波', lava: '熔岩', gas: '磷火爆炸',
+      hintGo: '跟著地上的箭頭與光柱走', hintIgnite: '站在塔下，別離開', hintBoss: '紫色衝擊波會往外擴散：退到圈外，或貼近牠躲進圈內' };
+    for (const k in want) eq(EG_TERM[k], want[k], 'default of terms.' + k);
+    fresh(); breakProp(mkSarc(), new THREE.Vector3(0, 0, 0)); eq($('#msg').textContent, want.sarcBreak, 'default hint when a sarcophagus breaks');
+    fresh(); story.on = true; story.unlocked = new Set(['fire']); giveLamp(); eq($('#msg').textContent, want.lampGet); eq(equipped.light && equipped.light.name, want.lampName);
+    hurtPlayer(1); eq(player.lastHurt, want.monster, 'hurt source default');
+    const keep = { ...EG_TERM };
+    try {
+      Object.assign(EG_TERM, { monster: '來敵', sarcBreak: '石匣碎了，裡面的東西跑出來', lampName: '星燈', lampGet: '拿到星燈', bossShock: '主宰震波', lava: '岩漿', gas: '毒氣爆', hintGo: '往光走', hintIgnite: '待著別動', hintBoss: '躲開圈' });
+      fresh(); breakProp(mkSarc(), new THREE.Vector3(0, 0, 0)); eq($('#msg').textContent, '石匣碎了，裡面的東西跑出來');
+      fresh(); story.on = true; giveLamp(); eq($('#msg').textContent, '拿到星燈'); eq(equipped.light.name, '星燈'); hurtPlayer(1); eq(player.lastHurt, '來敵');
+      const T = TOWERS[0]; bossReady(0); story.phase = 'goto'; player.pos.set(-30, 0, 30); updateStory(.016); ok($('#objective').textContent.includes('往光走'), 'goto hint'); story.phase = 'ignite'; player.pos.set(T.x, 0, T.z); story.ign = .3; updateStory(.001); ok($('#objective').textContent.includes('待著別動'), 'ignite hint');
+      fresh(); story.on = true; player.pos.set(-30, 0, 30); startBoss(); story.boss.shockT = 99; updateStory(.016); ok($('#objective').textContent.includes('躲開圈'), 'boss hint');
+      const b = story.boss; b.pos.set(0, 0, 0); player.pos.set(5.3, 0, 0); player.maxhp = player.hp = 1e9; b.shockT = 0; bossAI(b, .01); shocks[0].t = .5; updateShocks(.001); eq(player.lastHurt, '主宰震波', 'shockwave hurt source');
+    } finally { Object.assign(EG_TERM, keep); fresh(); }
+  });
+  test('F01 death-screen tips and the default tip come from CONTENT.terms; load-screen tips can be replaced by CONTENT.text.loadTips', () => {
+    eq(DEATH_TIPS['熔岩'], '熔岩是唯一會傷到你的地形，橘紅發光的地面別久站。'); eq(DEATH_TIPS['首領衝擊波'], '衝擊波會往外擴散：退到圈外，或貼近首領躲在圈內。'); eq(DEATH_TIPS['磷火爆炸'], '藍色磷火墳碰到火或雷會爆炸，施法前先看腳下。');
+    eq(DEFAULT_TIP, '被包圍時用星墜清場，或把怪物引進燃燒的草地。'); ok(LOAD_TIPS.length === 7 && LOAD_TIPS[0].startsWith('火球'), 'demo load tips');
+    for (const k of ['tipLava', 'tipShock', 'tipGas', 'tipDefault']) ok(typeof EG_TERM[k] === 'string' && EG_TERM[k].length > 5, 'terms.' + k + ' has a default');
+    ok(tryContent((C) => { C.text.loadTips = ['一句提示']; }).err === null, 'a valid loadTips list loads'); ok(tryContent((C) => { C.text.loadTips = []; }).err.includes('CONTENT.text.loadTips'), 'empty list refused');
+  });
+  test('F05 the sarcophagus releases what CONTENT.combat.sarcSpawn says: default ghosts as before, "mix" follows the act, a list picks from it', () => {
+    const keepMix = ACTS[0].mix, types = () => enemies.map((e) => e.type), burst = (n) => { for (let i = 0; i < n; i++) breakProp(mkSarc(), new THREE.Vector3(0, 0, 0)); };
+    try {
+      ACTS[0].mix = [1, 0, 0]; fresh(); story.on = true; story.act = 0; burst(12); eq(enemies.length, 24, 'two per sarcophagus'); ok(types().every((x) => x === 'ghost'), 'default: ghosts, whatever the act says');
+      withContent({ combat: { sarcSpawn: 'mix' } }, () => { fresh(); story.on = true; story.act = 0; burst(12); ok(types().every((x) => x === 'spider'), 'mix: only what act 1 allows ' + types().join()); });
+      ACTS[0].mix = [0, .5, .5];
+      withContent({ combat: { sarcSpawn: 'mix' } }, () => { fresh(); story.on = true; story.act = 0; burst(15); ok(types().every((x) => x !== 'spider') && new Set(types()).size === 2, 'mix with zero spiders: lizards and ghosts only'); });
+      withContent({ combat: { sarcSpawn: ['lizard'] } }, () => { fresh(); story.on = true; story.act = 0; burst(6); ok(types().every((x) => x === 'lizard'), 'a list: only its members'); });
+      withContent({ combat: { sarcSpawn: 'mix' } }, () => { fresh(); burst(15); ok(new Set(types()).size >= 2, 'free play has no act: the default mix'); });
+    } finally { ACTS[0].mix = keepMix; fresh(); }
+  });
+  test('F02 gear damage: default keeps fire/spell affixes and their multipliers; CONTENT.combat.gearDamage=false removes both everywhere', () => {
+    fresh(); const kinds = () => { const s = new Set(); for (let i = 0; i < 800; i++) { const it = makeItem(i % 4); for (const k in it.st) s.add(k); const n = Object.keys(it.st).filter((k) => k !== 'light').length; eq(n, it.slot === 'light' ? it.rar.k - 1 : it.rar.k, 'stat count for ' + it.rar.n); } return [...s]; };
+    ok(kinds().includes('fire') && kinds().includes('spell'), 'demo rolls fire and spell');
+    stats.spell = 50; stats.fire = 50; near(spellMul(), 1.5, 1e-9); near(fireMul(), 2.25, 1e-9);
+    withContent({ combat: { gearDamage: false } }, () => {
+      const k = kinds(); ok(!k.includes('fire') && !k.includes('spell'), 'no damage affix rolled: ' + k); ok(k.includes('hp') && k.includes('cast') && k.includes('move'), 'the other affixes still roll');
+      eq(spellMul(), 1); eq(fireMul(), 1, 'multipliers fixed at 1 whatever the stats are');
+    });
+    stats.spell = 0; stats.fire = 0; fresh();
+  });
+  test('F03 area damage: the +-10% random roll is on by default and CONTENT.combat.aoeJitter=false makes it a fixed value', () => {
+    fresh(); spawnEnemy('lizard', 0, 0, 1); const e = enemies[0]; e.hp = e.maxhp = 1e9; e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
+    const hits = (n) => { const a = []; for (let i = 0; i < n; i++) { const h = e.hp; aoe(e.pos, 2, 100, 'fire'); a.push(Math.round((h - e.hp) * 1e6) / 1e6); } return a; };
+    withContent({ combat: { critChance: 0 } }, () => { const a = hits(40); ok(new Set(a).size > 10 && a.every((v) => v >= 90 && v <= 110), 'varies within 90..110 by default'); });
+    withContent({ combat: { critChance: 0, aoeJitter: false } }, () => { const a = hits(40); eq(new Set(a).size, 1, 'one value'); eq(a[0], 100); });
+    fresh();
+  });
+  test('F04 meteor size: by default the size changes the hit radius; CONTENT.combat.meteorSizeRadius=false keeps it at the base radius', () => {
+    const land = (sc, patch) => withContent({ combat: Object.assign({ critChance: 0 }, patch) }, () => {
+      fresh(); const T = new THREE.Vector3(10, 0, 10); spawnEnemy('lizard', T.x + 2.6, T.z, 1); const e = enemies[0]; e.hp = e.maxhp = 1e6; e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 });
+      dropMeteor(T, sc, 0); logic(.01); ok(meteors.length === 1, 'the meteor is in the air'); const m = meteors[0];
+      for (let i = 0; i < 40 && !m.dead; i++) logic(.05);
+      ok(m.dead, 'the meteor landed'); return e.hp < e.maxhp; });
+    eq(land(.8, {}), false, 'small meteor does not reach 2.6 away'); eq(land(1.05, {}), true, 'big meteor does');
+    eq(land(.8, { meteorSizeRadius: false }), true, 'switch off: the small one reaches too'); eq(land(1.05, { meteorSizeRadius: false }), true);
+    fresh();
+  });
+  test('F06 the boss falls and the player dies before the ending: restart goes on to the ending, never back to act 4 with the boss fight wiped', () => {
+    const toOutro = () => { fresh(); story.on = true; story.act = ACTS.length - 1; player.pos.set(0, 0, 14); startBoss(); const b = story.boss; b.hp = 0; killEnemy(b); eq(story.phase, 'outro'); };
+    toOutro(); hurtPlayer(1e9, '測試'); ok(!player.alive); restart();
+    ok(player.alive, 'alive again'); eq(story.phase, 'outro', 'still after the boss'); eq(story.act, ACTS.length - 1); eq(enemies.filter((e) => e.alive).length, 0, 'no act-4 monsters spawned'); eq(dlg && dlg.id, EG_FLOW.down, 'the dialogue that follows the fall'); ok($('#ending').hidden, 'ending screen not yet');
+    endDialog(); eq(story.phase, 'end'); ok(!$('#ending').hidden, 'then the ending'); eq(dlg, null);
+    toOutro(); logic(2); ok(enemies.every((e) => !e.alive), 'minions already cleared'); hurtPlayer(1e9, '測試'); restart(); eq(story.phase, 'outro'); eq(dlg && dlg.id, EG_FLOW.down); endDialog(); eq(story.phase, 'end');
+    restart(); eq(story.phase, 'end', 'restart on the ending screen stays on it'); ok(!$('#ending').hidden); eq(enemies.length, 0);
+    // a retry during the fight itself still restarts the boss, without replaying the pre-boss dialogue (F07)
+    const keep = { ...EG_FLOW };
+    try { EG_FLOW.preBoss = 't1'; fresh(); story.on = true; story.act = ACTS.length - 1; story.phase = 'boss'; startBoss(); hurtPlayer(1e9, '測試'); restart(); eq(dlg, null, 'no dialogue on retry'); eq(story.phase, 'boss'); ok(story.boss && story.boss.alive, 'a fresh boss'); eq(enemies.filter((e) => e.type === 'lord').length, 1); }
+    finally { for (const k of ['preBoss']) delete EG_FLOW[k]; Object.assign(EG_FLOW, keep); fresh(); }
+  });
+  test('F08 the bag does not open while a dialogue is showing (keys I and Tab, and the bag button); an open bag can still be closed', () => {
+    fresh(); const id = Object.keys(CONTENT.dialog)[0], bag = $('#inv'); bag.hidden = true;
+    playDialog(id, null); ok(dlg, 'dialogue open');
+    for (const code of ['KeyI', 'Tab']) { window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true })); ok(bag.hidden, code + ' must not open the bag over the dialogue'); }
+    toggleInv(); ok(bag.hidden, 'the bag button either');
+    endDialog(); window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyI', bubbles: true })); ok(!bag.hidden, 'after the dialogue the key works again'); toggleInv(); ok(bag.hidden);
+    toggleInv(); ok(!bag.hidden); playDialog(id, null); toggleInv(); ok(bag.hidden, 'a bag that is already open can be closed during a dialogue'); endDialog(); fresh();
+  });
+  test('F09 a respond tower makes no flame or explosion particles while it is "ignited"; an ordinary tower still does', () => {
+    const T = TOWERS[1], keep = T.respond, run = () => { bossReady(1); T.acc = {}; player.pos.set(T.x, 0, T.z); story.phase = 'ignite'; story.ign = .3; let n = 0; const e1 = ADD.emit, e2 = SMOKE.emit;
+      ADD.emit = function (p) { n++; return e1.call(this, p); }; SMOKE.emit = function (p) { n++; return e2.call(this, p); };
+      try { for (let i = 0; i < 40 && story.phase !== 'dialog'; i++) updateStory(.1); eq(story.phase, 'dialog', 'the tower finished'); } finally { ADD.emit = e1; SMOKE.emit = e2; } return n; };
+    try { T.respond = false; ok(run() > 10, 'an ordinary tower makes particles'); T.respond = true; eq(run(), 0, 'respond tower: no particles at all'); }
+    finally { if (keep === undefined) delete T.respond; else T.respond = keep; T.pulse = false; fresh(); setTowerLit(T, true); }
+  });
+  test('F10/F16 monsters, loot, scorch marks and rites give their geometry and materials back: after many spawn-and-clear rounds the counts return to the baseline', () => {
+    fresh(); EGPost.render(); const base = renderer.info.memory.geometries, watched = { g: new Set(), m: new Set() }, gone = { g: 0, m: 0 };
+    const watch = (o) => o.traverse((c) => { if (c.geometry && !watched.g.has(c.geometry)) { watched.g.add(c.geometry); c.geometry.addEventListener('dispose', () => gone.g++); }
+      for (const m of c.material ? [].concat(c.material) : []) if (!watched.m.has(m)) { watched.m.add(m); m.addEventListener('dispose', () => gone.m++); } });
+    const types = ['spider', 'lizard', 'ghost', 'lord'];
+    for (let round = 0; round < 5; round++) {
+      for (let i = 0; i < 12; i++) spawnEnemy(types[i % 4], 3 + i, 3, 1);
+      for (const e of enemies) { watch(e.g); e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); }
+      EGPost.render(); for (const e of enemies.slice(0, 6)) killEnemy(e); logic(.7); // half leave through the death animation, half through clearWorld
+      for (let i = 0; i < 3; i++) dropLoot(new THREE.Vector3(i, 0, -4), 1); for (const L of loots) watch(L.g);
+      addBurn(new THREE.Vector3(-3, 0, 3), 1.5, .2); for (const b of burns) watch(b.decal); EGPost.render();
+      clearWorld();
+    }
+    // a scorch mark that ends by itself (not through clearWorld) release theirs too
+    addBurn(new THREE.Vector3(5, 0, 5), 1.5, .2); const decal = burns[0].decal; let decalGone = false; decal.geometry.addEventListener('dispose', () => { decalGone = true; });
+    for (let i = 0; i < 30; i++) updateBurns(.1); ok(burns.length === 0 && decalGone, 'the scorch mark that burned out gave its plane back');
+    EGPost.render(); const now = renderer.info.memory.geometries;
+    ok(now <= base + 12, `uploaded geometries ${base} -> ${now} (it grew by about 15 per monster before the fix)`);
+    ok(gone.m >= watched.m.size * .95, `materials released ${gone.m} of ${watched.m.size}`); ok(gone.g >= watched.g.size * .6, `geometries released ${gone.g} of ${watched.g.size} (shared loot and beam shapes are kept)`);
+    fresh();
+  });
+  test('F11 at high quality the long robes of the boss and the ghost cast a shadow once CONTENT.render.shadowTransparentBodies is on; off = as before; glows and decals never cast', () => {
+    const casters = (en) => { let n = 0; en.g.traverse((o) => { if (o.isMesh && o.castShadow) n++; }); return n; };
+    const draw = () => { for (let i = 0; i < 25; i++) EGPost.render(); };
+    fresh(); SET.fx = 'high'; spawnEnemy('lord', 0, 6, 1); spawnEnemy('ghost', 4, 6, 1); const [lord, ghost] = enemies; draw();
+    ok(renderer.shadowMap.enabled, 'shadows are on at high quality'); const l0 = casters(lord), g0 = casters(ghost); ok(g0 <= 2, 'demo: only the eyes of the translucent ghost cast (as before)');
+    CONTENT.render = { shadowTransparentBodies: true }; try { draw(); ok(casters(lord) > l0, 'boss: its translucent robe and head cast too (' + l0 + ' -> ' + casters(lord) + ')'); ok(casters(ghost) > g0, 'ghost body casts (' + g0 + ' -> ' + casters(ghost) + ')');
+      let glow = 0; scene.traverse((o) => { if (o.isMesh && o.material && o.material.blending === THREE.AdditiveBlending && o.castShadow) glow++; }); eq(glow, 0, 'additive glows never cast');
+    } finally { delete CONTENT.render; SET.fx = 'low'; EGPost.render(); Object.assign(SET, SET_DEFAULT); EGPost.render(); fresh(); }
+  });
+  test('loot names and rare prefixes can come from CONTENT.loot; without it the demo names roll', () => {
+    fresh(); const base = BASES.find((b) => b.type === 'staff'), names = new Set(); for (let i = 0; i < 200; i++) names.add(makeItem(3, base).name);
+    ok([...names].every((n) => base.names.some((x) => n.endsWith(x)) && PREFIX.some((p) => n.startsWith(p))), 'demo names and prefixes');
+    withContent({ loot: { names: { staff: ['甲杖', '乙杖'] }, prefixes: ['丙之'] } }, () => { const s = new Set(); for (let i = 0; i < 100; i++) s.add(makeItem(3, base).name); eq([...s].sort().join(), '丙之乙杖,丙之甲杖'); eq(makeItem(0, base).name.length, 2, 'common items have no prefix');
+      const h = BASES.find((b) => b.type === 'helm'); ok(h.names.includes(makeItem(0, h).name), 'other kinds keep their names'); });
+  });
+  test('content validation: the new combat, loot, render, terms and text fields name the field when wrong; good values and absent fields load', () => {
+    const must = (what, mut, field) => { const r = tryContent(mut); ok(r.err && r.err.includes(field), `${what}: expected an error naming ${field}, got ${r.err}`); };
+    must('aoeJitter text', (C) => { C.combat = { aoeJitter: 'no' }; }, 'CONTENT.combat.aoeJitter'); must('meteorSizeRadius number', (C) => { C.combat = { meteorSizeRadius: 0 }; }, 'CONTENT.combat.meteorSizeRadius');
+    must('gearDamage text', (C) => { C.combat = { gearDamage: 'false' }; }, 'CONTENT.combat.gearDamage'); must('sarcSpawn unknown monster', (C) => { C.combat = { sarcSpawn: ['dragon'] }; }, 'CONTENT.combat.sarcSpawn');
+    must('sarcSpawn empty', (C) => { C.combat = { sarcSpawn: [] }; }, 'CONTENT.combat.sarcSpawn'); must('combat not an object', (C) => { C.combat = 3; }, 'CONTENT.combat');
+    must('loot names not a list', (C) => { C.loot = { names: { staff: '杖' } }; }, 'CONTENT.loot.names.staff'); must('loot prefixes empty', (C) => { C.loot = { prefixes: [] }; }, 'CONTENT.loot.prefixes'); must('loot not an object', (C) => { C.loot = []; }, 'CONTENT.loot');
+    must('render flag number', (C) => { C.render = { shadowTransparentBodies: 1 }; }, 'CONTENT.render.shadowTransparentBodies'); must('terms.sarcBreak empty', (C) => { C.terms = { sarcBreak: '' }; }, 'CONTENT.terms.sarcBreak');
+    must('terms.hintBoss number', (C) => { C.terms = { hintBoss: 5 }; }, 'CONTENT.terms.hintBoss');
+    const good = tryContent((C) => { C.combat = { critChance: 0, aoeJitter: false, meteorSizeRadius: false, gearDamage: false, sarcSpawn: 'mix' }; C.loot = { names: { ring: ['環'] }, prefixes: ['的'] }; C.render = { shadowTransparentBodies: true }; C.terms = { sarcBreak: '破了', tipLava: '提示' }; });
+    eq(good.err, null, 'a full valid set'); eq(good.warns.length, 0, 'no warnings');
+    ok(tryContent((C) => { C.loot = { names: { wand: ['x'] } }; }).warns.length >= 1, 'an unknown equipment kind is a warning'); ok(tryContent((C) => { C.render = { shadow: true }; }).warns.length >= 1, 'an unknown render field is a warning');
+    eq(tryContent(() => {}).err, null, 'untouched content');
   });
 
   // ---------------------------------------------------------------- run

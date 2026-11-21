@@ -23,7 +23,7 @@
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
       if (o === ground || m === terrMat) { o.receiveShadow = true; return; }
       if (o.userData.detail) { o.receiveShadow = true; return; }   // grass and pebbles: too small to matter, 2,000+ of them
-      if (m.transparent || o.geometry.type === 'PlaneGeometry' || o.geometry.isInstancedBufferGeometry) return;
+      if ((m.transparent && !egShadowBody(m)) || o.geometry.type === 'PlaneGeometry' || o.geometry.isInstancedBufferGeometry) return;
       o.castShadow = true; o.receiveShadow = true; n++;
     });
     state.casters = n;

@@ -26,11 +26,19 @@ let failures = 0;
 const ok = (m) => console.log('  PASS ' + m);
 const bad = (m) => { failures++; console.log('  FAIL ' + m); };
 
-function walk(dir, out = []) {
+// files git ignores are never published (local design drafts in incoming/, test screenshots, the private main file),
+// so the publish gates skip them; outside a git checkout (the selftest's poisoned copy) everything is scanned (DEVLOG #83)
+function ignoredSet(root) {
+  const r = spawnSync('git', ['-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory'], { encoding: 'utf8' });
+  if (r.status !== 0) return null;
+  return new Set(r.stdout.split('\n').filter(Boolean).map((s) => s.replace(/\/$/, '')));
+}
+function walk(dir, out = [], root = dir, ign = ignoredSet(root)) {
   for (const name of readdirSync(dir)) {
     if (SKIP_DIRS.has(name)) continue;
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out); else out.push(p);
+    if (ign && ign.has(relative(root, p).replace(/\\/g, '/'))) continue;
+    if (statSync(p).isDirectory()) walk(p, out, root, ign); else out.push(p);
   }
   return out;
 }

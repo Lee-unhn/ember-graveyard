@@ -1,39 +1,87 @@
 // 引擎核心：數學小工具、雜訊、翻頁圖集、渲染器、粒子系統、燈光池、程式畫的貼圖
 // 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
 'use strict';
-/*H*/ // 載入失敗要讓玩家看到原因，不能只停在永遠不結束的讀取畫面：讀取畫面還開著時，任何同步載入的 script 找不到或丟錯，都把原因寫在讀取畫面上（讀取完成後的執行期錯誤不蓋畫面）
+/*H*/ // 載入失敗時把原因寫在還開著的讀取畫面上（讀取完成後的執行期錯誤不蓋畫面）
 /*H*/ function egFail(msg){try{const L=document.querySelector('#loading');if(!L||L.hidden||document.querySelector('#ldfail'))return;const card=L.querySelector('.card')||L,p=document.createElement('p');p.id='ldfail';p.setAttribute('role','alert');
 /*H*/   p.style.cssText='color:#ff9a8a;font-size:14px;line-height:1.6;margin:10px 0 0;max-width:46ch;text-align:left';p.textContent='載入失敗：'+msg;card.appendChild(p);const st=document.querySelector('#ldstep');if(st)st.hidden=true}catch(e){}}
 /*H*/ window.addEventListener('error',e=>{const t=e.target;if(t&&t!==window){if(t.tagName==='SCRIPT'&&!t.defer&&!t.async)egFail('找不到檔案 '+(t.getAttribute('src')||''));return}egFail(String(e.message||'未知錯誤'))},true);
 if(!window.CONTENT)throw new Error('CONTENT 未載入：請先載入 content/<內容包>/*.js 再載入 kit/（見 kit/CONTENT-API.md）');
-/*H*/ // 內容驗證：必要欄位缺了就在載入時用一行指名欄位的訊息停下來；可選欄位缺了就補安全預設，並把警告記在 window.__contentWarnings（console.warn）
+/*H*/ // 內容驗證：必要欄位缺了就停下並指名欄位；可選欄位補預設並把警告記在 window.__contentWarnings
 /*H*/ const CONTENT_WARNINGS=window.__contentWarnings=[];
 /*H*/ function cwarn(m){if(CONTENT_WARNINGS.includes(m))return;CONTENT_WARNINGS.push(m);try{console.warn('[content] '+m)}catch(e){}}
-/*H*/ // 查不到的鍵不丟例外：回傳預設值並記一筆警告（對白代號、說話者、頭像）
+/*H*/ // 查不到的鍵不丟例外：回傳預設值並記警告
 /*H*/ function egLookup(obj,what,fallback){return new Proxy(obj,{get(t,k){if(typeof k!=='string'||k in t)return t[k];cwarn(what+' '+k+' 不存在，改用預設值');return typeof fallback==='function'?fallback():fallback}})}
 /*H*/ function egValidateContent(){const C=window.CONTENT,bad=[],isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v),num=v=>typeof v==='number'&&isFinite(v);
 /*H*/   for(const k of ['towers','towerPos','acts'])if(!Array.isArray(C[k])||!C[k].length)bad.push('CONTENT.'+k+' 缺少，或不是有內容的陣列');
 /*H*/   if(!bad.length){
 /*H*/     if(C.towerPos.length!==C.towers.length)bad.push('CONTENT.towerPos 有 '+C.towerPos.length+' 筆，要等於 CONTENT.towers 的 '+C.towers.length+' 座');
 /*H*/     if(C.acts.length!==C.towers.length)bad.push('CONTENT.acts 有 '+C.acts.length+' 幕，要等於 CONTENT.towers 的 '+C.towers.length+' 座（每座塔對應一幕）');
-/*H*/     C.towers.forEach((t,i)=>{if(!isObj(t)||typeof t.name!=='string'||!['fire','bolt','meteor','blood'].includes(t.spell)||!num(t.col)||!Array.isArray(t.c)||t.c.length!==3||!t.c.every(num))bad.push('CONTENT.towers['+i+'] 缺 name、spell、col 或 c（三個 0–1 的數字）');else{if(typeof t.dir!=='string')t.dir='';if(!num(t.kind))t.kind=0}});
+/*H*/     C.towers.forEach((t,i)=>{if(!isObj(t)||typeof t.name!=='string'||!['fire','bolt','meteor','blood'].includes(t.spell)||!num(t.col)||!Array.isArray(t.c)||t.c.length!==3||!t.c.every(num))bad.push('CONTENT.towers['+i+'] 缺 name、spell、col 或 c（三個 0–1 的數字）');else{if(typeof t.dir!=='string')t.dir='';if(!num(t.kind))t.kind=0;
+/*H*/       // respond 的塔不點亮、只隨心跳明暗；respondIgnite／respondLit 是進度與完成用語
+/*H*/       if(t.respond!==undefined&&typeof t.respond!=='boolean')bad.push('CONTENT.towers['+i+'].respond 要是 true 或 false');
+/*H*/       for(const k of ['respondIgnite','respondLit'])if(t[k]!==undefined){if(typeof t[k]!=='string'||!t[k])bad.push('CONTENT.towers['+i+'].'+k+' 要是有內容的字串');else if(t.respond!==true)cwarn('CONTENT.towers['+i+'].'+k+' 只在 respond 為 true 時使用，這個欄位不會生效')}}});
 /*H*/     C.towerPos.forEach((p,i)=>{if(!Array.isArray(p)||!num(p[0])||!num(p[1]))bad.push('CONTENT.towerPos['+i+'] 要是 [x, z] 兩個數字')});
 /*H*/     C.acts.forEach((a,i)=>{if(!isObj(a)||!num(a.n)||a.n<1||!Array.isArray(a.mix)||a.mix.length!==3||!a.mix.every(num))bad.push('CONTENT.acts['+i+'] 缺 n（要擊倒幾隻）或 mix（三種怪的比例，三個數字）')})}
+/*H*/   // 可選欄位：型別不對停下並指名，欄位名打錯只警告，沒給用預設
+/*H*/   const str=v=>typeof v==='string'&&v.length>0,lst=v=>Array.isArray(v)&&v.length>0&&v.every(str),intIn=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b,hex=v=>intIn(v,0,0xffffff),W=(w,m)=>bad.push(w+' 要是 '+m),S='有內容的字串',B='true 或 false';
+/*H*/   const checkKeys=(obj,known,what)=>{for(const k of Object.keys(obj))if(!known.includes(k))cwarn(what+'.'+k+' 不是引擎認得的欄位（可用：'+known.join('、')+'），不會生效')};
+/*H*/   const objChk=(v,w,known,each)=>{if(v===undefined)return;if(!isObj(v))return W(w,'物件');checkKeys(v,known,w);for(const k of known)if(v[k]!==undefined)each(k,v[k],w+'.'+k)};
+/*H*/   const TD={tower:'燈塔',light:'點亮',lit:'點亮了',ignite:'點燃',go:'前往',undead:'亡者',monster:'怪物',sarcBreak:'石棺裂開，殘魂竄了出來',lampName:'燼燈',lampGet:'得到一盞燼燈：身邊照亮 5 公尺（按 I 看裝備）',
+/*H*/     bossShock:'首領衝擊波',lava:'熔岩',gas:'磷火爆炸',hintGo:'跟著地上的箭頭與光柱走',hintIgnite:'站在塔下，別離開',hintBoss:'紫色衝擊波會往外擴散：退到圈外，或貼近牠躲進圈內',
+/*H*/     tipLava:'熔岩是唯一會傷到你的地形，橘紅發光的地面別久站。',tipShock:'衝擊波會往外擴散：退到圈外，或貼近首領躲在圈內。',tipGas:'藍色磷火墳碰到火或雷會爆炸，施法前先看腳下。',tipDefault:'被包圍時用星墜清場，或把怪物引進燃燒的草地。'};
+/*H*/   objChk(C.flow,'CONTENT.flow',['preBoss','preEnding','half','down'],(k,v,w)=>{if(!str(v))W(w,S+'（對白代號）')});
+/*H*/   objChk(C.terms,'CONTENT.terms',Object.keys(TD),(k,v,w)=>{if(!str(v))W(w,S)});
+/*H*/   objChk(C.monsters,'CONTENT.monsters',['spider','lizard','ghost','lord'],(mk,m,w)=>{if(!isObj(m))return W(w,'物件');
+/*H*/     objChk(m,w,['name','color','color2','eye','glow','opacity','scale','legs','tail','spikes','skirt'],(k,v,x)=>{
+/*H*/       if(k==='name'){if(!str(v))W(x,S)}else if(['color','color2','eye','glow'].includes(k)){if(!hex(v))W(x,'0 到 0xffffff 的整數顏色')}
+/*H*/       else if(k==='opacity'){if(!(num(v)&&v>=0&&v<=1))W(x,'0 到 1 的數字')}else if(k==='scale'){if(!(num(v)&&v>=.5&&v<=3))W(x,'0.5 到 3 的數字')}
+/*H*/       else{const only={legs:'spider',spikes:'lord',tail:'lizard',skirt:'ghost'}[k],r=k==='legs'?[1,4]:[0,7];if(only==='spider'||only==='lord'?!intIn(v,r[0],r[1]):typeof v!=='boolean')W(x,only==='spider'||only==='lord'?r[0]+' 到 '+r[1]+' 的整數':B);else if(mk!==only)cwarn(x+' 只有 '+only+' 用得到，不會生效')}})});
+/*H*/   objChk(C.combat,'CONTENT.combat',['critChance','critMul','meteorSizeDamage','aoeJitter','meteorSizeRadius','gearDamage','sarcSpawn'],(k,v,w)=>{
+/*H*/     if(k==='sarcSpawn'){if(v!=='mix'&&!(lst(v)&&v.every(x=>['spider','lizard','ghost'].includes(x))))W(w,'"mix"，或 spider／lizard／ghost 組成的非空陣列')}else if(['meteorSizeDamage','aoeJitter','meteorSizeRadius','gearDamage'].includes(k)&&typeof v!=='boolean')W(w,B)});
+/*H*/   objChk(C.loot,'CONTENT.loot',['names','prefixes'],(k,v,w)=>{if(k==='prefixes'){if(!lst(v))W(w,'非空的字串陣列')}else objChk(v,w,['staff','helm','armor','gloves','boots','ring','amulet','lantern'],(k2,v2,w2)=>{if(!lst(v2))W(w2,'非空的字串陣列')})});
+/*H*/   objChk(C.render,'CONTENT.render',['shadowTransparentBodies'],(k,v,w)=>{if(typeof v!=='boolean')W(w,B)});
+/*H*/   if(isObj(C.text)&&C.text.loadTips!==undefined&&!lst(C.text.loadTips))W('CONTENT.text.loadTips','非空的字串陣列');
 /*H*/   if(bad.length)throw new Error('CONTENT 不完整：'+bad.join('；'));
 /*H*/   for(const k of ['speakers','portraits','dialog'])if(!isObj(C[k])){cwarn('CONTENT.'+k+' 沒有給：'+(k==='dialog'?'所有對白略過':k==='speakers'?'說話者名字留空':'頭像留空'));C[k]={}}
 /*H*/   for(const [id,sp] of Object.entries(C.speakers)){const s=isObj(sp)?sp:(C.speakers[id]={});if(typeof s.n!=='string')s.n='';if(typeof s.c!=='string')s.c='#ffffff';if(!num(s.pitch))s.pitch=1;if(!num(s.rate))s.rate=1}
 /*H*/   for(const [id,lines] of Object.entries(C.dialog)){if(!Array.isArray(lines)){cwarn('CONTENT.dialog.'+id+' 不是陣列，略過');delete C.dialog[id];continue}
 /*H*/     C.dialog[id]=lines.filter((l,i)=>{const good=Array.isArray(l)&&typeof l[0]==='string'&&typeof l[1]==='string';if(!good)cwarn('CONTENT.dialog.'+id+'['+i+'] 要是 [說話者代號, 文字]，略過這一句');else if(!(l[0] in C.speakers))cwarn('CONTENT.dialog.'+id+'['+i+'] 的說話者 '+l[0]+' 不在 CONTENT.speakers，名字會留空');return good})}
 /*H*/   C.acts.forEach((a,i)=>{for(const k of ['dlg','after'])if(a[k]&&!(a[k] in C.dialog))cwarn('CONTENT.acts['+i+'].'+k+' 指到不存在的對白 '+a[k]+'，這段會略過')});
-/*H*/   for(const k of ['dark','end'])if(!(k in C.dialog))cwarn('CONTENT.dialog.'+k+' 沒有給：首領戰的這段對白略過');
+/*H*/   // 流程對白代號：half、down 預設 dark、end；preBoss、preEnding 預設不播
+/*H*/   C.flow=Object.assign({half:'dark',down:'end'},C.flow);
+/*H*/   for(const k of ['half','down'])if(!(C.flow[k] in C.dialog))cwarn('CONTENT.dialog.'+C.flow[k]+' 沒有給：首領戰的這段對白略過');
+/*H*/   for(const k of ['preBoss','preEnding'])if(C.flow[k]&&!(C.flow[k] in C.dialog))cwarn('CONTENT.flow.'+k+' 指到不存在的對白 '+C.flow[k]+'，這段會略過');
+/*H*/   // 介面用語表，預設是示範版的用語
+/*H*/   C.terms=Object.assign(TD,C.terms);
+/*H*/   if(!isObj(C.monsters))C.monsters={};
 /*H*/   if(!isObj(C.text))C.text={};if(typeof C.text.bossName!=='string'||!C.text.bossName){cwarn('CONTENT.text.bossName 沒有給，首領名字改用「首領」');C.text.bossName='首領'}
 /*H*/   if(typeof C.voiceDir!=='string'||!C.voiceDir)C.voiceDir='';else if(!C.voiceDir.endsWith('/'))C.voiceDir+='/';
 /*H*/   if(typeof C.modelScript!=='string')C.modelScript='';
-/*H*/   // 內容包識別：存檔與設定的鍵名會帶上它。示範版（id 為 demo）沿用原本的 eg-save／eg-settings／eg-keys，玩家既有的存檔不會失效；沒給 id 的內容包用內容指紋，不會讀到別人的存檔
+/*H*/   // 內容包識別：存檔鍵名帶上它；demo 沿用原鍵名，沒給 id 用內容指紋
 /*H*/   let id=typeof C.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(C.id)?C.id:'';
 /*H*/   if(!id){let h=0;const s=JSON.stringify([C.towers,C.acts]);for(let i=0;i<s.length;i++)h=(Math.imul(h,31)+s.charCodeAt(i))|0;id='p'+(h>>>0).toString(36);cwarn('CONTENT.id 沒有給，存檔鍵改用內容指紋 '+id)}
 /*H*/   C.id=id;return id}
 /*H*/ const EG_PACK=egValidateContent();
+/*H*/ const EG_FLOW=CONTENT.flow,EG_TERM=CONTENT.terms,EG_MON=CONTENT.monsters;
+/*H*/ // 以下是 flow／terms／respond 塔／monsters 等的引擎端函式（說明見 CONTENT-API.md）
+/*H*/ function egBossIntro(){EG_FLOW.preBoss?playDialog(EG_FLOW.preBoss,startBoss):startBoss()}
+/*H*/ function egShowEnding(){EG_FLOW.preEnding?playDialog(EG_FLOW.preEnding,showEnding):showEnding()}
+/*H*/ const egLit=T=>T.respond&&T.respondLit?T.respondLit:EG_TERM.lit,egIgnite=T=>T.respond&&T.respondIgnite?T.respondIgnite:EG_TERM.ignite;
+/*H*/ // 回應狀態的塔：不點亮不噴火，只隨心跳明暗
+/*H*/ function egRespondSet(T,on){if(!T.respond)return false;T.pulse=!!on;if(!on)return false;T.lit=false;T.light.intensity=0;T.runeMat.color.setHex(T.col).multiplyScalar(.18);return true}
+/*H*/ function egPulse(){for(const T of TOWERS)if(T.respond&&T.pulse){const ph=(time*.9)%1,b=Math.exp(-Math.pow((ph-.05)*14,2))+.6*Math.exp(-Math.pow((ph-.3)*14,2));T.light.intensity=.15+1.1*b;T.runeMat.color.setHex(T.col).multiplyScalar(.35+.65*b)}}
+/*H*/ // 怪物外觀覆寫：顏色、大小、隱藏部件；mats[0] 身體、mats[1] 四肢／尾／冠刺
+/*H*/ function egSkin(type,b){const S=EG_MON[type];if(!S)return b;const m0=b.mats[0],m1=b.mats[1];
+/*H*/   if(S.color!==undefined&&m0)m0.color.setHex(S.color);if(S.color2!==undefined&&m1)m1.color.setHex(S.color2);
+/*H*/   if(S.glow!==undefined&&m0){m0.emissive.setHex(S.glow);m0.userData.e0.copy(m0.emissive)}
+/*H*/   if(S.opacity!==undefined)for(const m of b.mats)if(m.transparent)m.opacity=S.opacity;
+/*H*/   const cones=[];b.g.traverse(o=>{if(!o.isMesh)return;if(S.eye!==undefined&&o.material.isMeshBasicMaterial)o.material.color.setHex(S.eye);if(o.geometry.type==='ConeGeometry')cones.push(o)});
+/*H*/   if(S.legs!==undefined)b.parts.legs.forEach((L,i)=>{if(i%4>=S.legs)L.piv.visible=false});
+/*H*/   if(S.tail===false&&b.parts.tail)b.parts.tail.visible=false;
+/*H*/   if(S.spikes!==undefined)cones.filter(o=>!o.geometry.parameters.openEnded).forEach((o,i)=>{if(i>=S.spikes)o.visible=false});
+/*H*/   if(S.skirt===false)for(const o of cones)if(o.geometry.parameters.openEnded)o.visible=false;
+/*H*/   if(S.scale!==undefined&&S.scale!==1){const inner=new THREE.Group();for(const k of [...b.g.children])inner.add(k);b.g.add(inner);inner.scale.setScalar(S.scale)}
+/*H*/   return b}
 /*H*/ function EG_KEY(base){return EG_PACK==='demo'?base:base+':'+EG_PACK}
 const $=s=>document.querySelector(s);
 const V3=THREE.Vector3;
@@ -94,7 +142,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
 renderer.setClearColor(0x090b11);
 const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x0b0e16,.026);
 const camera=new THREE.PerspectiveCamera(42,1,.1,220);
-// 鏡頭在主角後上方：高 13、後 11，約斜 50 度往下看、距離 17（原本高 18.5、斜 59 度，幾乎正上方）
+// 鏡頭在主角後上方：高 13、後 11，斜約 50 度、距離 17
 const CAM_H=13,CAM_B=11;
 function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
@@ -235,4 +283,21 @@ const runeTex=canvasTex(512,512,(ctx)=>{
   ctx.lineWidth=3;ctx.beginPath();for(let i=0;i<=8;i++){const a=(i*3%8)/8*TAU-Math.PI/2;const x=Math.cos(a)*150,y=Math.sin(a)*150;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
   ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<=8;i++){const a=(i/8)*TAU-Math.PI/2;const x=Math.cos(a)*108,y=Math.sin(a)*108;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
 });
-
+/*H*/ // CONTENT.combat 的開關，預設＝示範版
+/*H*/ const combatCfg=()=>{const c=(window.CONTENT&&CONTENT.combat)||{};return{critChance:c.critChance??.12,critMul:c.critMul??1.8,meteorSizeDamage:c.meteorSizeDamage??true,
+/*H*/   aoeJitter:c.aoeJitter??true,meteorSizeRadius:c.meteorSizeRadius??true,gearDamage:c.gearDamage??true,sarcSpawn:c.sarcSpawn??['ghost']}};
+/*H*/ // 範圍傷害隨機、星墜半徑、裝備傷害、石棺怪物
+/*H*/ const egAoeJit=()=>combatCfg().aoeJitter?rand(.9,1.1):1, egMetR=s=>combatCfg().meteorSizeRadius?s:1, egGearMul=m=>combatCfg().gearDamage?m:1;
+/*H*/ const egSarcType=()=>{const s=combatCfg().sarcSpawn;return s==='mix'?pickType(story.on&&ACTS[story.act]?ACTS[story.act].mix:[.45,.35,.2]):pick(s)};
+/*H*/ // 裝備：關掉傷害詞綴時換成別的詞綴；名稱可由 CONTENT.loot 覆寫
+/*H*/ const egPool=pool=>{if(combatCfg().gearDamage)return [...pool];const keep=pool.filter(k=>k!=='fire'&&k!=='spell');for(const k of ['hp','cast','move'])if(keep.length<pool.length&&!keep.includes(k))keep.push(k);return keep};
+/*H*/ const egBaseNames=b=>((CONTENT.loot||{}).names||{})[b.type]||b.names, egPrefixes=()=>(CONTENT.loot||{}).prefixes||PREFIX;
+/*H*/ // 物件移除時釋放幾何體與材質；egFreeMat 只放材質（共用幾何體）
+/*H*/ const egFreeMat=o=>o.traverse(c=>{if(c.material)for(const m of [].concat(c.material))m.dispose()});
+/*H*/ const egFree=o=>o.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material)for(const m of [].concat(c.material))m.dispose()});
+/*H*/ // 回應塔不放火焰；結尾死亡重來；對白中不開行囊；半透明主體投影
+/*H*/ const egFx=T=>!T.respond;
+/*H*/ function egBossDownRestart(){if(story.phase==='outro'){playDialog(EG_FLOW.down,egShowEnding);return true}if(story.phase==='end'){showEnding();return true}return false}
+/*H*/ const egNoBag=()=>!!dlg&&$('#inv').hidden;
+/*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
+/*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;

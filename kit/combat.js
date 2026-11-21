@@ -1,5 +1,5 @@
 // 戰鬥：狀態與數值、怪物、投射物、星墜、血環、裝備與行囊
-// 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
+// 依序載入的一般 script，頂層名稱在檔案之間共用（見 core.js）。
 'use strict';
 /* ---------- 狀態與數值 ---------- */
 let routeMode=0,upgraded=true,running=false,wave=1,waveTimer=0,time=0,shakeAmt=0,zoom=1,hitStop=0;
@@ -7,7 +7,7 @@ let routeMode=0,upgraded=true,running=false,wave=1,waveTimer=0,time=0,shakeAmt=0
 function shake(a){if(!SET.reduceShake)shakeAmt=Math.max(shakeAmt,a)}
 function freezeFrame(s){if(!SET.reduceShake)hitStop=Math.max(hitStop,s)}
 const stats={fire:0,spell:0,hp:0,cast:0,move:0,light:0};
-const castMul=()=>1+stats.cast/100, spellMul=()=>1+stats.spell/100, fireMul=()=>(1+stats.fire/100)*spellMul();
+const castMul=()=>1+stats.cast/100, spellMul=()=>egGearMul(1+stats.spell/100), fireMul=()=>egGearMul((1+stats.fire/100)*spellMul());
 const SPELLS={fire:{cd:.36,dur:.3,rel:.5},bolt:{cd:1.05,dur:.38,rel:.45},meteor:{cd:5,dur:.72,rel:.6},blood:{cd:4.5,dur:1.9,rel:.02}};
 const cds={fire:0,bolt:0,meteor:0,blood:0};
 const timers=[];function after(t,fn){timers.push({t,fn})}
@@ -57,17 +57,17 @@ function buildEnemy(type){
     parts.body=g}
   return {g,mats,parts};
 }
-function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=buildEnemy(type);b.g.position.set(x,0,z);scene.add(b.g);
+function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=egSkin(type,buildEnemy(type));b.g.position.set(x,0,z);scene.add(b.g);
   enemies.push({type,T,g:b.g,mats:b.mats,parts:b.parts,pos:b.g.position,hp:T.hp*hpMul,maxhp:T.hp*hpMul,alive:true,dying:-1,flash:0,atk:rand(.2,.9),aggro:false,wa:rand(0,TAU),wt:0,ph:rand(0,TAU),hpEl:null,radius:T.radius,rotY:0})}
 function pickType(mix){const r=Math.random();return r<mix[0]?'spider':r<mix[0]+mix[1]?'lizard':'ghost'}
 function spawnWave(n,mix=[.45,.35,.2],hpMul=1+(wave-1)*.25){for(let i=0;i<n;i++){let x,z;do{const a=rand(0,TAU),r=rand(12,40);x=Math.cos(a)*r;z=Math.sin(a)*r}while(Math.hypot(x-player.pos.x,z-player.pos.z)<11);
   spawnEnemy(pickType(mix),x,z,hpMul)}}
-function dealDamage(e,amt,kind){if(!e.alive)return;const crit=Math.random()<.12;if(crit)amt*=1.8;e.hp-=amt;e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
+function dealDamage(e,amt,kind){if(!e.alive)return;const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;e.hp-=amt;e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
   const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a',terrain:'#c9e06a',crush:'#e0d6c2',boom:'#7fe0ff'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
   if(!e.hpEl&&e.type!=='lord'){e.hpEl=document.createElement('div');e.hpEl.className='hpb';e.hpEl.innerHTML='<i></i>';fxLayer.appendChild(e.hpEl)}
   if(e.hpEl)e.hpEl.firstChild.style.transform=`scaleX(${Math.max(0,e.hp/e.maxhp)})`;
   if(e.hp<=0)killEnemy(e)}
-function aoe(pos,r,dmg,kind,skip){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*rand(.9,1.1),kind)}}
+function aoe(pos,r,dmg,kind,skip){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*egAoeJit(),kind)}}
 function killEnemy(e){e.alive=false;e.dying=0;player.kills++;if(e.hpEl){e.hpEl.remove();e.hpEl=null}
   if(e.type==='lord'){dropLoot(e.pos,3);dropLoot(e.pos,3);onBossDead(e);return}
   if(isTerrainKind(e.lastKind))onTerrainKill(e);
@@ -78,7 +78,7 @@ function killEnemy(e){e.alive=false;e.dying=0;player.kills++;if(e.hpEl){e.hpEl.r
 function updateEnemies(dt){
   const list=enemies;
   for(let i=list.length-1;i>=0;i--){const e=list[i];
-    if(e.dying>=0){e.dying+=dt;const k=e.dying/.55;e.g.scale.set(1+k*.3,Math.max(.01,1-k),1+k*.3);e.g.position.y=-k*.3;if(k>=1){scene.remove(e.g);list.splice(i,1)}continue}
+    if(e.dying>=0){e.dying+=dt;const k=e.dying/.55;e.g.scale.set(1+k*.3,Math.max(.01,1-k),1+k*.3);e.g.position.y=-k*.3;if(k>=1){scene.remove(e.g);egFree(e.g);list.splice(i,1)}continue}
     if(e.flinch>0){e.flinch=Math.max(0,e.flinch-dt);const k=e.flinch/.14;e.g.scale.set(1+.16*k,1-.12*k,1+.16*k)}else if(e.g.scale.x!==1)e.g.scale.set(1,1,1);  // 受擊抖動
     if(e.flash>0){e.flash-=dt;for(const m of e.mats)m.emissive.setRGB(.85,.75,.7)}else for(const m of e.mats)m.emissive.copy(m.userData.e0);
     const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,d=Math.hypot(dx,dz)||1;let mx=0,mz=0;
@@ -199,10 +199,10 @@ function updateMeteors(dt){
     rate(m.acc,'f',180,dt,()=>ADD.emit({x:m.pos.x+rand(-.5,.5)*s,y:m.pos.y+rand(-.4,.5)*s,z:m.pos.z+rand(-.5,.5)*s,vx:-m.vel.x*.06+rand(-.6,.6),vy:-m.vel.y*.06,vz:-m.vel.z*.06+rand(-.6,.6),kind:0,fm:0,fps:28,life:rand(.25,.4),s0:1.7*s,s1:.3,rs:rand(-2,2),r:1,g:.85,b:.65,a0:1,a1:0}));
     rate(m.acc,'s',45,dt,()=>SMOKE.emit({x:m.pos.x,y:m.pos.y+.3,z:m.pos.z,vx:rand(-.3,.3),vy:rand(.2,.6),vz:rand(-.3,.3),kind:2,fm:1,life:rand(1.2,1.6),s0:1.2*s,s1:3*s,rs:rand(-.6,.6),r:.3,g:.27,b:.25,a0:.5,a1:0,fadeIn:.1}));
     rate(m.acc,'e',40,dt,()=>{const d=randUnit();ADD.emit({x:m.pos.x,y:m.pos.y,z:m.pos.z,vx:d.x*2,vy:d.y*2+1,vz:d.z*2,kind:3,fm:2,frame:8+randi(0,7),life:rand(.4,.8),s0:.18,s1:.04,drag:1,r:1,g:.6,b:.2,a0:1,a1:0})});
-    if(k>=1){meteors.splice(i,1);m.dead=true;scene.remove(m.ring);const p=m.to.clone();p.y=.35;
+    if(k>=1){meteors.splice(i,1);m.dead=true;scene.remove(m.ring);egFreeMat(m.ring);const p=m.to.clone();p.y=.35;
       explode(p,1.7*s);
       for(let j=0;j<30;j++){const d=randUnit(),sp=rand(4,9);SMOKE.emit({x:p.x,y:.3,z:p.z,vx:d.x*sp,vy:Math.abs(d.y)*sp+2,vz:d.z*sp,kind:2,fm:2,frame:randi(0,4),life:rand(.6,1),s0:.35,s1:.2,grav:18,r:.2,g:.16,b:.13,a0:.9,a1:.6})}
-      aoe(p,2.7*s,60*s*fireMul(),'fire');addBurn(p,2.2*s,3.5);meteorTerrain(p,2.2*s);damageProps(p,2.6*s,3,'meteor');
+      aoe(p,2.7*egMetR(s),60*(combatCfg().meteorSizeDamage?s:1)*fireMul(),'fire');addBurn(p,2.2*egMetR(s),3.5);meteorTerrain(p,2.2*egMetR(s));damageProps(p,2.6*egMetR(s),3,'meteor');
       m.mesh.position.set(p.x,.15*s,p.z);rocks.push({mesh:m.mesh,t:0});
       shake(.38*s)}
   }
@@ -218,7 +218,7 @@ function updateBurns(dt){for(let i=burns.length-1;i>=0;i--){const b=burns[i];b.t
   rate(b.acc,'e',8,dt,()=>ADD.emit({x:b.pos.x+rand(-b.r,b.r)*.7,y:.2,z:b.pos.z+rand(-b.r,b.r)*.7,vy:rand(.8,1.6),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:3,fm:2,frame:8,life:rand(.8,1.2),s0:.12,s1:.03,r:1,g:.55,b:.2,a0:1,a1:0}));
   b.tick-=dt;if(b.tick<=0&&b.t<b.life){b.tick=.5;aoe(b.pos,b.r,7*fireMul(),'burn');const a=rand(0,TAU),rr=Math.random()*b.r;applyEl(cellOf(b.pos.x+Math.cos(a)*rr,b.pos.z+Math.sin(a)*rr),'fire')}
   b.decal.material.opacity=.9*fade;if(b.light&&b.light.owner===b)b.light.i0=1.6*fade;
-  if(b.t>=b.life){b.dead=true;scene.remove(b.decal);b.decal.material.dispose();burns.splice(i,1)}}}
+  if(b.t>=b.life){b.dead=true;scene.remove(b.decal);egFree(b.decal);burns.splice(i,1)}}}
 
 /* ---------- 血環（法陣＋八道血光） ---------- */
 const rites=[];
@@ -248,7 +248,7 @@ function updateRites(dt){
         if(t>=1){b.dead=true;explode(b.pos,.5,[1,.25,.32],false);sfx.boom(.45);
           terrainBlast(new V3(b.pos.x,0,b.pos.z),1.2,'blood');
           if(b.target&&b.target.alive)dealDamage(b.target,26*spellMul(),'blood');else aoe(b.pos,1.3,18*spellMul(),'blood')}}}
-    if(ts>2.45&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);o.mesh.material.dispose();rites.splice(i,1)}}
+    if(ts>2.45&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);egFree(o.mesh);rites.splice(i,1)}}
 }
 
 /* ---------- 裝備與行囊 ---------- */
@@ -261,7 +261,7 @@ const BASES=[
   {type:'ring',slot:'ring',names:['燼環','骨戒','月石戒指'],w:1,h:1,pool:['cast','spell','fire']},
   {type:'amulet',slot:'neck',names:['墓光護符','餘燼墜飾'],w:1,h:1,pool:['spell','fire','hp']},
   {type:'lantern',slot:'light',names:['燼燈','守夜提燈','墓火燈籠'],w:1,h:2,pool:['spell','hp','move']}];
-// 照明物：主角身邊的光圈半徑依稀有度（普通 5、魔法 7、稀有 9、傳奇 12），另外照稀有度少一條一般數值
+// 照明物的光圈半徑依稀有度（5、7、9、12），一般數值少一條
 const LAMP_R=[5,7,9,12];
 const RANGE={fire:[8,24],spell:[5,14],hp:[15,45],cast:[5,14],move:[4,11]};
 const SLABEL={fire:'火焰傷害',spell:'法術傷害',hp:'生命上限',cast:'施法速度',move:'移動速度',light:'照明半徑'};
@@ -282,9 +282,9 @@ const ICON={
 const COLS=10,ROWS=6,CELL=34;
 const inv=[],equipped={};
 function makeItem(force,base){const b=base||pick(BASES);let w=Math.random()*100,r=RAR[0];for(const x of RAR){if(w<x.w){r=x;break}w-=x.w}if(force!=null)r=RAR[force];
-  const lamp=b.slot==='light',keys=[...b.pool].sort(()=>Math.random()-.5).slice(0,lamp?r.k-1:r.k),st={};for(const k of keys)st[k]=Math.round(rand(...RANGE[k])*r.mul);
+  const lamp=b.slot==='light',keys=egPool(b.pool).sort(()=>Math.random()-.5).slice(0,lamp?r.k-1:r.k),st={};for(const k of keys)st[k]=Math.round(rand(...RANGE[k])*r.mul);
   if(lamp)st.light=LAMP_R[RAR.indexOf(r)];
-  const name=(r.k>=3?pick(PREFIX):'')+pick(b.names);return {id:Math.random().toString(36).slice(2),base:b,type:b.type,slot:b.slot,w:b.w,h:b.h,rar:r,st,name}}
+  const name=(r.k>=3?pick(egPrefixes()):'')+pick(egBaseNames(b));return {id:Math.random().toString(36).slice(2),base:b,type:b.type,slot:b.slot,w:b.w,h:b.h,rar:r,st,name}}
 function fits(x,y,w,h,skip){if(x<0||y<0||x+w>COLS||y+h>ROWS)return false;for(const it of inv){if(it===skip)continue;if(x<it.x+it.w&&x+w>it.x&&y<it.y+it.h&&y+h>it.y)return false}return true}
 function place(it){for(let y=0;y<=ROWS-it.h;y++)for(let x=0;x<=COLS-it.w;x++)if(fits(x,y,it.w,it.h)){it.x=x;it.y=y;inv.push(it);return true}return false}
 function recalc(){for(const k in stats)stats[k]=0;for(const s in equipped){const it=equipped[s];if(it)for(const k in it.st)stats[k]+=it.st[k]}
@@ -326,6 +326,6 @@ function updateLoot(dt){fullNoteT-=dt;
   for(let i=loots.length-1;i>=0;i--){const L=loots[i];L.t+=dt;L.m.rotation.y+=dt*1.5;L.g.position.y=.4+Math.sin(L.t*3)*.08;
     const [x,y,ok]=toScreen(tv.set(L.g.position.x,1.1,L.g.position.z));L.el.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`;L.el.style.display=ok?'block':'none';
     if(player.alive&&Math.hypot(L.g.position.x-player.pos.x,L.g.position.z-player.pos.z)<1.3){
-      if(place(L.it)){pickups++;scene.remove(L.g);L.el.remove();loots.splice(i,1);note('撿到 '+L.it.name+'（按 I 穿上）');sfx.pick();if(!$('#inv').hidden)renderInv()}
+      if(place(L.it)){pickups++;scene.remove(L.g);egFreeMat(L.g);L.el.remove();loots.splice(i,1);note('撿到 '+L.it.name+'（按 I 穿上）');sfx.pick();if(!$('#inv').hidden)renderInv()}
       else if(fullNoteT<=0){fullNoteT=2;note('行囊滿了，按 I 整理或丟掉')}}}}
 

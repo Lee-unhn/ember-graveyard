@@ -369,9 +369,8 @@ body.on-title .hud{display:none!important}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- 載入順序（兩層）：content/demo/ 先、kit/ 後；都是一般 script（不加 defer），依序執行，頂層名稱在檔案之間共用。
-     引擎在下面這些 defer 腳本之前執行（defer 腳本在整份文件解析完才依文件順序跑），與拆開前內嵌腳本的時機相同。
-     商業版換內容：把下面兩行 content/demo/ 換成自己的內容包，欄位見 kit/CONTENT-API.md -->
+<!-- 載入順序：content/demo/ 先、kit/ 後，都是一般 script（不加 defer），依序執行；早於下面的 defer 腳本。
+     換內容：把下面兩行 content/demo/ 換成自己的內容包（欄位見 kit/CONTENT-API.md） -->
 <script src="content/demo/story.js"></script>
 <script src="content/demo/world.js"></script>
 <script src="kit/core.js"></script>

@@ -1,8 +1,8 @@
 // 世界：地面與擺設、地形網格與自動演變、可破壞物、法陣材質、主角
-// 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
+// 依序載入的一般 script，頂層名稱在檔案之間共用（見 core.js）。
 'use strict';
 /* ---------- 地面與擺設 ---------- */
-// 地面要切細：Lambert 材質只在頂點算光，整片只有四個角時，提燈、法術、命中閃光這些點光源完全照不亮地面（DEVLOG #54）
+// 地面要切細：Lambert 只在頂點算光，只有四個角時點光源照不亮地面（DEVLOG #54）
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(140,140,70,70),new THREE.MeshLambertMaterial({map:groundTex}));
 ground.rotation.x=-Math.PI/2;scene.add(ground);
 const obstacles=[];
@@ -11,12 +11,12 @@ const barkMat=new THREE.MeshLambertMaterial({color:0x2a211b});
 function freeSpot(minR,maxR){for(let k=0;k<40;k++){const a=rand(0,TAU),r=rand(minR,maxR),x=Math.cos(a)*r,z=Math.sin(a)*r;
   if(obstacles.every(o=>Math.hypot(o.x-x,o.z-z)>o.r+1.6))return [x,z]}return [rand(-30,30),rand(-30,30)]}
 // 四座燈塔先佔位，墓碑與枯樹不會生在塔邊；擺完再縮回塔身大小
-// 世界擺設用固定種子：每次載入墓碑、枯樹、石棺都在同一位置（測試可重現、截圖與教學示範一致）
+// 世界擺設用固定種子：每次載入位置相同（測試可重現）
 function mulberry32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const _sysRandom=Math.random;Math.random=mulberry32(20261115);
 const TOWER_POS=CONTENT.towerPos;
 const towerObs=TOWER_POS.map(([x,z])=>{const o={x,z,r:3};obstacles.push(o);return o});
-// 可破壞物：墓碑（倒下壓怪）、枯樹（燒完倒下）、鐵柵欄（分段撞斷）、石棺（打破放出殘魂）
+// 可破壞物：墓碑（壓怪）、枯樹（燒倒）、鐵柵欄（撞斷）、石棺（放出怪物）
 const props=[];
 function addProp(p){p.q0=p.g?p.g.quaternion.clone():null;p.pos0=p.g?p.g.position.clone():null;p.state='up';p.t=0;p.hp=p.hp0;if(p.ob)p.ob.r0=p.ob.r;props.push(p);return p}
 for(let i=0;i<46;i++){const [x,z]=freeSpot(5,40),g=new THREE.Group(),m=Math.random()<.5?stoneMat:stoneMat2,s=rand(.8,1.25);let h;
@@ -50,7 +50,7 @@ Math.random=_sysRandom;  // 擺設完成，戰鬥中的亂數恢復正常
 /* ---------- 地形網格：每格 1 單位，88×88 格涵蓋整座墓園（參考 The-Waste-Land 的地形破壞＋地形殺） ---------- */
 const GN=88,GH=44,TPX=8;  // 格數、半寬、每格在貼圖上幾像素
 const TER={GRASS:0,SOIL:1,PAVE:2,WATER:3,MUD:4,FIRE:5,ASH:6,LAVA:7,CRATER:8,OBSID:9,SHOCK:10,BLOOD:11,WISP:12,BONE:13,STEAM:14};
-// ed＝每秒對怪傷害、pd＝每秒對玩家傷害、em／pm＝怪／玩家移動倍率、col＝地面色、glow＝發光色
+// ed／pd 每秒對怪／玩家傷害，em／pm 移動倍率，col 地面色，glow 發光色
 const TP=[
   {n:'枯草',col:[86,92,52,170],flam:1},
   {n:'墓土',col:[0,0,0,0]},
@@ -87,12 +87,12 @@ function genTerrain(){
     if(r>43)t=TER.SOIL;
     TT[i]=t;TM[i]=0;THP[i]=0}}
 genTerrain();const TT0=TT.slice();
-// 兩張地面貼圖：一張受光照的地面色，一張疊加發光（火、熔岩、帶電水、血沼、磷火）
+// 兩張地面貼圖：受光的地面色，加疊發光（火、熔岩、電水、血沼、磷火）
 const TW=GN*TPX,tData=new Uint8Array(TW*TW*4),gData=new Uint8Array(TW*TW*4);
 const tTex=new THREE.DataTexture(tData,TW,TW,THREE.RGBAFormat),gTex=new THREE.DataTexture(gData,TW,TW,THREE.RGBAFormat);
 for(const tx of [tTex,gTex]){tx.magFilter=THREE.LinearFilter;tx.minFilter=THREE.LinearFilter;tx.generateMipmaps=false}
-// 柔和邊緣：每個像素先用低頻雜訊抖動取樣位置，邊緣的像素會取到隔壁格的地形，交界因此變成不規則的鋸齒狀。
-// 抖動量小於一格，所以一格改變只會影響自己與周圍 3×3。抖動結果只跟像素位置有關，開頁時先算好一張表。
+// 柔和邊緣：像素先用低頻雜訊抖動取樣位置，交界因此成為不規則的鋸齒。
+// 抖動小於一格，一格改變只影響周圍 3×3；結果只跟像素位置有關，開頁時算成一張表。
 function tnoise(x,y){const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),
   a=h2(ix,iy),b=h2(ix+1,iy),c=h2(ix,iy+1),d=h2(ix+1,iy+1);return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy}
 const NBC=new Uint8Array(TW*TW),JB=new Uint8Array(TW*TW),JG=new Uint8Array(TW*TW);
@@ -107,7 +107,7 @@ function paintPx(i){const gx=i%GN,gz=(i/GN)|0,px0=gx*TPX,py0=(GN-1-gz)*TPX;
     tData[k]=c[0]*j;tData[k+1]=c[1]*j;tData[k+2]=c[2]*j;tData[k+3]=c[3];
     if(g){const gj=.7+.6*JG[q]/255;gData[k]=Math.min(255,g[0]*gj);gData[k+1]=Math.min(255,g[1]*gj);gData[k+2]=Math.min(255,g[2]*gj);gData[k+3]=255}
     else{gData[k]=gData[k+1]=gData[k+2]=gData[k+3]=0}}}
-// 改一格只先記下來，等畫面更新時一起重畫（自己加周圍 3×3），再只把變動的橫條送上顯示卡
+// 改一格先記下，畫面更新時一起重畫（含周圍 3×3），只送變動的橫條
 const tDirty=new Uint8Array(GN*GN),tDirtyList=[];let terrFull=true;
 const terrStats={full:0,partial:0,strips:0,px:0};
 function paintCell(i){const gx=i%GN,gz=(i/GN)|0;
@@ -136,7 +136,7 @@ function terrainBlast(pos,r,el){cellsIn(pos,r,i=>applyEl(i,el))}
 function meteorTerrain(pos,r){cellsIn(pos,r,(i,d)=>applyEl(i,d<r*.45?'meteor':'crater'))}
 function boom(i){const p=cellCenter(i);TT[i]=TER.CRATER;TM[i]=0;paintCell(i);
   if(running){for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.x,e.pos.z-p.z)<2+e.radius*.5)dealDamage(e,40,'boom')}
-    if(player.alive&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2)hurtPlayer(8,'磷火爆炸')}
+    if(player.alive&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2)hurtPlayer(8,EG_TERM.gas)}
   cellsIn(p,2,(c,d)=>{const t=TT[c];if(t===TER.WISP)queueBoom(c,.1+Math.random()*.12);else if(isFlam(t))setT(c,TER.FIRE,rand(3,5));else if(t===TER.WATER)setT(c,TER.STEAM,2.5);else if(t===TER.OBSID){if(--THP[c]<=0)setT(c,TER.CRATER)}else if(d<1.1&&(t===TER.SOIL||t===TER.ASH))setT(c,TER.CRATER)});
   damageProps(p,2,2,'boom');explode(new V3(p.x,.5,p.z),.9,[.55,.9,1],false);sfx.boom(.7)}
 
@@ -195,8 +195,8 @@ function breakProp(p,src){p.hp=0;const away=new V3(p.x-src.x,0,p.z-src.z);if(awa
   if(p.ob)p.ob.r=0;
   if(p.kind==='fence'){p.state='broken';setFence(p.idx,false);
     for(let k=0;k<10;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.8,z:p.z,vx:d.x*4,vy:Math.abs(d.y)*4,vz:d.z*4,kind:2,fm:2,frame:3,life:rand(.6,1),s0:.25,s1:.15,grav:14,r:.12,g:.12,b:.14,a0:.9,a1:.7})}return}
-  if(p.kind==='sarc'){p.state='broken';p.t=0;for(let k=0;k<2;k++)spawnEnemy('ghost',p.x+rand(-1.5,1.5),p.z+rand(-1.5,1.5),1+(story.on?story.act*.15:(wave-1)*.25));
-    dropLoot(new V3(p.x,0,p.z),1+Math.floor(Math.random()*2));note('石棺裂開，殘魂竄了出來');
+  if(p.kind==='sarc'){p.state='broken';p.t=0;for(let k=0;k<2;k++)spawnEnemy(egSarcType(),p.x+rand(-1.5,1.5),p.z+rand(-1.5,1.5),1+(story.on?story.act*.15:(wave-1)*.25));
+    dropLoot(new V3(p.x,0,p.z),1+Math.floor(Math.random()*2));note(EG_TERM.sarcBreak);
     for(let k=0;k<14;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.7,z:p.z,vx:d.x*3,vy:Math.abs(d.y)*3+1,vz:d.z*3,kind:2,fm:1,life:rand(.8,1.4),s0:.8,s1:2,r:.4,g:.45,b:.55,a0:.6,a1:0})}return}
   p.state='falling';p.t=0;p.axis=new V3(p.dir.z,0,-p.dir.x)}
 const _q=new THREE.Quaternion();

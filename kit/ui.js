@@ -1,5 +1,5 @@
 // 介面：鏡頭、HUD、主迴圈、畫面切換、存檔、設定畫面、按鈕
-// 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
+// 依序載入的一般 script，頂層名稱在檔案之間共用（見 core.js）。
 'use strict';
 /* ---------- 鏡頭、介面、主迴圈 ---------- */
 const camPos=new V3(0,15,11);
@@ -7,7 +7,7 @@ let camSnap=false;
 function updateCamera(dt){
   // 標題畫面：鏡頭繞著墓園慢慢轉
   if(!running){const a=time*.06,w=new V3(Math.cos(a)*26,16,Math.sin(a)*26);camPos.lerp(w,Math.min(1,dt*2));camera.position.copy(camPos);camera.lookAt(0,0,0);camSnap=true;return}
-  // 離開標題後第一格直接跳到角色身後，不從環繞位置滑回來（滑行中瞄準點會偏，DEVLOG #36）
+  // 離開標題後第一格直接跳到角色身後（滑行中瞄準點會偏，DEVLOG #36）
   const off=new V3(0,CAM_H*zoom,CAM_B*zoom),want=new V3(player.pos.x,0,player.pos.z).add(off);if(camSnap){camPos.copy(want);camSnap=false}else camPos.lerp(want,Math.min(1,dt*6));
   camera.position.copy(camPos);if(shakeAmt>.001){camera.position.x+=rand(-1,1)*shakeAmt;camera.position.y+=rand(-1,1)*shakeAmt;camera.position.z+=rand(-1,1)*shakeAmt;shakeAmt*=Math.exp(-dt*9)}
   camera.lookAt(camPos.x,0,camPos.z-CAM_B*zoom+.0001)}
@@ -34,9 +34,9 @@ function updateHud(dt){fpsAcc+=dt;fpsN++;if(fpsAcc>=.5){$('#sFps').textContent=M
   for(const el of skEls){const id=el.dataset.s,cs=castMul();el.querySelector('.cd').style.setProperty('--p',cds[id]/(SPELLS[id].cd/cs)||0);el.classList.toggle('locked',!story.unlocked.has(id))}
   if(toastT>0){toastT-=dt;if(toastT<=0)$('#toast').style.opacity=0}if(msgT>0){msgT-=dt;if(msgT<=0)$('#msg').style.opacity=0}}
 function restart(){
-  if(story.on){clearWorld();if(story.phase==='boss'){player.pos.set(0,0,14);startBoss()}else{player.pos.set(0,0,4);beginAct(story.act)}return}
+  if(story.on){clearWorld();if(story.phase==='boss'){player.pos.set(0,0,14);startBoss()}else if(egBossDownRestart()){}else{player.pos.set(0,0,4);beginAct(story.act)}return}
   clearWorld();player.pos.set(0,0,0);player.kills=0;wave=1;waveTimer=0;spawnWave(50);toast('第 1 波')}
-// logic＝遊戲規則一格；visuals＝畫面一格。暫停（對白中）只停 logic。驗收探針也直接呼叫這兩個。
+// logic＝規則一格；visuals＝畫面一格。暫停只停 logic。驗收探針直接呼叫這兩個。
 function logic(dt){
   for(let i=timers.length-1;i>=0;i--){timers[i].t-=dt;if(timers[i].t<=0){const f=timers[i].fn;timers.splice(i,1);f()}}
   updatePlayer(dt);updateEnemies(dt);updateShocks(dt);updateProjs(dt);updateMeteors(dt);updateBurns(dt);updateRites(dt);updateLoot(dt);updateTerrain(dt);ambient(dt);updateStory(dt);
@@ -71,7 +71,7 @@ function fmtTime(s){s=Math.max(0,Math.round(s));return `${Math.floor(s/60)} 分 
 // 階段結算：每點亮一座燈塔就停下來看這一幕的成績
 function showResult(act,then){const rows=[['用時',fmtTime(time-story.actT0)],['擊倒',(player.kills-story.actKills0)+' 隻'],['地形擊殺',(terrainKills-story.actTk0)+' 隻'],
     ['最高地形連鎖',story.bestChain>=2?'×'+story.bestChain:'沒有'],['撿到裝備',(pickups-story.actLoot0)+' 件']];
-  $('#rTitle').textContent=TOWERS[act].name+'點亮了';$('#rHead').textContent=`第 ${act+1} 幕　完成`;
+  $('#rTitle').textContent=TOWERS[act].name+egLit(TOWERS[act]);$('#rHead').textContent=`第 ${act+1} 幕　完成`;
   $('#rTab').innerHTML=rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');resultThen=then;$('#result').hidden=false;syncMenu();$('#rNext').focus()}
 function closeResult(){if($('#result').hidden)return;$('#result').hidden=true;syncMenu();const f=resultThen;resultThen=null;if(f)f()}
 // 設定畫面
@@ -95,9 +95,9 @@ $('#rNext').onclick=closeResult;$('#deadTitle').onclick=goTitle;$('#endCredits')
 $('#goContinue').onclick=()=>{const s=readSave();startStory(s?s.act:0)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running&&!menuOpen&&!dlg&&player.alive)togglePause(true)});
 // 死因與提示、讀取畫面的提示
-const DEATH_TIPS={'熔岩':'熔岩是唯一會傷到你的地形，橘紅發光的地面別久站。','首領衝擊波':'衝擊波會往外擴散：退到圈外，或貼近首領躲在圈內。','磷火爆炸':'藍色磷火墳碰到火或雷會爆炸，施法前先看腳下。'};
-const DEFAULT_TIP='被包圍時用星墜清場，或把怪物引進燃燒的草地。';
-const LOAD_TIPS=['火球打中枯草會點燃整片草地，站在火裡的怪物會一直扣血。','鏈雷打進積水，整片相連的水都會帶電。','墓碑被炸三次會朝反方向倒下，壓死路徑上的怪物。',
+const DEATH_TIPS={[EG_TERM.lava]:EG_TERM.tipLava,[EG_TERM.bossShock]:EG_TERM.tipShock,[EG_TERM.gas]:EG_TERM.tipGas};
+const DEFAULT_TIP=EG_TERM.tipDefault;
+const LOAD_TIPS=CONTENT.text.loadTips||['火球打中枯草會點燃整片草地，站在火裡的怪物會一直扣血。','鏈雷打進積水，整片相連的水都會帶電。','墓碑被炸三次會朝反方向倒下，壓死路徑上的怪物。',
   '熔岩碰到積水會凝成黑曜石牆，可以拿來擋路。','藍色磷火墳會連鎖爆炸，引怪物過去再點燃。','1.2 秒內連續地形擊殺，會累積「地形連鎖」。','設定裡可以降低粒子密度、關掉震動與停格。'];
 $('#ldtip').textContent=pick(LOAD_TIPS);$('#ldfill').style.width='20%';
 

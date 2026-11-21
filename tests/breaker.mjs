@@ -3,8 +3,9 @@
 // A check that is RED here is a finding (see incoming/design/breaker_split.md); a GREEN one proves that direction was tried and held.
 // It does not edit kit/, content/, index.html or any other test: every variant is built in a temp copy.
 //   node tests/breaker.mjs
+import os from 'node:os';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import vm from 'node:vm';
@@ -17,9 +18,13 @@ const BASE = '1e294ad'; // main, before the split
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const work = mkdtempSync(join(tmpdir(), 'eg-breaker-'));
 const cleanups = [() => rmSync(work, { recursive: true, force: true })];
+const SETTLE_MS = Number(process.env.BREAKER_SETTLE_MS) || 8000; // how long a page may take to become usable; the default is the strict value, a slow or shared machine can raise it (BREAKER_SETTLE_MS=20000)
 
 // ---------------------------------------------------------------- helpers
-const freeGB = () => parseFloat(spawnSync('powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB'], { encoding: 'utf8' }).stdout.replace(',', '.')) || 0;
+// Windows: ask PowerShell (counts standby memory the way the team's 3 GB rule does); elsewhere (Linux CI): os.freemem (DEVLOG #82)
+const freeGB = () => process.platform === 'win32'
+  ? parseFloat((spawnSync('powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB'], { encoding: 'utf8' }).stdout || '').replace(',', '.')) || 0
+  : os.freemem() / 1024 ** 3;
 async function waitForMemory() {
   for (let i = 0; i < 60; i++) { const g = freeGB(); if (g >= 3 || process.platform !== 'win32') return g; console.log(`  (free memory ${g.toFixed(1)} GB < 3 GB, waiting 30 s)`); await sleep(30000); }
   return freeGB();
@@ -29,9 +34,15 @@ function demoContent() {
   for (const f of ['story.js', 'world.js']) vm.runInContext(read('content/demo/' + f), ctx);
   return JSON.parse(JSON.stringify(ctx.CONTENT));
 }
-function freshCopy(name) { // a copy of the worktree without .git / heavy folders, for planting defects
+// git-ignored paths (local design drafts in incoming/, screenshots, the private main file) are never published,
+// so the copy leaves them out, exactly like the publish gates do in the real checkout (DEVLOG #83)
+const IGNORED = (() => {
+  const r = spawnSync('git', ['-C', ROOT, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory'], { encoding: 'utf8' });
+  return new Set(r.status === 0 ? r.stdout.split('\n').filter(Boolean).map((s) => s.replace(/\/$/, '')) : []);
+})();
+function freshCopy(name) { // a copy of the worktree without .git / heavy folders / ignored files, for planting defects
   const dir = join(work, name);
-  cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/](\.git|node_modules)([\\/]|$)/.test(s) });
+  cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/](\.git|node_modules)([\\/]|$)/.test(s) && !IGNORED.has(relative(ROOT, s).replace(/\\/g, '/')) });
   return dir;
 }
 function edit(dir, file, fn) { const p = join(dir, file); const t = readFileSync(p, 'utf8'); const n = fn(t); if (n === t) throw new Error(`edit did not apply: ${file}`); writeFileSync(p, n); }
@@ -57,7 +68,61 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [["EG_KEY('eg-save')", "'eg-save'"], ["EG_KEY('eg-settings')", "'eg-settings'"], ["EG_KEY('eg-keys')", "'eg-keys'"],
-  ['for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg)', "story.seen.add('intro')"]];
+  ['for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg)', "story.seen.add('intro')"],
+  // combat switches for content packs (DEVLOG timeline #42): the defaults reproduce main exactly
+  ['const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;', 'const crit=Math.random()<.12;if(crit)amt*=1.8;'],
+  ['60*(combatCfg().meteorSizeDamage?s:1)*fireMul()', '60*s*fireMul()'],
+  // content fields for flow / terms / respond towers / monsters (DEVLOG timeline #43): each line below is a main line with one expression swapped for a call into the /*H*/ helpers in kit/core.js; the defaults reproduce main's text exactly
+  ["`${EG_TERM.undead}被火光吸引過來了`", "'亡者被火光吸引過來了'"],
+  ["${T.name}${egLit(T)}`", "${T.name}點亮了`"],
+  ["else egBossIntro()", "else startBoss()"],
+  ["擊倒甦醒的${EG_TERM.undead}　", "擊倒甦醒的亡者　"],
+  ["`${EG_TERM.go}${TOWERS[story.act].name}`", "`前往${TOWERS[story.act].name}`"],
+  ["`${egIgnite(T)}${T.name}　", "`點燃${T.name}　"],
+  ["`${EG_TERM.go}${T.name}（", "`前往${T.name}（"],
+  ["召來了${EG_TERM.undead}`", "召來了亡者`"],
+  ["`更多${EG_TERM.undead}從墳裡爬出來`", "'更多亡者從墳裡爬出來'"],
+  ["playDialog(EG_FLOW.half,null)", "playDialog('dark',null)"],
+  ["playDialog(EG_FLOW.down,egShowEnding)", "playDialog('end',showEnding)"],
+  ["function setTowerLit(T,on){if(egRespondSet(T,on))return;", "function setTowerLit(T,on){"],
+  ["function updateTowers(dt){egPulse();", "function updateTowers(dt){"],
+  ["note(`這招還沒學會，先${EG_TERM.light}${EG_TERM.tower}`)", "note('這招還沒學會，先點亮燈塔')"],
+  ["TOWERS[act].name+egLit(TOWERS[act])", "TOWERS[act].name+'點亮了'"],
+  ["b=egSkin(type,buildEnemy(type));", "b=buildEnemy(type);"],
+  // engine switches and fixes for the commercial slice's breaker report (DEVLOG timeline #44): again each line is a main line with one call into the /*H*/ helpers in kit/core.js swapped in; the defaults reproduce main
+  ["spellMul=()=>egGearMul(1+stats.spell/100)", "spellMul=()=>1+stats.spell/100"],
+  ["fireMul=()=>egGearMul((1+stats.fire/100)*spellMul())", "fireMul=()=>(1+stats.fire/100)*spellMul()"],
+  ["dealDamage(e,dmg*egAoeJit(),kind)", "dealDamage(e,dmg*rand(.9,1.1),kind)"],
+  ["*egMetR(s)", "*s"],
+  ["keys=egPool(b.pool).sort", "keys=[...b.pool].sort"],
+  ["(r.k>=3?pick(egPrefixes()):'')+pick(egBaseNames(b))", "(r.k>=3?pick(PREFIX):'')+pick(b.names)"],
+  ["spawnEnemy(egSarcType(),", "spawnEnemy('ghost',"],
+  ["note(EG_TERM.sarcBreak)", "note('石棺裂開，殘魂竄了出來')"],
+  ["hurtPlayer(8,EG_TERM.gas)", "hurtPlayer(8,'磷火爆炸')"],
+  ["hurtPlayer(a,EG_TERM.lava)", "hurtPlayer(a,'熔岩')"],
+  ["hurtPlayer(22,EG_TERM.bossShock)", "hurtPlayer(22,'首領衝擊波')"],
+  ["function hurtPlayer(d,src=EG_TERM.monster)", "function hurtPlayer(d,src='怪物')"],
+  ["it.name=EG_TERM.lampName", "it.name='燼燈'"],
+  ["note(EG_TERM.lampGet)", "note('得到一盞燼燈：身邊照亮 5 公尺（按 I 看裝備）')"],
+  ["story.phase==='ignite'?EG_TERM.hintIgnite:EG_TERM.hintGo", "story.phase==='ignite'?'站在塔下，別離開':'跟著地上的箭頭與光柱走'"],
+  ["obj(`擊敗${CONTENT.text.bossName}`,EG_TERM.hintBoss)", "obj(`擊敗${CONTENT.text.bossName}`,'紫色衝擊波會往外擴散：退到圈外，或貼近牠躲進圈內')"],
+  ["egFx(T)&&explode(", "explode("],
+  ["story.phase==='ignite'&&egFx(T))rate(T.acc,'ig'", "story.phase==='ignite')rate(T.acc,'ig'"],
+  ["}else if(egBossDownRestart()){}else{", "}else{"],
+  ["function toggleInv(){if(egNoBag())return;", "function toggleInv(){"],
+  ["(m.transparent && !egShadowBody(m))", "m.transparent"],
+  ["const DEATH_TIPS={[EG_TERM.lava]:EG_TERM.tipLava,[EG_TERM.bossShock]:EG_TERM.tipShock,[EG_TERM.gas]:EG_TERM.tipGas};", "const DEATH_TIPS={'熔岩':'熔岩是唯一會傷到你的地形，橘紅發光的地面別久站。','首領衝擊波':'衝擊波會往外擴散：退到圈外，或貼近首領躲在圈內。','磷火爆炸':'藍色磷火墳碰到火或雷會爆炸，施法前先看腳下。'};"],
+  ["const DEFAULT_TIP=EG_TERM.tipDefault;", "const DEFAULT_TIP='被包圍時用星墜清場，或把怪物引進燃燒的草地。';"],
+  ["const LOAD_TIPS=CONTENT.text.loadTips||[", "const LOAD_TIPS=["],
+  // releasing geometry and materials when things leave the scene (F10, F16)
+  ["scene.remove(e.g);egFree(e.g);", "scene.remove(e.g);"],
+  ["scene.remove(L.g);egFreeMat(L.g);", "scene.remove(L.g);"],
+  ["scene.remove(s.mesh);egFreeMat(s.mesh)", "scene.remove(s.mesh)"],
+  ["scene.remove(m.mesh);egFreeMat(m.mesh);scene.remove(m.ring);egFreeMat(m.ring)", "scene.remove(m.mesh);scene.remove(m.ring)"],
+  ["scene.remove(m.ring);egFreeMat(m.ring);const p", "scene.remove(m.ring);const p"],
+  ["scene.remove(b.decal);egFree(b.decal)}", "scene.remove(b.decal)}"],
+  ["scene.remove(b.decal);egFree(b.decal);burns", "scene.remove(b.decal);b.decal.material.dispose();burns"],
+  ["scene.remove(o.mesh);egFree(o.mesh);rites", "scene.remove(o.mesh);o.mesh.material.dispose();rites"]];
 const HTML_FORWARD = [['<div class="nm">無燈之主</div>', '<div class="nm"></div>'],
   ['<p class="note" id="introNote">故事模式約 15 分鐘：點亮四座燈塔、學會四招法術，最後對上無燈之主。自由試玩：四招全開，可切換拆解台。需要鍵盤與滑鼠；怪物死後會掉裝備，走過去自動撿起，按 I 穿上。</p>', '<p class="note" id="introNote"></p>'],
   ['color:#d6cdb9">四座燈塔重新亮起。燼語墓園今晚會很安靜。</p>', 'color:#d6cdb9"></p>']];
@@ -180,10 +245,10 @@ async function gates() {
   const sm = smokeOf(dir); out = await runChecksStatic(dir);
   rep.ok(added(sm.out, baseSmoke).length > 0 || added(out, baseChecks).length > 0, 'gates: the same top-level const declared in two kit files (a SyntaxError in the browser) turns a static gate red', { smokeExit: sm.code, checksFails: added(out, baseChecks).length });
   // 6. mutation test: every needle must exist exactly once in the code files, otherwise the planted defect lands somewhere else than intended
-  const needles = ['<!doctype html>\n', "if(!story.unlocked.has(id)){if(story.on)note('這招還沒學會，先點亮燈塔');return}", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push(', 'Math.random=mulberry32(20261115);', 'if(!running||paused||menuOpen||!player.alive)return;', 'function tnoise(x,y){'];
+  const needles = ['<!doctype html>\n', "if(!story.unlocked.has(id)){if(story.on)note(`這招還沒學會，先${EG_TERM.light}${EG_TERM.tower}`);return}", 'A*=ss(.47,.4,', 'if(Math.random()<spreadP(nt))ch.push(', 'Math.random=mulberry32(20261115);', 'if(!running||paused||menuOpen||!player.alive)return;', 'function tnoise(x,y){', 'EG_FLOW.preBoss?playDialog(EG_FLOW.preBoss,startBoss):startBoss()'];
   const files = ['index.html', ...readdirSync(join(ROOT, 'kit')).filter((x) => x.endsWith('.js')).map((x) => 'kit/' + x)];
   const counts = needles.map((n) => files.reduce((c, f) => c + read(f).split(n).length - 1, 0));
-  rep.ok(counts.every((c) => c === 1), 'gates(control): each of the seven mutation needles occurs exactly once across index.html + kit/*.js (so the planted defect lands where intended)', counts);
+  rep.ok(counts.every((c) => c === 1), 'gates(control): each of the eight mutation needles occurs exactly once across index.html + kit/*.js (so the planted defect lands where intended)', counts);
   // mutation 7 renames tnoise( in whichever file first contains 'function vnoise(x,y){': check it is the file that holds the planted copy, so two vnoise stay a duplicate
   const planted = files.filter((f) => read(f).includes('function tnoise(x,y){'))[0];
   const firstVn = files.find((f) => (read(f).replace('function tnoise(x,y){', 'function vnoise(x,y){')).includes('function vnoise(x,y){'));
@@ -262,7 +327,7 @@ async function runtime() {
   const p = await openPage(base + 'control.html', { width: 1280, height: 800 });
   cleanups.push(() => p.close());
   const readyExpr = `!!document.querySelector('#go') && !document.querySelector('#go').disabled`;
-  async function load(url, { settle = 8000 } = {}) {
+  async function load(url, { settle = SETTLE_MS } = {}) {
     await p.send('Page.navigate', { url: 'about:blank' }); await sleep(150); p.errors.length = 0;
     await p.send('Page.navigate', { url }); const t0 = Date.now(); let ready = false;
     while (Date.now() - t0 < settle) { await sleep(200); ready = await p.evaluate(readyExpr).catch(() => false); if (ready) break; if (p.errors.length && Date.now() - t0 > 3000) break; }

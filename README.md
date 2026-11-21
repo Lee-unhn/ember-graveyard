@@ -254,7 +254,7 @@ The page is split so that a second game can take only the engine. `kit/` is the 
 | `content/demo/` | `story.js` (speakers, portraits, dialogue), `world.js` (towers, acts, boss name, file paths), `voice/` (24 dialogue recordings), `models/mage-model.js` (CC0 mage) |
 | `index.html` | HTML, CSS, script load order, `loop()` |
 
-Load order: three.js, then `content/demo/*.js`, then `kit/*.js`, then the deferred scripts. All of them are classic scripts sharing one global scope (top-level `const`, `let` and `function` are visible across files by name), so every function and variable keeps its old name. `tests/checks.mjs` fails if `kit/` contains demo story text or if `content/` contains engine logic. At load time `kit/core.js` validates the pack: a missing required field (`towers`, `towerPos`, `acts`, or an act and tower count that do not match) stops the load and writes the reason on the loading screen; a missing optional field (speakers, portraits, dialogue, voice folder, boss name) gets a safe default and a warning in `window.__contentWarnings`. Save and settings keys carry the pack id (`CONTENT.id`; the demo, id `demo`, keeps the original `eg-save`, `eg-settings` and `eg-keys` so existing saves stay valid).
+Load order: three.js, then `content/demo/*.js`, then `kit/*.js`, then the deferred scripts. All of them are classic scripts sharing one global scope (top-level `const`, `let` and `function` are visible across files by name), so every function and variable keeps its old name. `tests/checks.mjs` fails if `kit/` contains demo story text or if `content/` contains engine logic. At load time `kit/core.js` validates the pack: a missing required field (`towers`, `towerPos`, `acts`, or an act and tower count that do not match) stops the load and writes the reason on the loading screen; a missing optional field (speakers, portraits, dialogue, voice folder, boss name) gets a safe default and a warning in `window.__contentWarnings`. Save and settings keys carry the pack id (`CONTENT.id`; the demo, id `demo`, keeps the original `eg-save`, `eg-settings` and `eg-keys` so existing saves stay valid). A pack can also set four optional field groups instead of patching the engine: `CONTENT.flow` (dialogue ids before the boss and before the ending), `CONTENT.terms` (the interface words the engine builds sentences from), tower flags `respond`/`respondIgnite`/`respondLit` (a tower that only answers instead of lighting up) and `CONTENT.monsters` (monster names, colours, size and hidden parts). Left out, each one reproduces the demo exactly; a wrong type stops the load with a message that names the field. The phone-width layout of the objective bar and the boss health bar ships with the engine (`kit/boot.js`).
 
 ## Development log
 
@@ -286,7 +286,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | Checks | `npm run test:checks` | 68 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice, engine/content boundary (no story text in `kit/`, no engine logic in `content/`), script load order |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
 | Breaker | `npm run test:breaker` | 60+ adversarial checks on the engine/content split (part of `npm test`): content with missing fields, unknown dialogue codes or speakers, other tower counts, another pack on the same origin, load order and 404s, `file://`, and whether the static gates can be fooled; the repo's own differences from main are listed explicitly and anything else is red |
-| Mutation | part of `npm test` | Copies the project, plants nine known defects and requires the unit and check suites to turn red |
+| Mutation | part of `npm test` | Copies the project, plants ten known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
 
 GitHub Actions runs `npm test` on every push and pull request.
@@ -400,7 +400,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 | `content/demo/` | `story.js`（說話者、頭像、對白）、`world.js`（塔與幕、首領名稱、檔案路徑）、`voice/`（24 句預錄語音）、`models/mage-model.js`（CC0 人偶） |
 | `index.html` | HTML、CSS、script 載入順序、`loop()` |
 
-載入順序：three.js、`content/demo/*.js`、`kit/*.js`、最後是 `defer` 腳本。全是一般 script、共用同一個全域範圍（頂層 `const`、`let`、`function` 在檔案之間以名稱共用），所以每個函式與變數維持原名。`tests/checks.mjs` 會在 `kit/` 出現示範劇情文字、或 `content/` 出現引擎邏輯時變紅。`kit/core.js` 載入時會驗證內容包：缺少必要欄位（`towers`、`towerPos`、`acts`，或幕數與塔數不一致）就停下來，把原因寫在讀取畫面上；缺少選填欄位（說話者、頭像、對白、語音資料夾、首領名稱）就補安全預設並把警告記在 `window.__contentWarnings`。存檔與設定的鍵名帶內容包識別（`CONTENT.id`；示範版 id 為 `demo`，沿用原本的 `eg-save`、`eg-settings`、`eg-keys`，既有存檔不失效）。
+載入順序：three.js、`content/demo/*.js`、`kit/*.js`、最後是 `defer` 腳本。全是一般 script、共用同一個全域範圍（頂層 `const`、`let`、`function` 在檔案之間以名稱共用），所以每個函式與變數維持原名。`tests/checks.mjs` 會在 `kit/` 出現示範劇情文字、或 `content/` 出現引擎邏輯時變紅。`kit/core.js` 載入時會驗證內容包：缺少必要欄位（`towers`、`towerPos`、`acts`，或幕數與塔數不一致）就停下來，把原因寫在讀取畫面上；缺少選填欄位（說話者、頭像、對白、語音資料夾、首領名稱）就補安全預設並把警告記在 `window.__contentWarnings`。存檔與設定的鍵名帶內容包識別（`CONTENT.id`；示範版 id 為 `demo`，沿用原本的 `eg-save`、`eg-settings`、`eg-keys`，既有存檔不失效）。內容包另有四組選填欄位，不必再靠外掛改寫引擎：`CONTENT.flow`（首領出場前與結局前的對白代號）、`CONTENT.terms`（引擎組句子用的介面詞）、塔的 `respond`／`respondIgnite`／`respondLit`（只回應、不點亮的塔）、`CONTENT.monsters`（怪物名稱、配色、大小與隱藏部件）。沒給就與示範版完全一樣；型別不對就停下來並指名欄位。手機寬度下目標欄與首領血條的排版隨引擎出貨（`kit/boot.js`）。
 
 ### 開發紀錄
 
@@ -427,12 +427,12 @@ npm test
 | 測試組 | 指令 | 驗什麼 |
 |---|---|---|
 | 煙霧測試 | `npm run test:smoke` | 靜態閘門（大小、外連網域、程式可編譯、隱私掃描）＋整合探針：四招都造成傷害、三條路線都能畫、故事模式從開場跑到結局 |
-| 單元測試 | `npm run test:unit` | 68 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳 |
+| 單元測試 | `npm run test:unit` | 108 項，直接測頁面裡的函式：雜訊、翻頁圖邊緣與循環接縫、粒子池、燈光池、裝備與照形狀占格、傷害與爆擊、法術鎖、對白引擎、故事狀態機、首領衝擊波、每一種地形反應、地形自動演變、磷火連鎖爆炸、地形殺與連鎖、墓碑倒下壓怪、枯樹燒倒、柵欄、石棺；存檔、設定、暫停、階段結算、死因、停格、地形柔和邊緣與分段上傳、內容欄位（流程、用語、塔的回應狀態、怪物外觀、戰鬥開關、裝備命名、投影）、首領倒下後死亡重來、對白中不開行囊、幾何體與材質釋放 |
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次、引擎與內容的邊界（`kit/` 沒有劇情文字、`content/` 沒有引擎邏輯）、script 載入順序 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
 | 破壞者測試 | `npm run test:breaker`（也包在 `npm test` 裡） | 60 多項針對引擎與內容拆分的對抗檢查：內容缺欄位、對白代號或說話者對不上、塔數與幕數不同、同網域的另一個內容包、載入順序與檔案 404、直接開 `file://`、靜態閘門能不能被繞過；與拆分前主線的差異逐項列明，其餘一律紅燈 |
-| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋九個已知缺陷，單元與其他驗證必須變紅 |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋十二個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 
 每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。
