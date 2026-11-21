@@ -21,12 +21,14 @@ const cleanups = [() => rmSync(work, { recursive: true, force: true })];
 const SETTLE_MS = Number(process.env.BREAKER_SETTLE_MS) || 8000; // how long a page may take to become usable; the default is the strict value, a slow or shared machine can raise it (BREAKER_SETTLE_MS=20000)
 
 // ---------------------------------------------------------------- helpers
-// Windows: ask PowerShell (counts standby memory the way the team's 3 GB rule does); elsewhere (Linux CI): os.freemem (DEVLOG #82)
+// Windows: ask PowerShell (counts standby memory); elsewhere (Linux CI): os.freemem (DEVLOG #82)
+// minimum free memory before a browser opens: 1 GB by default, EG_MIN_FREE_GB overrides
+const MIN_FREE_GB = Number(process.env.EG_MIN_FREE_GB) || 1;
 const freeGB = () => process.platform === 'win32'
   ? parseFloat((spawnSync('powershell', ['-NoProfile', '-Command', '(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB'], { encoding: 'utf8' }).stdout || '').replace(',', '.')) || 0
   : os.freemem() / 1024 ** 3;
 async function waitForMemory() {
-  for (let i = 0; i < 60; i++) { const g = freeGB(); if (g >= 3 || process.platform !== 'win32') return g; console.log(`  (free memory ${g.toFixed(1)} GB < 3 GB, waiting 30 s)`); await sleep(30000); }
+  for (let i = 0; i < 60; i++) { const g = freeGB(); if (g >= MIN_FREE_GB || process.platform !== 'win32') return g; console.log(`  (free memory ${g.toFixed(1)} GB < ${MIN_FREE_GB} GB, waiting 30 s)`); await sleep(30000); }
   return freeGB();
 }
 function demoContent() {
@@ -68,10 +70,46 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [["EG_KEY('eg-save')", "'eg-save'"], ["EG_KEY('eg-settings')", "'eg-settings'"], ["EG_KEY('eg-keys')", "'eg-keys'"],
+  // spell parameter table, extension events and the extension pause (DEVLOG timeline #45): each line below is a main line with one literal number swapped for a read through spellP(id) (the defaults in SPELL_DEF are main's literals), or with one egEmit(...) call or egHeld check added. They run first because the meteor lines are also touched by the #42/#44 pairs further down.
+  ["const SPELL_DEF={fire:{cd:.36,dur:.3,rel:.5,shots:3,spread:.2,damage:34,radius:2.2,speed:19,life:1.3,homingTurn:0,homingCone:0},\n  bolt:{cd:1.05,dur:.38,rel:.45,damage:30,bounces:6,range:7.5,firstHop:.88,decay:.92,hopDelay:.075},\n  meteor:{cd:5,dur:.72,rel:.6,drops:10,damage:60,radius:2.7,burnRadius:2.2,burnTime:3.5,spread:4.4,interval:.17,sizeMin:.8,sizeMax:1.05,pattern:'scatter',arcLength:8},\n  blood:{cd:4.5,dur:1.9,rel:.02,bolts:8,damage:26,interval:.09,duration:2.4,seek:15}},SPELLS=JSON.parse(JSON.stringify(SPELL_DEF));", "const SPELLS={fire:{cd:.36,dur:.3,rel:.5},bolt:{cd:1.05,dur:.38,rel:.45},meteor:{cd:5,dur:.72,rel:.6},blood:{cd:4.5,dur:1.9,rel:.02}};"],
+  ["e.hp-=amt;egEmit('hit',{spell:kind,target:e,amount:amt});", "e.hp-=amt;"],
+  ["player.kills++;egEmit('kill',e.type);", "player.kills++;"],
+  ["const F=spellP('fire'),p={kind:'fire',pos:origin.clone(),vel:dir.clone().multiplyScalar(F.speed),life:F.life,", "const p={kind:'fire',pos:origin.clone(),vel:dir.clone().multiplyScalar(19),life:1.3,"],
+  ["if(p.kind==='fire'){egHome(p,dt);fireTrail(p,dt)}", "if(p.kind==='fire')fireTrail(p,dt);"],
+  ["if(p.kind==='fire'){const F=spellP('fire');explode(p.pos,1);aoe(p.pos,F.radius,F.damage*fireMul(),'fire');", "if(p.kind==='fire'){explode(p.pos,1);aoe(p.pos,2.2,34*fireMul(),'fire');"],
+  ["if(hit){const B=spellP('bolt');dealDamage(hit,B.damage*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),B.bounces,B.damage*spellMul()*B.firstHop);", "if(hit){dealDamage(hit,30*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),6,30*spellMul()*.88);"],
+  ["if(n<=0)return;const B=spellP('bolt');after(B.hopDelay,()=>{", "if(n<=0)return;after(.075,()=>{"],
+  ["let best=null,bd=B.range;", "let best=null,bd=7.5;"],
+  ["chain(best,hitSet,n-1,dmg*B.decay)", "chain(best,hitSet,n-1,dmg*.92)"],
+  ["const M=spellP('meteor');for(let i=0;i<M.drops;i++){const a=rand(0,TAU),r=i?Math.sqrt(Math.random())*M.spread:0;dropMeteor(M.pattern==='arc'?egArc(T,i,M):new V3(T.x+Math.cos(a)*r,0,T.z+Math.sin(a)*r),rand(M.sizeMin,M.sizeMax),i*M.interval)}}", "for(let i=0;i<10;i++){const a=rand(0,TAU),r=i?Math.sqrt(Math.random())*4.4:0;dropMeteor(new V3(T.x+Math.cos(a)*r,0,T.z+Math.sin(a)*r),rand(.8,1.05),i*.17)}}"],
+  ["const M=spellP('meteor');aoe(p,M.radius*", "aoe(p,2.7*"],
+  ["addBurn(p,M.burnRadius*egMetR(s),M.burnTime);", "addBurn(p,2.2*egMetR(s),3.5);"],
+  ["const ts=o.t,R=spellP('blood'),q=R.duration/2.4;", "const ts=o.t;"],
+  ["ss(1.9*q,2.4*q,ts)", "ss(1.9,2.4,ts)"],
+  ["ts<1.8*q)", "ts<1.8)"],
+  ["distanceTo(chest)<R.seek)", "distanceTo(chest)<15)"],
+  [".slice(0,R.bolts);", ".slice(0,8);"],
+  ["for(let k=0;k<R.bolts;k++){const b={ang:k/R.bolts*TAU,", "for(let k=0;k<8;k++){const b={ang:k/8*TAU,"],
+  ["launchAt:.95+k*R.interval,", "launchAt:.95+k*.09,"],
+  ["dealDamage(b.target,R.damage*spellMul(),'blood')", "dealDamage(b.target,26*spellMul(),'blood')"],
+  ["ts>2.45*q&&", "ts>2.45&&"],
+  ["function tryCast(id){if(egHeld)return;", "function tryCast(id){"],
+  ["const s=spellP(id),cs=castMul();", "const s=SPELLS[id],cs=castMul();"],
+  ["cds[id]=s.cd/cs;egEmit('cast',id);", "cds[id]=s.cd/cs;"],
+  ["const F=spellP('fire');for(let i=0;i<F.shots;i++)spawnFireball(h,dir.clone().applyAxisAngle(new V3(0,1,0),(i-(F.shots-1)/2)*F.spread))}", "for(const a of [-.2,0,.2])spawnFireball(h,dir.clone().applyAxisAngle(new V3(0,1,0),a))}"],
+  ["player.cast=null;egEmit('playerDeath',src);", "player.cast=null;"],
+  ["cds[id]/(spellP(id).cd/cs)", "cds[id]/(SPELLS[id].cd/cs)"],
+  ["function restart(){egEmit('restart');", "function restart(){"],
+  ["&&!menuOpen&&!egHeld){", "&&!menuOpen){"],
+  ["story.act=i;egEmit('actStart',i);", "story.act=i;"],
+  ["egEmit('towerLit',story.act);const A=ACTS", "const A=ACTS"],
+  ["hidden=false;egEmit('bossStart');", "hidden=false;"],
+  ["function onBossDead(e){egEmit('bossDown');", "function onBossDead(e){"],
+  ["story.phase='end';egEmit('ending');", "story.phase='end';"],
   ['for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg)', "story.seen.add('intro')"],
   // combat switches for content packs (DEVLOG timeline #42): the defaults reproduce main exactly
   ['const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;', 'const crit=Math.random()<.12;if(crit)amt*=1.8;'],
-  ['60*(combatCfg().meteorSizeDamage?s:1)*fireMul()', '60*s*fireMul()'],
+  ['M.damage*(combatCfg().meteorSizeDamage?s:1)*fireMul()', '60*s*fireMul()'],
   // content fields for flow / terms / respond towers / monsters (DEVLOG timeline #43): each line below is a main line with one expression swapped for a call into the /*H*/ helpers in kit/core.js; the defaults reproduce main's text exactly
   ["`${EG_TERM.undead}被火光吸引過來了`", "'亡者被火光吸引過來了'"],
   ["${T.name}${egLit(T)}`", "${T.name}點亮了`"],

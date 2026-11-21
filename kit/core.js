@@ -301,3 +301,21 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ const egNoBag=()=>!!dlg&&$('#inv').hidden;
 /*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
 /*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;
+/*H*/ // 擴充腳本介面 window.EG（kit/ 之後載入的 script 用，見 CONTENT-API.md）：法術參數、事件、暫停
+/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending'.split(' ');let egHeld=false;
+/*H*/ const egW=m=>console.warn('[EG] '+m);
+/*H*/ function egEmit(n,a){const L=EG_EV[n];if(L)for(const f of [...L])try{f(a)}catch(e){egW(n+' listener threw: '+(e&&e.message||e))}}
+/*H*/ // 火球追蹤：轉向前方 homingCone 度以內最近的活怪，每秒最多轉 homingTurn 弧度
+/*H*/ function egHome(p,dt){const F=spellP('fire');if(!(F.homingTurn>0))return;const sp=Math.hypot(p.vel.x,p.vel.z),c=Math.cos(F.homingCone*Math.PI/180);let best=null,bd=1e9;
+/*H*/   for(const e of enemies){if(!e.alive)continue;const dx=e.pos.x-p.pos.x,dz=e.pos.z-p.pos.z,d=Math.hypot(dx,dz)||1e-6;if((dx*p.vel.x+dz*p.vel.z)/(d*sp)>=c&&d<bd){bd=d;best=e}}
+/*H*/   if(!best)return;const cur=Math.atan2(p.vel.x,p.vel.z),df=Math.atan2(best.pos.x-p.pos.x,best.pos.z-p.pos.z)-cur,a=cur+clamp(Math.atan2(Math.sin(df),Math.cos(df)),-F.homingTurn*dt,F.homingTurn*dt);p.vel.x=Math.sin(a)*sp;p.vel.z=Math.cos(a)*sp}
+/*H*/ // 星墜 arc 排法：圓心是施法者、半徑是到落點的距離，在施法方向排一段長 arcLength 的弧，依落下順序從一端排到另一端
+/*H*/ function egArc(T,i,M){const x=player.pos.x,z=player.pos.z,R=Math.hypot(T.x-x,T.z-z)||1,a=Math.atan2(T.z-z,T.x-x)+(M.drops>1?i/(M.drops-1)-.5:0)*M.arcLength/R;return new V3(x+Math.cos(a)*R,0,z+Math.sin(a)*R)}
+/*H*/ window.EG={on(n,f){if(!EG_EVENTS.includes(n)||typeof f!=='function')return egW('on: unknown event or not a function: '+n);(EG_EV[n]=EG_EV[n]||[]).push(f)},
+/*H*/   off(n,f){const L=EG_EV[n]||[],i=L.indexOf(f);if(i>=0)L.splice(i,1)},
+/*H*/   setSpellParams(id,o){const D=SPELL_DEF[id];if(!D||!o||typeof o!=='object'){egW('setSpellParams: unknown spell or not an object: '+id);return false}let all=true;
+/*H*/     for(const k of Object.keys(o)){const v=o[k],d=D[k],good=d!==undefined&&typeof v===typeof d&&(typeof v==='string'?['scatter','arc'].includes(v):v>=0&&isFinite(v)&&(!/^(shots|bounces|drops|bolts)$/.test(k)||Number.isInteger(v)));
+/*H*/       if(good)SPELLS[id][k]=v;else{all=false;egW('setSpellParams: '+id+'.'+k+' ignored (unknown key, wrong type or out of range)')}}return all},
+/*H*/   resetSpellParams(id){for(const k of id===undefined?Object.keys(SPELL_DEF):[id])if(SPELL_DEF[k])Object.assign(SPELLS[k],SPELL_DEF[k]);else egW('resetSpellParams: unknown spell '+k)},
+/*H*/   spellParams(id){return SPELLS[id]?{...SPELLS[id]}:undefined},
+/*H*/   pause(on){egHeld=!!on},isPaused:()=>egHeld,inCombat:()=>enemies.some(e=>e.alive)||story.phase==='boss',events:[...EG_EVENTS]};

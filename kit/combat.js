@@ -8,7 +8,11 @@ function shake(a){if(!SET.reduceShake)shakeAmt=Math.max(shakeAmt,a)}
 function freezeFrame(s){if(!SET.reduceShake)hitStop=Math.max(hitStop,s)}
 const stats={fire:0,spell:0,hp:0,cast:0,move:0,light:0};
 const castMul=()=>1+stats.cast/100, spellMul=()=>egGearMul(1+stats.spell/100), fireMul=()=>egGearMul((1+stats.fire/100)*spellMul());
-const SPELLS={fire:{cd:.36,dur:.3,rel:.5},bolt:{cd:1.05,dur:.38,rel:.45},meteor:{cd:5,dur:.72,rel:.6},blood:{cd:4.5,dur:1.9,rel:.02}};
+// 法術參數表（預設值）；執行中一律經 spellP(id) 讀 SPELLS 這份可覆寫的副本（EG.setSpellParams，見 CONTENT-API.md）
+const SPELL_DEF={fire:{cd:.36,dur:.3,rel:.5,shots:3,spread:.2,damage:34,radius:2.2,speed:19,life:1.3,homingTurn:0,homingCone:0},
+  bolt:{cd:1.05,dur:.38,rel:.45,damage:30,bounces:6,range:7.5,firstHop:.88,decay:.92,hopDelay:.075},
+  meteor:{cd:5,dur:.72,rel:.6,drops:10,damage:60,radius:2.7,burnRadius:2.2,burnTime:3.5,spread:4.4,interval:.17,sizeMin:.8,sizeMax:1.05,pattern:'scatter',arcLength:8},
+  blood:{cd:4.5,dur:1.9,rel:.02,bolts:8,damage:26,interval:.09,duration:2.4,seek:15}},SPELLS=JSON.parse(JSON.stringify(SPELL_DEF));
 const cds={fire:0,bolt:0,meteor:0,blood:0};
 const timers=[];function after(t,fn){timers.push({t,fn})}
 
@@ -62,13 +66,13 @@ function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=egSkin(type,buildEnem
 function pickType(mix){const r=Math.random();return r<mix[0]?'spider':r<mix[0]+mix[1]?'lizard':'ghost'}
 function spawnWave(n,mix=[.45,.35,.2],hpMul=1+(wave-1)*.25){for(let i=0;i<n;i++){let x,z;do{const a=rand(0,TAU),r=rand(12,40);x=Math.cos(a)*r;z=Math.sin(a)*r}while(Math.hypot(x-player.pos.x,z-player.pos.z)<11);
   spawnEnemy(pickType(mix),x,z,hpMul)}}
-function dealDamage(e,amt,kind){if(!e.alive)return;const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;e.hp-=amt;e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
+function dealDamage(e,amt,kind){if(!e.alive)return;const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;e.hp-=amt;egEmit('hit',{spell:kind,target:e,amount:amt});e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
   const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a',terrain:'#c9e06a',crush:'#e0d6c2',boom:'#7fe0ff'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
   if(!e.hpEl&&e.type!=='lord'){e.hpEl=document.createElement('div');e.hpEl.className='hpb';e.hpEl.innerHTML='<i></i>';fxLayer.appendChild(e.hpEl)}
   if(e.hpEl)e.hpEl.firstChild.style.transform=`scaleX(${Math.max(0,e.hp/e.maxhp)})`;
   if(e.hp<=0)killEnemy(e)}
 function aoe(pos,r,dmg,kind,skip){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*egAoeJit(),kind)}}
-function killEnemy(e){e.alive=false;e.dying=0;player.kills++;if(e.hpEl){e.hpEl.remove();e.hpEl=null}
+function killEnemy(e){e.alive=false;e.dying=0;player.kills++;egEmit('kill',e.type);if(e.hpEl){e.hpEl.remove();e.hpEl=null}
   if(e.type==='lord'){dropLoot(e.pos,3);dropLoot(e.pos,3);onBossDead(e);return}
   if(isTerrainKind(e.lastKind))onTerrainKill(e);
   const c=e.type==='ghost'?[.5,.85,1]:e.type==='lizard'?[.5,.9,.4]:[.8,.3,.9];
@@ -132,7 +136,7 @@ function explode(pos,scale=1,tint=[1,1,1],sound=true){
   shake(.16*scale);freezeFrame(.035*Math.min(scale,1.6));if(sound)sfx.boom(scale);
 }
 function spawnFireball(origin,dir){
-  const p={kind:'fire',pos:origin.clone(),vel:dir.clone().multiplyScalar(19),life:1.3,dead:false,acc:{}};
+  const F=spellP('fire'),p={kind:'fire',pos:origin.clone(),vel:dir.clone().multiplyScalar(F.speed),life:F.life,dead:false,acc:{}};
   fireballVisual(p);p.light=attachLight(p,0xff7a2e,2.3,8);projs.push(p);
 }
 function spawnOrb(origin,dir){
@@ -144,7 +148,7 @@ function spawnOrb(origin,dir){
 }
 function updateProjs(dt){
   for(let i=projs.length-1;i>=0;i--){const p=projs[i];p.pos.addScaledVector(p.vel,dt);p.life-=dt;
-    if(p.kind==='fire')fireTrail(p,dt);
+    if(p.kind==='fire'){egHome(p,dt);fireTrail(p,dt)}
     else{
       rate(p.acc,'arc',16,dt,()=>bolt(p.pos,p.pos.clone().add(randUnit().multiplyScalar(rand(.6,1.2))),.16,.08,false));
       rate(p.acc,'gnd',7,dt,()=>{const a=rand(0,TAU),r=rand(.6,1.8),g=new V3(p.pos.x+Math.cos(a)*r,.05,p.pos.z+Math.sin(a)*r);bolt(p.pos,g,.22,.12,false);applyEl(cellOf(g.x,g.z),'bolt');
@@ -152,18 +156,18 @@ function updateProjs(dt){
     }
     let hit=null;for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.pos.x,e.pos.z-p.pos.z)<e.radius+.45){hit=e;break}}
     if(hit||p.life<=0||Math.hypot(p.pos.x,p.pos.z)>44){p.dead=true;projs.splice(i,1);
-      if(p.kind==='fire'){explode(p.pos,1);aoe(p.pos,2.2,34*fireMul(),'fire');terrainBlast(p.pos,1.6,'fire');damageProps(p.pos,1.8,1,'fire')}
-      else{zapBurst(p.pos);sfx.zap();terrainBlast(p.pos,.9,'bolt');if(hit){dealDamage(hit,30*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),6,30*spellMul()*.88);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit)}}
+      if(p.kind==='fire'){const F=spellP('fire');explode(p.pos,1);aoe(p.pos,F.radius,F.damage*fireMul(),'fire');terrainBlast(p.pos,1.6,'fire');damageProps(p.pos,1.8,1,'fire')}
+      else{zapBurst(p.pos);sfx.zap();terrainBlast(p.pos,.9,'bolt');if(hit){const B=spellP('bolt');dealDamage(hit,B.damage*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),B.bounces,B.damage*spellMul()*B.firstHop);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit)}}
     }
   }
 }
 function zapBurst(pos){ADD.emit({x:pos.x,y:pos.y,z:pos.z,kind:3,fm:2,frame:9,life:.18,s0:4,s1:5,r:.5,g:.8,b:1,a0:.9,a1:0});
   for(let i=0;i<24;i++){const d=randUnit(),sp=rand(4,9);ADD.emit({x:pos.x,y:pos.y,z:pos.z,vx:d.x*sp,vy:d.y*sp,vz:d.z*sp,kind:3,fm:2,frame:0,life:rand(.25,.5),s0:.18,s1:.03,grav:8,drag:2,r:.6,g:.85,b:1,a0:1,a1:0})}
   flash(pos,0x7fc8ff,4,9,.25)}
-function chain(from,hitSet,n,dmg){if(n<=0)return;after(.075,()=>{
-  let best=null,bd=7.5;for(const e of enemies){if(!e.alive||hitSet.has(e))continue;const d=Math.hypot(e.pos.x-from.pos.x,e.pos.z-from.pos.z);if(d<bd){bd=d;best=e}}
+function chain(from,hitSet,n,dmg){if(n<=0)return;const B=spellP('bolt');after(B.hopDelay,()=>{
+  let best=null,bd=B.range;for(const e of enemies){if(!e.alive||hitSet.has(e))continue;const d=Math.hypot(e.pos.x-from.pos.x,e.pos.z-from.pos.z);if(d<bd){bd=d;best=e}}
   if(!best)return;const a=new V3(from.pos.x,1,from.pos.z),b=new V3(best.pos.x,1,best.pos.z);bolt(a,b,.32,.16,true);zapBurst(b);sfx.zap();
-  hitSet.add(best);applyEl(cellOf(best.pos.x,best.pos.z),'bolt');dealDamage(best,dmg,'bolt');chain(best,hitSet,n-1,dmg*.92)})}
+  hitSet.add(best);applyEl(cellOf(best.pos.x,best.pos.z),'bolt');dealDamage(best,dmg,'bolt');chain(best,hitSet,n-1,dmg*B.decay)})}
 function boltPath(a,b){let pts=[a.clone(),b.clone()],d=a.distanceTo(b)*.22;
   for(let l=0;l<4;l++){const np=[];for(let i=0;i<pts.length-1;i++){const m=pts[i].clone().lerp(pts[i+1],.5);m.x+=rand(-d,d);m.y+=rand(-d,d)*.6;m.z+=rand(-d,d);np.push(pts[i],m)}np.push(pts[pts.length-1]);pts=np;d*=.5}return pts}
 function bolt(a,b,w,life,branch){
@@ -184,7 +188,7 @@ const rockMat=new THREE.MeshStandardMaterial({color:0x2a211d,roughness:.95,metal
 const ringGeo=new THREE.RingGeometry(.88,1,48);
 const meteors=[],rocks=[],burns=[];
 function castMeteor(T){if(!tierOf('meteor')){dropMeteor(T,1.35,0);return}
-  for(let i=0;i<10;i++){const a=rand(0,TAU),r=i?Math.sqrt(Math.random())*4.4:0;dropMeteor(new V3(T.x+Math.cos(a)*r,0,T.z+Math.sin(a)*r),rand(.8,1.05),i*.17)}}
+  const M=spellP('meteor');for(let i=0;i<M.drops;i++){const a=rand(0,TAU),r=i?Math.sqrt(Math.random())*M.spread:0;dropMeteor(M.pattern==='arc'?egArc(T,i,M):new V3(T.x+Math.cos(a)*r,0,T.z+Math.sin(a)*r),rand(M.sizeMin,M.sizeMax),i*M.interval)}}
 function dropMeteor(T,sc,delay){after(delay,()=>{
   const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xff5a2a,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
   ring.rotation.x=-Math.PI/2;ring.position.set(T.x,.06,T.z);ring.scale.setScalar(2.4*sc);scene.add(ring);
@@ -202,7 +206,7 @@ function updateMeteors(dt){
     if(k>=1){meteors.splice(i,1);m.dead=true;scene.remove(m.ring);egFreeMat(m.ring);const p=m.to.clone();p.y=.35;
       explode(p,1.7*s);
       for(let j=0;j<30;j++){const d=randUnit(),sp=rand(4,9);SMOKE.emit({x:p.x,y:.3,z:p.z,vx:d.x*sp,vy:Math.abs(d.y)*sp+2,vz:d.z*sp,kind:2,fm:2,frame:randi(0,4),life:rand(.6,1),s0:.35,s1:.2,grav:18,r:.2,g:.16,b:.13,a0:.9,a1:.6})}
-      aoe(p,2.7*egMetR(s),60*(combatCfg().meteorSizeDamage?s:1)*fireMul(),'fire');addBurn(p,2.2*egMetR(s),3.5);meteorTerrain(p,2.2*egMetR(s));damageProps(p,2.6*egMetR(s),3,'meteor');
+      const M=spellP('meteor');aoe(p,M.radius*egMetR(s),M.damage*(combatCfg().meteorSizeDamage?s:1)*fireMul(),'fire');addBurn(p,M.burnRadius*egMetR(s),M.burnTime);meteorTerrain(p,2.2*egMetR(s));damageProps(p,2.6*egMetR(s),3,'meteor');
       m.mesh.position.set(p.x,.15*s,p.z);rocks.push({mesh:m.mesh,t:0});
       shake(.38*s)}
   }
@@ -226,14 +230,14 @@ function startBlood(){const c=player.pos.clone(),mat=runeMaterial(),mesh=new THR
   mesh.rotation.x=-Math.PI/2;mesh.position.set(c.x,.05,c.z);mesh.scale.setScalar(.01);scene.add(mesh);
   const o={t:0,cs:castMul(),c,mesh,bolts:[],pos:new V3(c.x,.4,c.z),dead:false,acc:{}};o.light=attachLight(o,0xff1f35,2.6,8);rites.push(o);sfx.blood()}
 function updateRites(dt){
-  for(let i=rites.length-1;i>=0;i--){const o=rites[i];o.t+=dt*o.cs;const ts=o.t;
-    const op=ss(.12,.4,ts)*(1-ss(1.9,2.4,ts));setOpacity(o.mesh.material,op);o.mesh.scale.setScalar(.01+3.4*ss(.1,.5,ts));o.mesh.rotation.z+=dt*.7;
+  for(let i=rites.length-1;i>=0;i--){const o=rites[i];o.t+=dt*o.cs;const ts=o.t,R=spellP('blood'),q=R.duration/2.4;
+    const op=ss(.12,.4,ts)*(1-ss(1.9*q,2.4*q,ts));setOpacity(o.mesh.material,op);o.mesh.scale.setScalar(.01+3.4*ss(.1,.5,ts));o.mesh.rotation.z+=dt*.7;
     if(o.light&&o.light.owner===o)o.light.i0=2.6*op+.01;
-    if(ts>.2&&ts<1.8)rate(o.acc,'r',45,dt,()=>{const a=rand(0,TAU),r=rand(1.3,1.7);ADD.emit({x:o.c.x+Math.cos(a)*r,y:.1,z:o.c.z+Math.sin(a)*r,vy:rand(.8,2),kind:3,fm:2,frame:0,life:rand(.5,.9),s0:.22,s1:.05,r:1,g:.15,b:.22,a0:.9,a1:0})});
+    if(ts>.2&&ts<1.8*q)rate(o.acc,'r',45,dt,()=>{const a=rand(0,TAU),r=rand(1.3,1.7);ADD.emit({x:o.c.x+Math.cos(a)*r,y:.1,z:o.c.z+Math.sin(a)*r,vy:rand(.8,2),kind:3,fm:2,frame:0,life:rand(.5,.9),s0:.22,s1:.05,r:1,g:.15,b:.22,a0:.9,a1:0})});
     if(ts>=.55&&!o.bolts.length){
       const chest=new V3(player.pos.x,1.4+player.float,player.pos.z);
-      const targets=enemies.filter(e=>e.alive&&e.pos.distanceTo(chest)<15).sort((a,b)=>a.pos.distanceTo(chest)-b.pos.distanceTo(chest)).slice(0,8);
-      for(let k=0;k<8;k++){const b={ang:k/8*TAU,state:0,pos:chest.clone(),dead:false,acc:{},launchAt:.95+k*.09,target:targets.length?targets[k%targets.length]:null,t:0};
+      const targets=enemies.filter(e=>e.alive&&e.pos.distanceTo(chest)<R.seek).sort((a,b)=>a.pos.distanceTo(chest)-b.pos.distanceTo(chest)).slice(0,R.bolts);
+      for(let k=0;k<R.bolts;k++){const b={ang:k/R.bolts*TAU,state:0,pos:chest.clone(),dead:false,acc:{},launchAt:.95+k*R.interval,target:targets.length?targets[k%targets.length]:null,t:0};
         ADD.emit({follow:b,kind:0,life:1e9,s0:.6,rs:4,fm:0,fps:30,r:1,g:.28,b:.33,a0:1,a1:1});
         ADD.emit({follow:b,kind:3,fm:2,frame:0,life:1e9,s0:1.4,r:1,g:.1,b:.15,a0:.55,a1:.55});o.bolts.push(b)}}
     for(const b of o.bolts){if(b.dead)continue;
@@ -247,8 +251,8 @@ function updateRites(dt){
         rate(b.acc,'t',140,dt,()=>ADD.emit({x:b.pos.x+rand(-.06,.06),y:b.pos.y,z:b.pos.z+rand(-.06,.06),kind:0,fm:0,fps:30,life:rand(.12,.18),s0:.48,s1:.05,r:1,g:.2,b:.26,a0:1,a1:.3}));
         if(t>=1){b.dead=true;explode(b.pos,.5,[1,.25,.32],false);sfx.boom(.45);
           terrainBlast(new V3(b.pos.x,0,b.pos.z),1.2,'blood');
-          if(b.target&&b.target.alive)dealDamage(b.target,26*spellMul(),'blood');else aoe(b.pos,1.3,18*spellMul(),'blood')}}}
-    if(ts>2.45&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);egFree(o.mesh);rites.splice(i,1)}}
+          if(b.target&&b.target.alive)dealDamage(b.target,R.damage*spellMul(),'blood');else aoe(b.pos,1.3,18*spellMul(),'blood')}}}
+    if(ts>2.45*q&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);egFree(o.mesh);rites.splice(i,1)}}
 }
 
 /* ---------- 裝備與行囊 ---------- */

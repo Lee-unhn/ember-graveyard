@@ -17,6 +17,7 @@ window.__runUnit = async (only) => {
     inv.length = 0; for (const k in equipped) delete equipped[k]; recalc();
     setTier(1); setRoute(0);
     Object.assign(SET, SET_DEFAULT); applySettings(); hitStop = 0; shakeAmt = 0; for (const id of MENUS) document.querySelector('#' + id).hidden = true; syncMenu();
+    if (window.EG) { EG.resetSpellParams(); EG.pause(false); } // extension state (spell overrides, hold) never leaks into the next test; guarded so this file also runs on an engine without EG
   };
   const atlasPx = (x, y) => [...atlas.getContext('2d').getImageData(x, y, 1, 1).data];
   const cellAlpha = (sheet, f, px, py) => { const sx = (sheet % 2) * 512 + (f % 4) * 128, sy = Math.floor(sheet / 2) * 512 + Math.floor(f / 4) * 128; return atlasPx(sx + px, sy + py)[3]; };
@@ -843,6 +844,151 @@ window.__runUnit = async (only) => {
     eq(good.err, null, 'a full valid set'); eq(good.warns.length, 0, 'no warnings');
     ok(tryContent((C) => { C.loot = { names: { wand: ['x'] } }; }).warns.length >= 1, 'an unknown equipment kind is a warning'); ok(tryContent((C) => { C.render = { shadow: true }; }).warns.length >= 1, 'an unknown render field is a warning');
     eq(tryContent(() => {}).err, null, 'untouched content');
+  });
+
+  // ---------------------------------------------------------------- extension scripts: spell parameters, events, hold (DEVLOG timeline #45)
+  // Every expected number below is a literal copied from the engine before the parameter table existed, never read back from the table.
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const still = (e) => { e.hp = e.maxhp = 1e6; e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); return e; };
+  const spy = (name, keepIf) => { const log = [], real = window[name]; window[name] = function (...a) { if (!keepIf || keepIf(a)) log.push(a); return real.apply(this, a); }; log.restore = () => { window[name] = real; }; return log; };
+  // frames of the page's own loop: loop() asks for its next frame first, so each of our requestAnimationFrame callbacks comes after one loop frame
+  const frames = async (n, ms = 60000) => { const t = Date.now(); for (let i = 0; i < n; i++) { if (Date.now() - t > ms) return false; await Promise.race([new Promise((r) => requestAnimationFrame(r)), new Promise((r) => setTimeout(r, ms))]); } return Date.now() - t <= ms; };
+  const until = async (cond, ms) => { const t = Date.now(); while (!cond() && Date.now() - t < ms) await new Promise((r) => setTimeout(r, 30)); return cond(); };
+  test('spell table: the defaults are the numbers the four spells always used (cooldowns, fireball, meteor, blood rite)', () => {
+    ok(window.EG && typeof EG.spellParams === 'function', 'window.EG.spellParams exists');
+    const want = { fire: { cd: .36, dur: .3, rel: .5, shots: 3, spread: .2, damage: 34, radius: 2.2, speed: 19, life: 1.3, homingTurn: 0, homingCone: 0 },
+      bolt: { cd: 1.05, dur: .38, rel: .45, damage: 30, bounces: 6, range: 7.5, firstHop: .88, decay: .92, hopDelay: .075 },
+      meteor: { cd: 5, dur: .72, rel: .6, drops: 10, damage: 60, radius: 2.7, burnRadius: 2.2, burnTime: 3.5, spread: 4.4, interval: .17, sizeMin: .8, sizeMax: 1.05, pattern: 'scatter', arcLength: 8 },
+      blood: { cd: 4.5, dur: 1.9, rel: .02, bolts: 8, damage: 26, interval: .09, duration: 2.4, seek: 15 } };
+    for (const id in want) { const p = EG.spellParams(id); eq(Object.keys(p).length, Object.keys(want[id]).length, id + ' key count'); for (const k in want[id]) eq(p[k], want[id][k], `${id}.${k}`); }
+    // cooldown, cast time and release point that a cast really sets
+    for (const [id, cd, dur, rel] of [['fire', .36, .3, .5], ['bolt', 1.05, .38, .45], ['meteor', 5, .72, .6], ['blood', 4.5, 1.9, .02]]) {
+      fresh(); tryCast(id); ok(player.cast && player.cast.id === id, id + ' cast'); eq(cds[id], cd, id + ' cooldown'); eq(player.cast.dur, dur, id + ' cast time'); eq(player.cast.rel, rel, id + ' release'); }
+    for (const o of rites) { o.dead = true; scene.remove(o.mesh); } rites.length = 0; // the blood cast above started a rite; clearWorld() does not end rites
+    // upgraded fireball: three shots at -0.2, 0, +0.2 rad, speed 19, life 1.3; its blast is radius 2.2, damage 34
+    fresh(); player.face = 0; releaseCast({ id: 'fire', target: V(0, 0, 10) }); eq(projs.length, 3, 'three fireballs');
+    const ang = projs.map((p) => Math.atan2(p.vel.x, p.vel.z)), mid = ang[1]; near(ang[0] - mid, -.2, 1e-9); near(ang[2] - mid, .2, 1e-9);
+    for (const p of projs) { near(Math.hypot(p.vel.x, p.vel.z), 19, 1e-9, 'speed'); eq(p.life, 1.3, 'life'); }
+    fresh(); still(spawnEnemy('ghost', 1.2, 0, 1) || enemies[0]); const boom = spy('aoe', (a) => a[3] === 'fire');
+    try { spawnFireball(V(0, 1, 0), V(1, 0, 0)); logic(1 / 60); eq(boom.length, 1, 'one blast'); eq(boom[0][1], 2.2, 'radius'); eq(boom[0][2], 34, 'damage'); } finally { boom.restore(); }
+    // meteor landing: radius 2.7, damage 60, burning ground radius 2.2 for 3.5 s (size 1)
+    fresh(); const hitM = spy('aoe', (a) => a[3] === 'fire'), burn = spy('addBurn');
+    try { dropMeteor(V(10, 0, 10), 1, 0); for (let i = 0; i < 60 && !hitM.length; i++) logic(1 / 60);
+      eq(hitM.length, 1, 'landed'); eq(hitM[0][1], 2.7); eq(hitM[0][2], 60); eq(burn.length, 1); eq(burn[0][1], 2.2); eq(burn[0][2], 3.5); } finally { hitM.restore(); burn.restore(); }
+    // blood rite: eight bolts launched every 0.09 s from 0.95 s, 26 each, monsters within 15 are targets, the rite ends after 2.45 s
+    fresh(); const near13 = still(spawnEnemy('ghost', 13, 0, 1) || enemies[0]), far16 = still(spawnEnemy('ghost', 16, 0, 1) || enemies[1]);
+    const blood = spy('dealDamage', (a) => a[2] === 'blood');
+    try { withContent({ combat: { critChance: 0 } }, () => { startBlood(); const o = rites[rites.length - 1]; let f = 0;
+      while (!o.bolts.length && f < 100) { logic(1 / 60); f++; }
+      eq(o.bolts.length, 8, 'eight bolts'); o.bolts.forEach((b, k) => { near(b.launchAt, .95 + k * .09, 1e-12, 'launch ' + k); eq(b.target, near13, 'only the monster within 15 is a target'); });
+      while (rites.includes(o) && f < 400) { logic(1 / 60); f++; }
+      ok(f >= 147 && f <= 149, `rite removed after 2.45 s (frame ${f})`); eq(blood.length, 8, 'eight blood hits'); ok(blood.every((a) => a[0] === near13 && a[1] === 26), 'each hit is 26 on the near monster'); eq(far16.hp, far16.maxhp, 'the monster 16 away is untouched'); });
+    } finally { blood.restore(); }
+    fresh();
+  });
+  // Placement tests use floating ghosts: they skip the obstacle push-out, so a tombstone near the line cannot shift them between frames.
+  // one chain-bolt cast: monsters in a row along +x at z = 10 (centred, inside the arena), the orb flies at them; returns [[monster index, damage, frame], ...] for every bolt hit
+  const chainRun = (gap, n, params) => { fresh(); setTier(1); if (params) ok(EG.setSpellParams('bolt', params), 'override accepted'); const x0 = -(n - 1) * gap / 2; for (let k = 0; k < n; k++) still(spawnEnemy('ghost', x0 + k * gap, 10, 1) || enemies[k]);
+    const log = spy('dealDamage', (a) => a[2] === 'bolt'); let f = 0; const out = [];
+    try { spawnOrb(V(x0 - 3, 1, 10), V(1, 0, 0)); for (; f < 260; f++) { const before = log.length; logic(1 / 60); for (let i = before; i < log.length; i++) out.push([enemies.indexOf(log[i][0]), log[i][1], f]); } } finally { log.restore(); }
+    return out; };
+  test('chain bolt by default: 30 on the first monster, then 26.4, 24.288 ... the sixth hop 17.40, one hop every 0.075 s, only within 7.5', () => {
+    const hits = chainRun(4, 9);
+    eq(hits.length, 7, 'main hit + six hops'); eq(hits.map((h) => h[0]).join(), '0,1,2,3,4,5,6', 'nearest next monster each time');
+    const want = [30, 26.4, 24.288, 22.34496, 20.5573632, 18.912774144, 17.39975221248];
+    hits.forEach((h, i) => near(h[1], want[i], 1e-9, 'hit ' + i)); near(hits[6][1], 17.40, .01, 'sixth hop');
+    for (let i = 1; i < hits.length; i++) ok(hits[i][2] - hits[i - 1][2] >= 4 && hits[i][2] - hits[i - 1][2] <= 5, `hop gap ${hits[i][2] - hits[i - 1][2]} frames (0.075 s)`);
+    eq(chainRun(8.5, 4).length, 1, 'monsters 8.5 apart: no hop (range 7.5)');
+    fresh();
+  });
+  test('chain bolt overrides: bounces 8 and range 9 reach monsters 8.5 apart; firstHop, decay and hopDelay are read at hit time', () => {
+    const runWith = (p, gap, n) => chainRun(gap, n, p); // chainRun starts with fresh(), which resets the overrides, then applies p
+    const far = runWith({ bounces: 8, range: 9 }, 8.5, 10); eq(far.length, 9, 'main hit + eight hops'); eq(far.map((h) => h[0]).join(), '0,1,2,3,4,5,6,7,8');
+    eq(runWith({ bounces: 8 }, 4, 12).length, 9, 'bounces alone: nine hits'); eq(runWith({ range: 9 }, 8.5, 10).length, 7, 'range alone: six hops');
+    const flat = runWith({ firstHop: 1, decay: 1, hopDelay: .5 }, 4, 9); ok(flat.every((h) => h[1] === 30), 'firstHop 1, decay 1: every hit 30');
+    for (let i = 1; i < flat.length; i++) ok(flat[i][2] - flat[i - 1][2] >= 29 && flat[i][2] - flat[i - 1][2] <= 31, `hop gap ${flat[i][2] - flat[i - 1][2]} frames (0.5 s)`);
+    fresh();
+  });
+  // a fireball from the origin flying +x; one frozen monster at (x, z); returns the projectile after `frames` frames (or when it hit) and the monster
+  const homingRun = (params, x, z, frames) => { fresh(); if (params) EG.setSpellParams('fire', params); const e = still(spawnEnemy('ghost', x, z, 1) || enemies[0]);
+    spawnFireball(V(0, 1, 0), V(1, 0, 0)); const p = projs[projs.length - 1]; const heads = [Math.atan2(p.vel.x, p.vel.z)];
+    for (let f = 0; f < frames && !p.dead; f++) { logic(1 / 60); heads.push(Math.atan2(p.vel.x, p.vel.z)); } return { p, e, heads }; };
+  test('fireball homing: off by default; homingTurn + homingCone turn it toward a monster inside the cone at most homingTurn rad/s, never toward one outside', () => {
+    const off = homingRun(null, 8, 3, 6); eq(off.p.vel.z, 0, 'default: flies straight'); eq(off.p.vel.x, 19);
+    const on = homingRun({ homingTurn: 6, homingCone: 45 }, 8, 3, 6); ok(on.p.vel.z > 0, `turns toward the monster 20 deg off the line (vel.z ${on.p.vel.z})`); near(Math.hypot(on.p.vel.x, on.p.vel.z), 19, 1e-9, 'speed kept');
+    for (let i = 1; i < on.heads.length; i++) ok(Math.abs(on.heads[i] - on.heads[i - 1]) <= 6 / 60 + 1e-9, 'turn per frame within homingTurn * dt');
+    const out = homingRun({ homingTurn: 6, homingCone: 45 }, 2, 8, 6); eq(out.p.vel.z, 0, 'monster 76 deg off the line is outside a 45 deg cone: no turn');
+    const wide = homingRun({ homingTurn: 6, homingCone: 90 }, 2, 8, 6); ok(wide.p.vel.z > 0, 'the same monster inside a 90 deg cone: turns');
+    const miss = homingRun(null, 8, 3, 90), hit = homingRun({ homingTurn: 6, homingCone: 45 }, 8, 3, 90);
+    eq(miss.e.hp, miss.e.maxhp, 'straight fireball passes the off-line monster'); ok(hit.e.hp < hit.e.maxhp, 'homing fireball hits it');
+    fresh();
+  });
+  test('meteor drop pattern: "arc" puts the drops in order along an arc of arcLength in the cast direction with the given interval; default "scatter" is unchanged', () => {
+    fresh(); setTier(1); player.pos.set(0, 0, 0); const drops = [], real = dropMeteor;
+    try { window.dropMeteor = (T, sc, d) => { drops.push([T.clone(), sc, d]); }; // record only, nothing falls
+      ok(EG.setSpellParams('meteor', { pattern: 'arc', arcLength: 6, drops: 5, interval: .2 }), 'override accepted'); castMeteor(V(0, 0, 10));
+      eq(drops.length, 5, 'five drops');
+      drops.forEach(([T, sc, d], i) => { near(Math.hypot(T.x, T.z), 10, 1e-9, `drop ${i} on the arc (radius 10 around the caster)`); near(Math.atan2(T.z, T.x), Math.PI / 2 + (i / 4 - .5) * .6, 1e-9, `drop ${i} angle in order`); near(d, i * .2, 1e-12, `drop ${i} delay`); ok(sc >= .8 && sc <= 1.05, 'size jitter'); });
+      near(drops[2][0].x, 0, 1e-9, 'middle drop on the cast direction'); near(drops[2][0].z, 10, 1e-9);
+      drops.length = 0; EG.resetSpellParams('meteor'); castMeteor(V(0, 0, 10));
+      eq(drops.length, 10, 'default: ten drops'); near(drops[0][0].x, 0, 1e-12); near(drops[0][0].z, 10, 1e-12, 'first drop on the target');
+      drops.forEach(([T, sc, d], i) => { ok(Math.hypot(T.x, T.z - 10) <= 4.4 + 1e-9, 'within 4.4 of the target'); near(d, i * .17, 1e-12, 'every 0.17 s'); ok(sc >= .8 && sc <= 1.05, 'size .8-1.05'); });
+    } finally { window.dropMeteor = real; fresh(); }
+  });
+  test('cooldown and shot overrides: EG.setSpellParams changes the cooldown a cast sets and the skill bar shows; shots and spread change the volley', () => {
+    fresh(); ok(EG.setSpellParams('fire', { cd: 2 }), 'accepted'); tryCast('fire'); eq(cds.fire, 2, 'cooldown from the override');
+    updateHud(0); near(parseFloat(document.querySelector('.sk[data-s="fire"] .cd').style.getPropertyValue('--p')), 1, 1e-9, 'skill bar measures against the overridden cooldown');
+    fresh(); EG.setSpellParams('fire', { shots: 5, spread: .1 }); player.face = 0; releaseCast({ id: 'fire', target: V(0, 0, 10) }); eq(projs.length, 5, 'five fireballs');
+    const a = projs.map((p) => Math.atan2(p.vel.x, p.vel.z)); for (let i = 1; i < 5; i++) near(a[i] - a[i - 1], .1, 1e-9, 'spread 0.1');
+    EG.resetSpellParams('fire'); eq(EG.spellParams('fire').cd, .36, 'reset restores the default'); fresh();
+  });
+  test('bad overrides: unknown spell or key, wrong type, negative, NaN, a fractional count, an unknown pattern each warn and are ignored, never throw', () => {
+    fresh(); const warns = [], w = console.warn; console.warn = (...a) => warns.push(a.join(' '));
+    try {
+      const before = JSON.stringify(['fire', 'bolt', 'meteor', 'blood'].map((id) => EG.spellParams(id)));
+      for (const [id, o] of [['fire', { damage: 'big' }], ['fire', { dmg: 5 }], ['ice', { cd: 1 }], ['fire', null], ['fire', 5], ['bolt', { bounces: 2.5 }], ['meteor', { pattern: 'zigzag' }], ['meteor', { pattern: 3 }], ['fire', { cd: -1 }], ['fire', { speed: NaN }], ['fire', { speed: Infinity }], ['blood', { bolts: '8' }]]) {
+        const n = warns.length; let r; try { r = EG.setSpellParams(id, o); } catch (e) { throw new AssertError(`${id} ${JSON.stringify(o)} threw ${e.message}`); }
+        eq(r, false, `${id} ${JSON.stringify(o)} reports not applied`); ok(warns.length > n, `${id} ${JSON.stringify(o)} warned`); }
+      eq(JSON.stringify(['fire', 'bolt', 'meteor', 'blood'].map((id) => EG.spellParams(id))), before, 'nothing changed');
+      const n = warns.length; eq(EG.setSpellParams('fire', { damage: 50, foo: 1 }), false, 'mixed: reports a rejected key'); eq(EG.spellParams('fire').damage, 50, 'the good key still applies'); eq(EG.spellParams('fire').foo, undefined); eq(warns.length, n + 1, 'one warning for foo');
+      EG.spellParams('fire').damage = 1; eq(EG.spellParams('fire').damage, 50, 'spellParams returns a copy');
+      let m = warns.length; EG.on('nope', () => {}); EG.on('hit', 5); EG.resetSpellParams('ice'); eq(warns.length, m + 3, 'unknown event, non-function listener, unknown spell reset: one warning each');
+    } finally { console.warn = w; fresh(); }
+  });
+  test('events: each of the ten fires once, with its payload, in a scripted run; EG.off removes a listener', () => {
+    fresh(); const got = {}, fns = {}; for (const n of EG.events) { fns[n] = (a) => (got[n] = got[n] || []).push(a); EG.on(n, fns[n]); }
+    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending', 'the event list');
+    try { withContent({ combat: { critChance: 0 } }, () => {
+      const e = still(spawnEnemy('lizard', 4, 0, 1) || enemies[0]);
+      tryCast('fire'); dealDamage(e, 5, 'fire'); hurtPlayer(1e9, 'test cause'); restart();
+      startStory(0); while (dlg) endDialog(); igniteTower(TOWERS[0]); startBoss(); killEnemy(story.boss); showEnding(); });
+      for (const n of EG.events) eq((got[n] || []).length, 1, n + ' fired once');
+      eq(got.cast[0], 'fire'); eq(got.hit[0].spell, 'fire'); eq(got.hit[0].amount, 5); ok(got.hit[0].target && got.hit[0].target.type === 'lizard', 'hit target is the monster');
+      eq(got.kill[0], 'lord'); eq(got.playerDeath[0], 'test cause'); eq(got.actStart[0], 0); eq(got.towerLit[0], 0);
+      EG.off('cast', fns.cast); fresh(); tryCast('fire'); eq(got.cast.length, 1, 'no call after off');
+    } finally { for (const n of EG.events) EG.off(n, fns[n]); story.on = false; document.querySelector('#ending').hidden = true; fresh(); }
+  });
+  test('a listener that throws is caught and warned: the frame goes on, the damage lands, later listeners still run', () => {
+    fresh(); const warns = [], w = console.warn; console.warn = (...a) => warns.push(a.join(' '));
+    const bad = () => { throw new Error('listener boom'); }, seen = [], good = (h) => seen.push(h.amount);
+    try { EG.on('hit', bad); EG.on('hit', good); EG.on('cast', bad); EG.on('kill', bad);
+      withContent({ combat: { critChance: 0, aoeJitter: false } }, () => {
+        const e = still(spawnEnemy('ghost', 1.5, 0, 1) || enemies[0]); spawnFireball(V(0, 1, 0), V(1, 0, 0));
+        let threw = null; try { for (let i = 0; i < 10; i++) logic(1 / 60); tryCast('fire'); dealDamage(e, 1e9, 'fire'); } catch (err) { threw = err; }
+        eq(threw, null, 'nothing escaped the frame'); ok(e.maxhp - e.hp >= 34 || !e.alive, 'the blast damage landed'); ok(!e.alive, 'the kill went through'); ok(seen.length >= 2 && seen[0] === 34, 'the next listener still ran');
+        ok(player.cast && player.cast.id === 'fire', 'the cast went through'); ok(warns.filter((x) => /listener boom/.test(x)).length >= 3, 'each throw warned'); });
+    } finally { EG.off('hit', bad); EG.off('hit', good); EG.off('cast', bad); EG.off('kill', bad); console.warn = w; fresh(); }
+  });
+  test('EG.pause freezes monsters, timers and casting in the real frame loop; isPaused and inCombat report the state', async () => {
+    fresh(); try {
+      eq(EG.inCombat(), false, 'no monsters: not in combat'); const e = spawnEnemy('spider', 6, 0, 1) || enemies[0]; e.aggro = true; e.T = Object.assign({}, e.T, { dmg: 0 }); eq(EG.inCombat(), true, 'a living monster: in combat');
+      let fired = 0; after(.05, () => fired++);
+      EG.pause(true); eq(EG.isPaused(), true); const x0 = e.pos.x;
+      ok(await frames(12), 'twelve frames of the real loop ran'); eq(e.pos.x, x0, 'the monster did not move while held'); eq(fired, 0, 'timers did not run while held');
+      tryCast('fire'); eq(player.cast, null, 'no casting while held');
+      EG.pause(false); eq(EG.isPaused(), false); ok(await until(() => e.pos.x < x0 - .2 && fired === 1, 30000), `moves and the timer runs again after release (x ${e.pos.x.toFixed(2)}, timer ${fired})`);
+      clearWorld(); eq(EG.inCombat(), false, 'cleared: not in combat'); story.phase = 'boss'; eq(EG.inCombat(), true, 'boss fight counts as combat'); story.phase = 'idle';
+    } finally { if (window.EG) EG.pause(false); fresh(); }
   });
 
   // ---------------------------------------------------------------- run

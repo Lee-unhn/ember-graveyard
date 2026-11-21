@@ -31,7 +31,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant twelve defects in a scratch copy; the suites must notice
+  // plant fourteen defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -53,6 +53,8 @@ if (!args.includes('--skip-mutation') && !url) {
     plant('EG_FLOW.preBoss?playDialog(EG_FLOW.preBoss,startBoss):startBoss()', 'startBoss()');                // 10. the content field flow.preBoss is ignored (DEVLOG timeline #43)
     plant('scene.remove(e.g);egFree(e.g);list.splice(i,1)', 'scene.remove(e.g);list.splice(i,1)');          // 11. monsters stop giving their geometry back (DEVLOG timeline #44, F10)
     plant('else if(egBossDownRestart()){}else{', 'else{');                                                    // 12. dying right after the boss falls sends the player back to act 4 (F06)
+    plant('>=c&&d<bd', '>=-2&&d<bd');                                                                          // 13. fireball homing ignores the cone and chases a monster behind it (DEVLOG timeline #45)
+    plant('const s=spellP(id),cs=castMul();', 'const s=SPELL_DEF[id],cs=castMul();');                         // 14. a cooldown override is not read by the cast (DEVLOG timeline #45)
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

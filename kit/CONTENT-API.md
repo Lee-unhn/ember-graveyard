@@ -151,9 +151,79 @@
 - **對白中不開行囊**：對白顯示時，I、Tab 與行囊按鈕都不會打開行囊（已經開著的行囊仍可關掉）。
 - **回應狀態的塔**（`towers[i].respond: true`）：「點燃」進行中與完成時都不放火焰與爆炸粒子，只有心跳明暗。
 
+## 擴充腳本：法術參數與事件（Extension scripts: spell parameters and events）
+
+內容包只能放資料（上一節的閘門會擋下函式與流程控制）。要在遊戲進行中改數值、聽事件、跳出自己的面板，寫一支**擴充腳本**：排在 `kit/boot.js` 之後載入的一般 script（例如 `<script src="ext/upgrade.js" defer></script>`），透過 `window.EG` 操作引擎。擴充腳本不是內容包，不受「內容只能放資料」的檢查；頁面載入它時，它的大小計入程式碼預算。
+
+### 法術參數表
+
+四招的數字都在 `kit/combat.js` 的 `SPELL_DEF`（預設值），執行中一律經 `spellP(id)` 讀一份可覆寫的副本，**施放與命中當下才讀**，所以改了之後的下一次施放、下一次彈跳就生效。不覆寫時數值與行為和示範版完全相同。
+
+| 招式 `id` | 欄位（預設） | 說明 |
+|---|---|---|
+| 全部 | `cd`、`dur`、`rel` | 冷卻秒數、施法動作秒數、動作進行到幾成時放出（皆再除以施法速度）；技能列的冷卻圈也讀 `cd` |
+| `fire` | `shots: 3`、`spread: 0.2` | 升級後一次幾顆、相鄰兩顆的夾角（弧度），以瞄準方向為中心排開；未升級固定 1 顆 |
+| `fire` | `damage: 34`、`radius: 2.2`、`speed: 19`、`life: 1.3` | 爆炸傷害（再乘火焰傷害倍率）、爆炸半徑、飛行速度（每秒公尺）、飛行秒數 |
+| `fire` | `homingTurn: 0`、`homingCone: 0` | 追蹤：每秒最多轉幾弧度（0＝關閉）、只追飛行方向左右各幾度以內的怪；範圍內挑最近的活怪，只轉水平方向、速度不變 |
+| `bolt` | `damage: 30`、`bounces: 6`、`range: 7.5` | 直擊傷害、升級後彈跳次數、每次彈跳找下一隻怪的距離上限 |
+| `bolt` | `firstHop: 0.88`、`decay: 0.92`、`hopDelay: 0.075` | 第一跳＝直擊傷害 ×0.88，之後每跳 ×0.92；兩跳之間的秒數。預設下各跳是 30、26.4、24.288 … 第六跳 17.40 |
+| `meteor` | `drops: 10`、`interval: 0.17`、`sizeMin: 0.8`、`sizeMax: 1.05` | 升級後落幾顆、相鄰兩顆的間隔秒數、每顆大小係數的亂數範圍（未升級固定一顆大小 1.35） |
+| `meteor` | `damage: 60`、`radius: 2.7`、`burnRadius: 2.2`、`burnTime: 3.5` | 落點傷害與半徑（再乘大小係數，見 `CONTENT.combat`）、燃燒地面的半徑與秒數 |
+| `meteor` | `pattern: 'scatter'`、`spread: 4.4`、`arcLength: 8` | 落點排法：`'scatter'`＝第一顆在落點、其餘隨機散在半徑 `spread` 內（示範版）；`'arc'`＝圓心是施法者、半徑是到落點的距離，在施法方向排一段弧長 `arcLength` 公尺的弧，依落下順序從一端排到另一端，中間那顆在落點上 |
+| `blood` | `bolts: 8`、`damage: 26`、`interval: 0.09`、`seek: 15`、`duration: 2.4` | 血光數、每道傷害、相鄰兩道出手的間隔秒數、找目標的距離上限、法陣多久淡出（收尾的時間點依比例縮放） |
+
+### `window.EG`
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.setSpellParams(id, { 欄位: 值, … })` | 覆寫部分欄位，回傳 `true`＝每個欄位都收下。招式或欄位名不存在、型別和預設值不同、數字是負的／`NaN`／無限大、次數欄位（`shots`、`bounces`、`drops`、`bolts`）不是整數、`pattern` 不是 `'scatter'`／`'arc'`：該欄位略過、`console.warn` 一行、回傳 `false`，其他合格欄位照樣生效，**不丟例外** |
+| `EG.resetSpellParams(id)` | 該招回到預設；不給 `id` 就四招全部回預設 |
+| `EG.spellParams(id)` | 目前生效的參數（複本，改它不影響遊戲） |
+| `EG.on(事件, fn)`／`EG.off(事件, fn)` | 訂閱／取消；事件名打錯或 `fn` 不是函式時 `console.warn` 並略過 |
+| `EG.pause(true／false)`、`EG.isPaused()` | 擴充腳本自己的暫停：遊戲規則（怪物、投射物、計時器、故事進度）與施法全停，畫面照常更新，適合在塔下跳出升級面板。和暫停選單、對白各自獨立，互不解除；`isPaused()` 只回報這一個開關 |
+| `EG.inCombat()` | 場上有活著的怪，或正在首領戰 |
+| `EG.events` | 事件名清單 |
+
+### 事件
+
+| 事件 | 參數 | 何時 |
+|---|---|---|
+| `towerLit` | 塔的索引（0 起算） | 玩家點亮一座塔（階段結算畫面出現前 1 秒）；從存檔繼續時直接亮起的塔不算 |
+| `actStart` | 幕的索引 | 每一幕開始（開幕對白之前）；死亡後從本幕重來也會再發一次 |
+| `bossStart` | — | 首領出場（重來首領戰也算一次） |
+| `bossDown` | — | 首領倒下 |
+| `cast` | 招式 `id` | 一次施放成立（已扣冷卻） |
+| `hit` | `{ spell, target, amount }` | 每次對怪物造成傷害；`spell` 是傷害種類（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`），`amount` 已含暴擊 |
+| `kill` | 怪物種類（`spider`／`lizard`／`ghost`／`lord`） | 怪物倒下 |
+| `playerDeath` | 死因文字（死亡畫面上那一個） | 主角倒下 |
+| `restart` | — | 按下重來，清場之前 |
+| `ending` | — | 結局畫面出現 |
+
+每個監聽函式各自包在 `try`／`catch` 裡：丟出例外只會 `console.warn` 一行，後面的監聽函式照跑，遊戲這一格照常走完。
+
+### 範例：塔下的升級面板
+
+```js
+// ext/upgrade.js：排在 kit/boot.js 之後載入。點亮第一座塔時停住遊戲，讓玩家選「火球追蹤」
+EG.on('towerLit', (i) => {
+  if (i !== 0) return;
+  EG.pause(true);
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:60;padding:16px 20px;background:#1b1a22;color:#eee;border:1px solid #555;text-align:center';
+  box.innerHTML = '<p>選一個升級</p><button type="button">火球會追著最近的怪轉彎</button>';
+  box.querySelector('button').onclick = () => {
+    EG.setSpellParams('fire', { homingTurn: 4, homingCone: 40 });
+    box.remove();
+    EG.pause(false);
+  };
+  document.body.appendChild(box);
+});
+EG.on('ending', () => EG.resetSpellParams('fire'));
+```
+
 ## 邊界（由 `tests/checks.mjs` 把關）
 
 - `kit/` 不得出現內容包擁有的字串：說話者名字、塔名、首領名與其他 `text` 文字、對白句子（比對是真的執行內容檔、從 `CONTENT` 讀出來的，不是固定字表；unicode 跳脫與字串拼接也會被還原後比對），並附「偵測器確實讀到內容」的自我檢查。示範內容擁有的名字見 `content/demo/`。
 - 內容包只能放資料：不得出現 `THREE`、`renderer`、`document`、`function`、箭頭函式、`if`／`for`／`while`／`switch`／`try`／`throw`、`new`、`class`、getter／setter、`localStorage`／`fetch`／`eval`／計時器等有副作用的名稱，樣板字串裡的 `${…}` 也一併檢查。閘門檢查 `content/*/` 底下全部的 `.js`，加上 index.html 實際載入的內容 script。
-- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 200 KB 程式碼預算。
-- 怪物種類與數值（`ETYPES`）、法術數值（`SPELLS`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後商業版要換的話，再往 `CONTENT` 加欄位。
+- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 208 KB 程式碼預算。
+- 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後商業版要換的話，再往 `CONTENT` 加欄位。

@@ -5,7 +5,7 @@
 //   node scripts/smoke.mjs --selftest prove the gates turn red on bad input
 //   node scripts/smoke.mjs --url=https://lee-unhn.github.io/ember-graveyard/   probe the deployed site
 // Exit code 0 = all green. Any failed gate exits 1 (fail-loud, no silent skip).
-import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync, cpSync } from 'node:fs';
 import { join, dirname, extname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -16,7 +16,8 @@ import { pageSources } from '../tests/lib/pagesrc.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BYTES = 150 * 1024;
-const MAX_CODE_BYTES = 200 * 1024;
+// raised from 200 KB to 208 KB for the extension interface (spell parameter table, window.EG events and pause, DEVLOG #45); the selftest proves it still fails one byte over
+const MAX_CODE_BYTES = 208 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
@@ -246,6 +247,20 @@ function selftest() {
   const before = failures; staticGates(dir); const caught = failures - before;
   failures = before; rmSync(dir, { recursive: true, force: true });
   caught >= 3 ? ok(`poisoned copy tripped ${caught} gates (host, syntax, path)`) : bad(`poisoned copy tripped only ${caught} gates`);
+  // the code budget bites at the byte: a copy padded with an extra local script to exactly the limit passes every gate, one byte more fails exactly one (DEVLOG #45)
+  const budgetTrips = (extra) => {
+    const d = mkdtempSync(join(tmpdir(), 'eg-budget-'));
+    try {
+      for (const sub of ['kit', 'content']) cpSync(join(ROOT, sub), join(d, sub), { recursive: true, filter: (s) => statSync(s).isDirectory() || s.endsWith('.js') });
+      writeFileSync(join(d, 'index.html'), readFileSync(join(ROOT, 'index.html'), 'utf8').replace('<script src="kit/character.js" defer></script>', '$&\n<script src="pad.js" defer></script>'));
+      writeFileSync(join(d, 'pad.js'), '');
+      const { html, scripts } = pageSources(d), used = Buffer.byteLength(html) + scripts.filter((s) => s.local && s.text).reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+      writeFileSync(join(d, 'pad.js'), '/*' + 'x'.repeat(MAX_CODE_BYTES - used - 4 + extra) + '*/');
+      const b0 = failures; staticGates(d); const n = failures - b0; failures = b0; return n;
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  };
+  const atLimit = budgetTrips(0), overLimit = budgetTrips(1);
+  atLimit === 0 && overLimit === 1 ? ok(`code budget: exactly ${MAX_CODE_BYTES} B passes, one byte more fails`) : bad(`code budget gate: at the limit ${atLimit} failures, one byte over ${overLimit} failures (want 0 and 1)`);
 }
 
 const args = process.argv.slice(2);

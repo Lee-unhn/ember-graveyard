@@ -81,14 +81,14 @@ function giveLamp(){if(equipped.light||inv.some(i=>i.slot==='light'))return;cons
 function startFree(){initAudio();titleMode(false);$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();
   Object.assign(story,{on:false,phase:'idle',unlocked:new Set(['fire','bolt','meteor','blood'])});$('#objective').hidden=true;$('#tierLbl').hidden=false;$('#segTier').hidden=false;
   TOWERS.forEach(T=>{setTowerLit(T,true);T.beam.visible=false});player.pos.set(0,0,0);player.kills=0;wave=1;waveTimer=0;refreshSkillLabels();spawnWave(50);toast('第 1 波')}
-function beginAct(i){story.act=i;const A=ACTS[i];story.ambushed=false;story.ign=0;if(story.on)writeSave(i);
+function beginAct(i){story.act=i;egEmit('actStart',i);const A=ACTS[i];story.ambushed=false;story.ign=0;if(story.on)writeSave(i);
   Object.assign(story,{actT0:time,actKills0:player.kills,actTk0:terrainKills,actLoot0:pickups,bestChain:0});
   const go=()=>{story.phase='fight';story.killsAt=player.kills;story.goal=A.n;spawnWave(A.n,A.mix,1+i*.15);toast(`第 ${i+1} 幕`)};
   if(A.dlg&&!story.seen.has(A.dlg)){story.seen.add(A.dlg);story.phase='dialog';playDialog(A.dlg,go)}else go()}
 function ambush(T){const A=ACTS[story.act];for(let i=0;i<6;i++){const a=rand(0,TAU),r=rand(9,12);spawnEnemy(pickType(A.mix),T.x+Math.cos(a)*r,T.z+Math.sin(a)*r,1+story.act*.15)}note(`${EG_TERM.undead}被火光吸引過來了`)}
 function igniteTower(T){setTowerLit(T,true);T.beam.visible=false;story.phase='dialog';egFx(T)&&explode(new V3(T.x,3.8,T.z),1.1,[1,1,1],true);shake(.3);
   if(T.spell==='fire')story.tier.fire=1;else story.unlocked.add(T.spell);refreshSkillLabels();toast(`${T.name}${egLit(T)}`);obj(`${T.name}${egLit(T)}`,'');
-  const A=ACTS[story.act];after(1,()=>showResult(story.act,()=>playDialog(A.after,()=>{if(story.act<ACTS.length-1)beginAct(story.act+1);else egBossIntro()})))}
+  egEmit('towerLit',story.act);const A=ACTS[story.act];after(1,()=>showResult(story.act,()=>playDialog(A.after,()=>{if(story.act<ACTS.length-1)beginAct(story.act+1);else egBossIntro()})))}
 function updateStory(dt){if(!story.on)return;
   if(story.phase==='fight'){const k=Math.min(story.goal,player.kills-story.killsAt);obj(`擊倒甦醒的${EG_TERM.undead}　${k} / ${story.goal}`,`第 ${story.act+1} 幕`);
     if(k>=story.goal){story.phase='goto';TOWERS[story.act].beam.visible=true;toast(`${EG_TERM.go}${TOWERS[story.act].name}`);sfx.pick()}}
@@ -103,7 +103,7 @@ function updateStory(dt){if(!story.on)return;
 
 // 首領
 const shocks=[],shockGeo=new THREE.RingGeometry(.9,1,72);
-function startBoss(){story.phase='boss';spawnEnemy('lord',0,0,1);const b=enemies[enemies.length-1];b.aggro=true;b.shockT=3;b.flags={};story.boss=b;$('#bossbar').hidden=false;
+function startBoss(){story.phase='boss';spawnEnemy('lord',0,0,1);const b=enemies[enemies.length-1];b.aggro=true;b.shockT=3;b.flags={};story.boss=b;$('#bossbar').hidden=false;egEmit('bossStart');
   for(let i=0;i<30;i++){const d=randUnit();SMOKE.emit({x:rand(-1,1),y:1+rand(0,2),z:rand(-1,1),vx:d.x*3,vy:Math.abs(d.y)*2,vz:d.z*3,kind:2,fm:1,life:rand(1.4,2.2),s0:2,s1:5,r:.25,g:.12,b:.35,a0:.8,a1:0})}
   flash(new V3(0,2,0),0x9a5cff,6,16,.8);shake(.5);sfx.blood();toast(CONTENT.text.bossName)}
 function summon(e,n){for(let i=0;i<n;i++){const a=rand(0,TAU),r=rand(4,7),x=e.pos.x+Math.cos(a)*r,z=e.pos.z+Math.sin(a)*r;spawnEnemy(Math.random()<.6?'spider':'ghost',x,z,1.5);
@@ -121,11 +121,11 @@ function updateShocks(dt){for(let i=shocks.length-1;i>=0;i--){const s=shocks[i];
   if(!s.hit&&player.alive&&r>2.2){const d=Math.hypot(player.pos.x-s.x,player.pos.z-s.z);if(Math.abs(d-r)<.75){s.hit=true;hurtPlayer(22,EG_TERM.bossShock);flash(player.pos.clone().setY(1),0xa05cff,3,6,.3)}}
   rate(s,'p',90,dt,()=>{const a=rand(0,TAU);ADD.emit({x:s.x+Math.cos(a)*r,y:.15,z:s.z+Math.sin(a)*r,vy:rand(.5,1.5),kind:3,fm:2,frame:0,life:.4,s0:.35,s1:.05,r:.65,g:.35,b:1,a0:.9,a1:0})});
   if(k>=1){scene.remove(s.mesh);s.mesh.material.dispose();shocks.splice(i,1)}}}
-function onBossDead(e){story.phase='outro';$('#bossbar').hidden=true;$('#objective').hidden=true;const c=e.pos.clone();
+function onBossDead(e){egEmit('bossDown');story.phase='outro';$('#bossbar').hidden=true;$('#objective').hidden=true;const c=e.pos.clone();
   for(let i=0;i<6;i++)after(i*.22,()=>explode(new V3(c.x+rand(-2,2),rand(.5,2.5),c.z+rand(-2,2)),1.3,[.75,.5,1]));
   after(1.4,()=>{for(const o of enemies)if(o.alive)killEnemy(o);setDark(0)});
   after(2.8,()=>playDialog(EG_FLOW.down,egShowEnding))}
-function showEnding(){story.phase='end';clearSave();const s=Math.round(time-story.t0);
+function showEnding(){story.phase='end';egEmit('ending');clearSave();const s=Math.round(time-story.t0);
   $('#endSub').textContent=`用時 ${Math.floor(s/60)} 分 ${String(s%60).padStart(2,'0')} 秒・擊倒 ${player.kills} 隻・地形擊殺 ${terrainKills}（${player.kills?Math.round(terrainKills/player.kills*100):0}%）`;$('#ending').hidden=false;$('#objective').hidden=true}
 $('#endAgain').onclick=()=>startStory(0);$('#endFree').onclick=startFree;
 $('#btnVoice').onclick=()=>{voiceOn=!voiceOn;$('#btnVoice').textContent='語音：'+(voiceOn?'開':'關');if(!voiceOn)hush()};

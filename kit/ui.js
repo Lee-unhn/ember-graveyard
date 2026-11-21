@@ -31,9 +31,9 @@ function updateHud(dt){fpsAcc+=dt;fpsN++;if(fpsAcc>=.5){$('#sFps').textContent=M
   $('#sParts').textContent=ADD.list.length+SMOKE.list.length;$("#statKills").textContent=player.kills;$('#sLeft').textContent=enemies.filter(e=>e.alive).length;
   $('#sWave').textContent=story.on?(story.phase==='boss'||story.phase==='outro'||story.phase==='end'?'首領戰':`第 ${story.act+1} 幕`):`第 ${wave} 波`;
   $('#hpfill').style.transform=`scaleX(${player.hp/player.maxhp})`;$('#hptext').textContent=`生命 ${Math.ceil(player.hp)} / ${Math.round(player.maxhp)}`;
-  for(const el of skEls){const id=el.dataset.s,cs=castMul();el.querySelector('.cd').style.setProperty('--p',cds[id]/(SPELLS[id].cd/cs)||0);el.classList.toggle('locked',!story.unlocked.has(id))}
+  for(const el of skEls){const id=el.dataset.s,cs=castMul();el.querySelector('.cd').style.setProperty('--p',cds[id]/(spellP(id).cd/cs)||0);el.classList.toggle('locked',!story.unlocked.has(id))}
   if(toastT>0){toastT-=dt;if(toastT<=0)$('#toast').style.opacity=0}if(msgT>0){msgT-=dt;if(msgT<=0)$('#msg').style.opacity=0}}
-function restart(){
+function restart(){egEmit('restart');
   if(story.on){clearWorld();if(story.phase==='boss'){player.pos.set(0,0,14);startBoss()}else if(egBossDownRestart()){}else{player.pos.set(0,0,4);beginAct(story.act)}return}
   clearWorld();player.pos.set(0,0,0);player.kills=0;wave=1;waveTimer=0;spawnWave(50);toast('第 1 波')}
 // logic＝規則一格；visuals＝畫面一格。暫停只停 logic。驗收探針直接呼叫這兩個。
@@ -45,7 +45,7 @@ function visuals(dt){updateTowers(dt);flushTerrain();ADD.update(dt);SMOKE.update
 const clock=new THREE.Clock();
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);time+=dt;shared.uTime.value=time;
   // 停格：命中瞬間遊戲規則幾乎停住（只走 8%），畫面照常更新
-  if(running&&!paused&&!menuOpen){if(hitStop>0){hitStop-=dt;logic(dt*.08)}else logic(dt)}
+  if(running&&!paused&&!menuOpen&&!egHeld){if(hitStop>0){hitStop-=dt;logic(dt*.08)}else logic(dt)}
   visuals(dt);if(window.EGPost)EGPost.render();else renderer.render(scene,camera)}
 
 /* ---------- 畫面：讀取、標題、暫停、設定、操作說明、製作群、階段結算、存檔 ---------- */
