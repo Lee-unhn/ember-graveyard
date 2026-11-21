@@ -1,7 +1,40 @@
 // 引擎核心：數學小工具、雜訊、翻頁圖集、渲染器、粒子系統、燈光池、程式畫的貼圖
 // 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
 'use strict';
+/*H*/ // 載入失敗要讓玩家看到原因，不能只停在永遠不結束的讀取畫面：讀取畫面還開著時，任何同步載入的 script 找不到或丟錯，都把原因寫在讀取畫面上（讀取完成後的執行期錯誤不蓋畫面）
+/*H*/ function egFail(msg){try{const L=document.querySelector('#loading');if(!L||L.hidden||document.querySelector('#ldfail'))return;const card=L.querySelector('.card')||L,p=document.createElement('p');p.id='ldfail';p.setAttribute('role','alert');
+/*H*/   p.style.cssText='color:#ff9a8a;font-size:14px;line-height:1.6;margin:10px 0 0;max-width:46ch;text-align:left';p.textContent='載入失敗：'+msg;card.appendChild(p);const st=document.querySelector('#ldstep');if(st)st.hidden=true}catch(e){}}
+/*H*/ window.addEventListener('error',e=>{const t=e.target;if(t&&t!==window){if(t.tagName==='SCRIPT'&&!t.defer&&!t.async)egFail('找不到檔案 '+(t.getAttribute('src')||''));return}egFail(String(e.message||'未知錯誤'))},true);
 if(!window.CONTENT)throw new Error('CONTENT 未載入：請先載入 content/<內容包>/*.js 再載入 kit/（見 kit/CONTENT-API.md）');
+/*H*/ // 內容驗證：必要欄位缺了就在載入時用一行指名欄位的訊息停下來；可選欄位缺了就補安全預設，並把警告記在 window.__contentWarnings（console.warn）
+/*H*/ const CONTENT_WARNINGS=window.__contentWarnings=[];
+/*H*/ function cwarn(m){if(CONTENT_WARNINGS.includes(m))return;CONTENT_WARNINGS.push(m);try{console.warn('[content] '+m)}catch(e){}}
+/*H*/ // 查不到的鍵不丟例外：回傳預設值並記一筆警告（對白代號、說話者、頭像）
+/*H*/ function egLookup(obj,what,fallback){return new Proxy(obj,{get(t,k){if(typeof k!=='string'||k in t)return t[k];cwarn(what+' '+k+' 不存在，改用預設值');return typeof fallback==='function'?fallback():fallback}})}
+/*H*/ function egValidateContent(){const C=window.CONTENT,bad=[],isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v),num=v=>typeof v==='number'&&isFinite(v);
+/*H*/   for(const k of ['towers','towerPos','acts'])if(!Array.isArray(C[k])||!C[k].length)bad.push('CONTENT.'+k+' 缺少，或不是有內容的陣列');
+/*H*/   if(!bad.length){
+/*H*/     if(C.towerPos.length!==C.towers.length)bad.push('CONTENT.towerPos 有 '+C.towerPos.length+' 筆，要等於 CONTENT.towers 的 '+C.towers.length+' 座');
+/*H*/     if(C.acts.length!==C.towers.length)bad.push('CONTENT.acts 有 '+C.acts.length+' 幕，要等於 CONTENT.towers 的 '+C.towers.length+' 座（每座塔對應一幕）');
+/*H*/     C.towers.forEach((t,i)=>{if(!isObj(t)||typeof t.name!=='string'||!['fire','bolt','meteor','blood'].includes(t.spell)||!num(t.col)||!Array.isArray(t.c)||t.c.length!==3||!t.c.every(num))bad.push('CONTENT.towers['+i+'] 缺 name、spell、col 或 c（三個 0–1 的數字）');else{if(typeof t.dir!=='string')t.dir='';if(!num(t.kind))t.kind=0}});
+/*H*/     C.towerPos.forEach((p,i)=>{if(!Array.isArray(p)||!num(p[0])||!num(p[1]))bad.push('CONTENT.towerPos['+i+'] 要是 [x, z] 兩個數字')});
+/*H*/     C.acts.forEach((a,i)=>{if(!isObj(a)||!num(a.n)||a.n<1||!Array.isArray(a.mix)||a.mix.length!==3||!a.mix.every(num))bad.push('CONTENT.acts['+i+'] 缺 n（要擊倒幾隻）或 mix（三種怪的比例，三個數字）')})}
+/*H*/   if(bad.length)throw new Error('CONTENT 不完整：'+bad.join('；'));
+/*H*/   for(const k of ['speakers','portraits','dialog'])if(!isObj(C[k])){cwarn('CONTENT.'+k+' 沒有給：'+(k==='dialog'?'所有對白略過':k==='speakers'?'說話者名字留空':'頭像留空'));C[k]={}}
+/*H*/   for(const [id,sp] of Object.entries(C.speakers)){const s=isObj(sp)?sp:(C.speakers[id]={});if(typeof s.n!=='string')s.n='';if(typeof s.c!=='string')s.c='#ffffff';if(!num(s.pitch))s.pitch=1;if(!num(s.rate))s.rate=1}
+/*H*/   for(const [id,lines] of Object.entries(C.dialog)){if(!Array.isArray(lines)){cwarn('CONTENT.dialog.'+id+' 不是陣列，略過');delete C.dialog[id];continue}
+/*H*/     C.dialog[id]=lines.filter((l,i)=>{const good=Array.isArray(l)&&typeof l[0]==='string'&&typeof l[1]==='string';if(!good)cwarn('CONTENT.dialog.'+id+'['+i+'] 要是 [說話者代號, 文字]，略過這一句');else if(!(l[0] in C.speakers))cwarn('CONTENT.dialog.'+id+'['+i+'] 的說話者 '+l[0]+' 不在 CONTENT.speakers，名字會留空');return good})}
+/*H*/   C.acts.forEach((a,i)=>{for(const k of ['dlg','after'])if(a[k]&&!(a[k] in C.dialog))cwarn('CONTENT.acts['+i+'].'+k+' 指到不存在的對白 '+a[k]+'，這段會略過')});
+/*H*/   for(const k of ['dark','end'])if(!(k in C.dialog))cwarn('CONTENT.dialog.'+k+' 沒有給：首領戰的這段對白略過');
+/*H*/   if(!isObj(C.text))C.text={};if(typeof C.text.bossName!=='string'||!C.text.bossName){cwarn('CONTENT.text.bossName 沒有給，首領名字改用「首領」');C.text.bossName='首領'}
+/*H*/   if(typeof C.voiceDir!=='string'||!C.voiceDir)C.voiceDir='';else if(!C.voiceDir.endsWith('/'))C.voiceDir+='/';
+/*H*/   if(typeof C.modelScript!=='string')C.modelScript='';
+/*H*/   // 內容包識別：存檔與設定的鍵名會帶上它。示範版（id 為 demo）沿用原本的 eg-save／eg-settings／eg-keys，玩家既有的存檔不會失效；沒給 id 的內容包用內容指紋，不會讀到別人的存檔
+/*H*/   let id=typeof C.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(C.id)?C.id:'';
+/*H*/   if(!id){let h=0;const s=JSON.stringify([C.towers,C.acts]);for(let i=0;i<s.length;i++)h=(Math.imul(h,31)+s.charCodeAt(i))|0;id='p'+(h>>>0).toString(36);cwarn('CONTENT.id 沒有給，存檔鍵改用內容指紋 '+id)}
+/*H*/   C.id=id;return id}
+/*H*/ const EG_PACK=egValidateContent();
+/*H*/ function EG_KEY(base){return EG_PACK==='demo'?base:base+':'+EG_PACK}
 const $=s=>document.querySelector(s);
 const V3=THREE.Vector3;
 const rand=(a,b)=>a+Math.random()*(b-a), randi=(a,b)=>Math.floor(rand(a,b+1)), pick=a=>a[Math.floor(Math.random()*a.length)];

@@ -13,6 +13,7 @@
     "test:e2e": "node tests/e2e.mjs",
     "test:checks": "node tests/checks.mjs",
     "test:screens": "node tests/screens.mjs",
+    "test:breaker": "node tests/breaker.mjs",
     "test:live": "node tests/run-all.mjs --url=https://lee-unhn.github.io/ember-graveyard/",
     "serve": "python -m http.server 8794"
   }

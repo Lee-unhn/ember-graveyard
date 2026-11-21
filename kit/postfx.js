@@ -92,7 +92,7 @@
   try {
     const g = renderer.getContext(), ext = g.getExtension('WEBGL_debug_renderer_info');
     swRender = /swiftshader|llvmpipe|software|basic render/i.test(String(g.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : g.RENDERER)));
-    let saved = null; try { saved = localStorage.getItem('eg-settings'); } catch (e) {}
+    let saved = null; try { saved = localStorage.getItem(EG_KEY('eg-settings')); } catch (e) {}
     if (swRender && !saved && typeof SET !== 'undefined') SET.fx = 'low';
   } catch (e) {}
   // lite picture without a graphics card: no mist, no ground detail, 0.75 render scale (measured 76.5 -> about 18 ms per frame)

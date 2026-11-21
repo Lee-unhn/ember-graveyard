@@ -59,7 +59,7 @@ function backSub(id){const el=$('#'+id);el.hidden=true;const f=el.dataset.from;i
 function togglePause(force){if(!running||!player.alive||dlg)return;const p=$('#pause'),open=force!==undefined?force:p.hidden;
   if(open){if(menuOpen)return;p.hidden=false;$('#pConfirm').hidden=true;hush()}else p.hidden=true;syncMenu();if(open)$('#pResume').focus()}
 // 本機存檔：只記「故事進行到第幾幕」，存在瀏覽器裡；讀不到就當沒有存檔
-const SAVE_KEY='eg-save';
+const SAVE_KEY=EG_KEY('eg-save');
 function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&Number.isInteger(s.act)&&s.act>=0&&s.act<ACTS.length?s:null}catch(e){return null}}
 function writeSave(act){try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,act}))}catch(e){}}
 function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}

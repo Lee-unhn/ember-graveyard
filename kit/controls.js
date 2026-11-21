@@ -27,7 +27,7 @@ body.touch #lab{display:none}`;
   // ---------------------------------------------------------------- key remapping
   const label = (c) => !c ? '—' : c.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '方向 ').replace(/^Numpad/, '數字鍵 ');
   let waiting = null, touchOn = false;
-  const saveKeys = () => { try { localStorage.setItem('eg-keys', JSON.stringify(KB)); } catch (e) {} };
+  const saveKeys = () => { try { localStorage.setItem(EG_KEY('eg-keys'), JSON.stringify(KB)); } catch (e) {} };
   function refreshSkillKeys() {
     for (const s of ['fire', 'bolt', 'meteor', 'blood']) {
       const el = document.querySelector(`.sk[data-s=${s}] .k`); if (!el) continue;
@@ -119,7 +119,7 @@ body.touch #lab{display:none}`;
       sk.addEventListener('touchend', up, { passive: false }); sk.addEventListener('touchcancel', up, { passive: false });
     }
     // phone defaults on first visit: medium particles, camera a little further back
-    let saved = null; try { saved = localStorage.getItem('eg-settings'); } catch (e) {}
+    let saved = null; try { saved = localStorage.getItem(EG_KEY('eg-settings')); } catch (e) {}
     if (!saved) { SET.particles = 'mid'; SET.fx = 'low'; applySettings(); }   // phones: medium particles, post effects off
     zoom = Math.max(zoom, 1.2);
     const note = $('#introNote');

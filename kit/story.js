@@ -5,7 +5,7 @@
 const story={on:false,act:0,phase:'idle',unlocked:new Set(['fire','bolt','meteor','blood']),tier:{fire:1},seen:new Set(),killsAt:0,goal:0,ign:0,ambushed:false,t0:0,boss:null};
 let paused=false;
 function tierOf(id){return story.on?(id==='fire'?story.tier.fire:1):(upgraded?1:0)}
-const PORTRAITS=CONTENT.portraits,SPEAKERS=CONTENT.speakers,DLG=CONTENT.dialog;
+const PORTRAITS=egLookup(CONTENT.portraits,'頭像',''),SPEAKERS=egLookup(CONTENT.speakers,'說話者',()=>({n:'',c:'#ffffff',pitch:1,rate:1})),DLG=egLookup(CONTENT.dialog,'對白',()=>[]);  // 查不到的對白代號／說話者／頭像不丟例外：略過那段對白、名字留空、頭像留空，並記警告
 
 // 語音：瀏覽器內建朗讀（零成本、沒有授權問題；音質依瀏覽器而定）
 let voiceOn=true,zhVoice=null;
@@ -14,7 +14,7 @@ if('speechSynthesis' in window){pickVoice();try{speechSynthesis.onvoiceschanged=
 // 對白語音：先播本機模型預錄的檔（CONTENT.voiceDir，各裝置聲音一致）；檔案放不出來才改用瀏覽器內建朗讀
 let vAudio=null;
 function speak(text,sp,file){if(!voiceOn)return;hush();
-  if(file)try{const a=new Audio(CONTENT.voiceDir+file+'.ogg');a.volume=Math.min(1,SET.voice*SET.master);vAudio=a;window.__voiceFile=file;
+  if(file&&CONTENT.voiceDir)try{const a=new Audio(CONTENT.voiceDir+file+'.ogg');a.volume=Math.min(1,SET.voice*SET.master);vAudio=a;window.__voiceFile=file;
     const fb=()=>{if(vAudio===a){vAudio=null;window.__voiceFile=null;tts(text,sp)}};a.onerror=fb;const pr=a.play();if(pr)pr.catch(fb);return}catch(e){}
   tts(text,sp)}
 function tts(text,sp){if(!voiceOn||!('speechSynthesis' in window))return;try{const u=new SpeechSynthesisUtterance(text.replace(/[「」…]/g,''));
@@ -73,7 +73,7 @@ function startStory(fromAct=0){if(typeof fromAct!=='number')fromAct=0;initAudio(
   TOWERS.forEach(T=>{setTowerLit(T,false);T.beam.visible=false});
   // 從存檔繼續：前面幾幕的燈塔直接點亮、法術直接解鎖，開場對白不再播
   for(let k=0;k<fromAct;k++){const T=TOWERS[k];setTowerLit(T,true);if(T.spell==='fire')story.tier.fire=1;else story.unlocked.add(T.spell)}
-  if(fromAct>0)story.seen.add('intro');
+  if(fromAct>0)for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg);
   $('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();giveLamp();beginAct(fromAct)}
 // 故事模式開場送一盞普通提燈（身邊照亮 5 公尺）；已經有提燈就不再送。行囊不存檔，所以從存檔繼續時也會送
 function giveLamp(){if(equipped.light||inv.some(i=>i.slot==='light'))return;const it=makeItem(0,BASES.find(b=>b.slot==='light'));it.name='燼燈';

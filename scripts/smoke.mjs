@@ -44,9 +44,9 @@ export function staticGates(root) {
   // 1. size
   const bytes = Buffer.byteLength(html);
   bytes <= MAX_BYTES ? ok(`size ${bytes} B <= ${MAX_BYTES}`) : bad(`size ${bytes} B > ${MAX_BYTES}`);
-  // the game code used to sit inside index.html; after the engine/content split the same budget idea covers page + kit/ + content/ code (the model and voice files are data, not counted)
-  const codeBytes = bytes + pageScripts.filter((s) => s.local && s.text && /^(kit|content)\//.test(s.src)).reduce((n, s) => n + Buffer.byteLength(s.text), 0);
-  codeBytes <= MAX_CODE_BYTES ? ok(`page code (index + kit + content) ${codeBytes} B <= ${MAX_CODE_BYTES}`) : bad(`page code ${codeBytes} B > ${MAX_CODE_BYTES}`);
+  // the game code used to sit inside index.html; after the engine/content split the same budget idea covers page + every local script the page loads (kit/, content/, anything else added later; the model and voice files are data loaded at run time, not counted)
+  const codeBytes = bytes + pageScripts.filter((s) => s.local && s.text).reduce((n, s) => n + Buffer.byteLength(s.text), 0);
+  codeBytes <= MAX_CODE_BYTES ? ok(`page code (index + every local script) ${codeBytes} B <= ${MAX_CODE_BYTES}`) : bad(`page code ${codeBytes} B > ${MAX_CODE_BYTES}`);
   const missing = pageScripts.filter((s) => s.local && s.text === null).map((s) => s.src);
   missing.length === 0 ? ok(`all ${localFiles.length} local scripts exist`) : bad(`missing script files: ${missing.join(', ')}`);
 

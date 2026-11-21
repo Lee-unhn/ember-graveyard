@@ -10,7 +10,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 import { ROOT, serve, openPage, reporter, sleep } from './lib/browser.mjs';
-import { pageSources, splitViolations } from './lib/pagesrc.mjs';
+import { pageSources, splitViolations, ownedStrings } from './lib/pagesrc.mjs';
 
 const rep = reporter('breaker');
 const BASE = '1e294ad'; // main, before the split
@@ -50,13 +50,32 @@ const failLines = (out) => out.split('\n').filter((l) => /^\s+FAIL /.test(l)).ma
 function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 'scripts', 'smoke.mjs')], { cwd: dir, encoding: 'utf8', timeout: 60000 }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; }
 
 // ================================================================ A. behaviour parity with main (static, git)
+// The hardening that fixed this report's findings (DEVLOG §5 #68-#80) is the ONLY allowed difference from main, and it is spelled out:
+//  - new engine lines carry the marker /*H*/ at the start of the line (only core.js and boot.js may hold them, checked below);
+//  - the few main lines that had to change are undone by REVERSE (kit text -> main text), each replacement must really occur in kit/;
+//  - HTML_FORWARD turns main's index.html into what the page must look like now (content-specific text moved into the content pack).
+// Anything else that differs from main is still a finding.
+const MARK = '/*H*/';
+const REVERSE = [["EG_KEY('eg-save')", "'eg-save'"], ["EG_KEY('eg-settings')", "'eg-settings'"], ["EG_KEY('eg-keys')", "'eg-keys'"],
+  ['for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg)', "story.seen.add('intro')"]];
+const HTML_FORWARD = [['<div class="nm">無燈之主</div>', '<div class="nm"></div>'],
+  ['<p class="note" id="introNote">故事模式約 15 分鐘：點亮四座燈塔、學會四招法術，最後對上無燈之主。自由試玩：四招全開，可切換拆解台。需要鍵盤與滑鼠；怪物死後會掉裝備，走過去自動撿起，按 I 穿上。</p>', '<p class="note" id="introNote"></p>'],
+  ['color:#d6cdb9">四座燈塔重新亮起。燼語墓園今晚會很安靜。</p>', 'color:#d6cdb9"></p>']];
+const unhardened = (t) => t.split('\n').filter((l) => !l.trim().startsWith(MARK)).join('\n');
+const reversed = (t) => REVERSE.reduce((s, [now, was]) => s.split(now).join(was), t);
 function parity() {
   const git = (a) => spawnSync('git', ['-C', ROOT, ...a], { encoding: 'utf8', maxBuffer: 1 << 28 });
   const old = git(['show', `${BASE}:index.html`]);
   if (old.status !== 0) { rep.ok(false, `parity: cannot read ${BASE}:index.html from git`, old.stderr); return; }
   const mainTags = [...old.stdout.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).sort((a, b) => b.length - a.length);
   const { scripts } = pageSources(ROOT);
-  const kitBlocking = scripts.filter((s) => s.local && !s.defer && /^kit\//.test(s.src)).map((s) => s.text).join('\n');
+  const kitBlockingRaw = scripts.filter((s) => s.local && !s.defer && /^kit\//.test(s.src));
+  const kitBlocking = reversed(unhardened(kitBlockingRaw.map((s) => s.text).join('\n')));
+  const Hlines = kitBlockingRaw.map((s) => [s.src, s.text.split('\n').filter((l) => l.trim().startsWith(MARK)).length]).filter(([, n]) => n);
+  rep.ok(Hlines.every(([f]) => f === 'kit/core.js' || f === 'kit/boot.js'), 'parity: the /*H*/ hardening marker appears only in kit/core.js and kit/boot.js (content validation, load errors, page text from content)', Hlines);
+  const allKit = kitBlockingRaw.map((s) => s.text).join('\n');
+  const unused = REVERSE.filter(([now]) => !allKit.includes(now)).map(([now]) => now);
+  rep.ok(unused.length === 0, 'parity: every recorded replacement of a main line really occurs in kit/ (the list of allowed deviations cannot rot)', unused);
   const norm = (t) => t.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'));
   const A = norm(mainTags[0]), B = norm(kitBlocking), sa = new Set(A), sb = new Set(B);
   const demo = JSON.stringify(demoContent());
@@ -66,13 +85,14 @@ function parity() {
   const onlyMain = A.filter((l) => !sb.has(l) && !contentish(l)), onlyKit = B.filter((l) => !sa.has(l) && !/CONTENT/.test(l));
   rep.ok(onlyMain.length === 0 && onlyKit.length === 0, 'parity: kit/ blocking scripts equal main\'s inline game script line by line except content and CONTENT reads', { onlyMain: onlyMain.slice(0, 5), onlyKit: onlyKit.slice(0, 5) });
   const stripScripts = (h) => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
-  const ha = stripScripts(old.stdout), hb = stripScripts(read('index.html'));
-  rep.ok(JSON.stringify(ha) === JSON.stringify(hb), 'parity: index.html markup (scripts and comments removed) is unchanged, so every element id, label and default text is the same');
-  const moved = []; for (const f of ['controls', 'pixel', 'lighting', 'detail', 'mist', 'postfx']) if (git(['show', `${BASE}:assets/${f}.js`]).stdout !== read(`kit/${f}.js`)) moved.push(f);
-  rep.ok(moved.length === 0, 'parity: the six deferred modules moved to kit/ byte for byte', moved);
+  const forward = HTML_FORWARD.reduce((s, [a, b]) => s.split(a).join(b), old.stdout);
+  const ha = stripScripts(forward), hb = stripScripts(read('index.html'));
+  rep.ok(JSON.stringify(ha) === JSON.stringify(hb) && HTML_FORWARD.every(([a]) => old.stdout.includes(a)), 'parity: index.html markup (scripts and comments removed) is unchanged except the three texts that moved into the content pack (boss name, intro note, ending note), so every element id, label and default text is the same');
+  const moved = []; for (const f of ['controls', 'pixel', 'lighting', 'detail', 'mist', 'postfx']) if (git(['show', `${BASE}:assets/${f}.js`]).stdout !== reversed(read(`kit/${f}.js`))) moved.push(f);
+  rep.ok(moved.length === 0, 'parity: the six deferred modules moved to kit/ byte for byte (apart from the storage keys going through EG_KEY)', moved);
   // the keys the player's browser data lives under must be the very same strings as before
   const keys = (t) => [...t.matchAll(/['"](eg-[a-z]+)['"]/g)].map((m) => m[1]).sort().join();
-  rep.ok(keys(mainTags[0] + git(['show', `${BASE}:assets/controls.js`]).stdout + git(['show', `${BASE}:assets/postfx.js`]).stdout) === keys(kitBlocking + read('kit/controls.js') + read('kit/postfx.js')), 'parity: storage key names (eg-settings, eg-keys, eg-save) unchanged');
+  rep.ok(keys(mainTags[0] + git(['show', `${BASE}:assets/controls.js`]).stdout + git(['show', `${BASE}:assets/postfx.js`]).stdout) === keys(allKit + read('kit/controls.js') + read('kit/postfx.js')), 'parity: storage key names (eg-settings, eg-keys, eg-save) unchanged');
 }
 
 // ================================================================ B. isolation: can the split check be fooled, is kit/ really clean
@@ -87,6 +107,8 @@ function isolation() {
   const realHits = (s) => splitViolations(kit(`const a='${s}';`), realContent).filter((v) => v.startsWith('kit/'));
   rep.ok(realHits('燈火守著亡者的夢。火一滅，他們就醒了，而且很餓。').length > 0 && realHits('星之塔').length > 0, 'isolation: with the real content files, a dialogue sentence or a tower name copied into kit/ is caught (the strings are read from the content pack)',
     { dialogueLine: realHits('燈火守著亡者的夢。火一滅，他們就醒了，而且很餓。').length, towerName: realHits('星之塔').length });
+  const seen = ownedStrings(realContent);
+  rep.ok(seen.errors.length === 0 && seen.read === realContent.length && seen.owned.size > 20 && seen.owned.has('星之塔') && seen.owned.has('燈火守著亡者的夢。火一滅，他們就醒了，而且很餓。'), 'isolation(self-check): the detector really read the real content files (every file ran, tower names and dialogue lines are in its list)', { files: seen.read, of: realContent.length, strings: seen.owned.size, errors: seen.errors });
   const slipped = (list) => list.filter(([, k, c]) => splitViolations(k, c).length === 0).map(([n]) => n);
   rep.ok(slipped([['unicode-escape', kit("const a='\\u7070\\u7fc1';"), content(okContent)], ['concatenation', kit("const a='灰'+'翁';"), content(okContent)]]).length === 0,
     'isolation: a demo name written as \\u escapes or as two joined strings in kit/ is still caught', slipped([['unicode-escape', kit("const a='\\u7070\\u7fc1';"), content(okContent)], ['concatenation', kit("const a='灰'+'翁';"), content(okContent)]]));
@@ -227,7 +249,8 @@ async function runtime() {
   writeVariant('no_modelScript', (C) => { delete C.modelScript; });
   writeVariant('model_404', (C) => { C.modelScript = 'content/none/model.js'; });
   writeVariant('renamed_boss', (C) => { C.text.bossName = '白霜巨龍'; });
-  writeVariant('other_pack', (C) => { C.towers.push(C.towers[0]); C.towerPos.push([-10, -12]); C.acts.push({ n: 10, mix: [1, 0, 0], after: 't4' }); });
+  writeVariant('other_pack_id', (C) => { C.id = 'frost-dragon'; C.towers.push(C.towers[0]); C.towerPos.push([-10, -12]); C.acts.push({ n: 10, mix: [1, 0, 0], after: 't4' }); });
+  writeVariant('other_pack', (C) => { delete C.id; C.towers.push(C.towers[0]); C.towerPos.push([-10, -12]); C.acts.push({ n: 10, mix: [1, 0, 0], after: 't4' }); });
   // load-order / 404 variants
   writeVariant('content_after_kit', null, { html: (h) => h.replace(tagPair, '').replace('<script src="kit/boot.js"></script>', '<script src="kit/boot.js"></script>\n' + tagPair) });
   writeVariant('kit_story_404', null, { html: (h) => h.replace('kit/story.js', 'kit/story_404.js') });
@@ -309,6 +332,17 @@ async function runtime() {
     await load(base + 'other_pack.html'); const cont = await p.evaluate(`!document.querySelector('#goContinue').hidden`);
     await p.evaluate(`localStorage.removeItem('eg-save')`);
     rep.ok(!cont, 'content: a save written by the demo pack (same origin, same eg-save key) is not offered as "continue" by a different pack', { continueButtonShown: cont }); }
+  { await load(base + 'control.html'); await p.evaluate(`localStorage.setItem('eg-save', JSON.stringify({ v: 1, act: 3 }))`);
+    await load(base + 'other_pack_id.html'); const cont = await p.evaluate(`!document.querySelector('#goContinue').hidden`);
+    const keysUsed = await p.evaluate(`(() => { writeSave(1); const k = Object.keys(localStorage).filter((x) => /^eg-/.test(x)); clearSave(); return k; })()`);
+    await p.evaluate(`localStorage.removeItem('eg-save')`);
+    rep.ok(!cont && keysUsed.includes('eg-save:frost-dragon'), 'content: a pack with its own CONTENT.id keeps its save under eg-save:<id> and never sees the demo save', { continueButtonShown: cont, keysUsed }); }
+  { await load(base + 'control.html'); await p.evaluate(`localStorage.setItem('eg-save', JSON.stringify({ v: 1, act: 3 }))`);
+    await load(base + 'control.html'); const cont2 = await p.evaluate(`!document.querySelector('#goContinue').hidden`); await p.evaluate(`localStorage.removeItem('eg-save')`);
+    rep.ok(cont2, 'content(control): the demo pack (id "demo") still reads its own old eg-save key, so players keep their saves', { cont2 }); }
+  // ---- 1h. optional fields missing: safe defaults and a recorded warning
+  { await load(base + 'missing_speakers.html'); await prep(); const res = await p.evaluate(`(() => { try { startStory(0); return { err: null, who: $('#dWho').textContent, warn: window.__contentWarnings.length }; } catch (e) { return { err: String(e.message) }; } })()`);
+    rep.ok(res.err === null && res.who === '' && res.warn > 0, 'content: a pack without speakers shows empty names and records warnings in window.__contentWarnings (no exception)', res); }
 
   // ---- 2. load order and missing kit files
   { const r = await load(base + 'content_after_kit.html', { settle: 5000 });

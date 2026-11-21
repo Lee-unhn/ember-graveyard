@@ -2,6 +2,10 @@
 // 以下各檔是依序載入的一般 script，頂層 const／let／function 在檔案之間以名稱共用（順序見 index.html）。
 'use strict';
 /* ---------- 開場 ---------- */
+/*H*/ // 頁面上與內容有關的文字（首領血條名字、開場說明、結局文字）由內容包填入，index.html 不寫死
+/*H*/ $('#bossbar .nm').textContent=CONTENT.text.bossName;
+/*H*/ if(CONTENT.text.introNote)$('#introNote').textContent=CONTENT.text.introNote;
+/*H*/ if(CONTENT.text.endNote)$('#ending .note').textContent=CONTENT.text.endNote;
 setRoute(0);setTier(1);
 if(matchMedia('(pointer:coarse)').matches&&!matchMedia('(pointer:fine)').matches)$('#introNote').textContent='這個試玩需要鍵盤與滑鼠，手機上只能看畫面。';
 let atlas=null,atlasTex=null,atlasOrig=null;

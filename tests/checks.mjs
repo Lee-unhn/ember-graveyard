@@ -5,7 +5,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { ROOT, serve, openPage, reporter } from './lib/browser.mjs';
-import { pageSources, splitViolations } from './lib/pagesrc.mjs';
+import { pageSources, splitViolations, contentScripts, sharedScopeDuplicates } from './lib/pagesrc.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 const rep = reporter('checks');
@@ -36,9 +36,14 @@ function staticChecks() {
   rep.ok(srcs.indexOf('kit/controls.js') >= 0 && srcs.slice(0, srcs.indexOf('kit/controls.js')).every((s) => !/^https?:/.test(s)), 'touch controls load before any deferred third-party script', srcs);
   // engine/content split (DEVLOG §4 #40): kit/ must run with any content pack, a content pack must be plain data
   const rd = (dir) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.js')).map((f) => ({ name: `${dir}/${f}`, text: readFileSync(join(ROOT, dir, f), 'utf8') }));
-  const kitFiles = rd('kit'), contentFiles = rd('content/demo');
+  const kitFiles = rd('kit'), contentFiles = contentScripts(ROOT); // every content/<pack>/*.js on disk plus whatever index.html loads from content/ (breaker finding 5)
   const viol = splitViolations(kitFiles, contentFiles);
   rep.ok(viol.length === 0, `kit/ holds no demo content and content/ holds no engine logic (${kitFiles.length} kit files, ${contentFiles.length} content files)`, viol);
+  // the detector must prove it read the pack: strings from the REAL content files, not a fixed word list (breaker finding 3)
+  const realProbe = splitViolations([{ name: 'kit/x.js', text: "const a = '燈火守著亡者的夢。火一滅，他們就醒了，而且很餓。'; const b = '星之塔';" }], contentFiles);
+  rep.ok(realProbe.length >= 2, `split check reads the real content files: a dialogue line and a tower name copied into kit/ are both caught (${realProbe.length} findings)`, realProbe);
+  const dupDecl = sharedScopeDuplicates(pageScripts.filter((s) => s.text && !s.defer).map((s) => ({ name: s.src || 'inline', text: s.text })));
+  rep.ok(dupDecl.length === 0, 'no top-level const / let / class declared twice across the shared-scope scripts (a SyntaxError in the browser)', dupDecl);
   // the detector itself must be able to turn red (proved by hand in DEVLOG §4 #40; kept here so it cannot rot into a no-op)
   const probe = splitViolations([{ name: 'kit/x.js', text: "const s = '灰翁';" }], [{ name: 'content/y.js', text: 'window.CONTENT = { f: function () { return new THREE.Mesh(); } };' }]);
   rep.ok(probe.length >= 3, `split check flags a planted name and planted engine code (${probe.length} findings)`, probe);
@@ -46,6 +51,11 @@ function staticChecks() {
   const order = pageScripts.filter((s) => s.local).map((s) => s.src);
   const lastContent = Math.max(...order.map((s, i) => (s.startsWith('content/') ? i : -1))), firstKit = order.findIndex((s) => s.startsWith('kit/'));
   rep.ok(lastContent >= 0 && lastContent < firstKit, 'content scripts load before the first kit script', order);
+  rep.ok(!pageScripts.some((s) => s.local && /^content\//.test(s.src) && (s.defer || s.async)), 'content scripts are plain blocking scripts (no defer, no async: either one lets kit/ read window.CONTENT before it exists)', pageScripts.filter((s) => /^content\//.test(s.src || '') && (s.defer || s.async)).map((s) => s.src));
+  // kit/ files depend on each other by name; this is the documented order (kit/CONTENT-API.md). Files not listed here may sit anywhere after core.js.
+  const KIT_ORDER = ['kit/core.js', 'kit/world.js', 'kit/combat.js', 'kit/systems.js', 'kit/story.js', 'kit/ui.js', 'kit/boot.js'];
+  const kitBlock = pageScripts.filter((s) => s.local && /^kit\//.test(s.src) && !s.defer).map((s) => s.src), known = kitBlock.filter((s) => KIT_ORDER.includes(s));
+  rep.ok(kitBlock[0] === 'kit/core.js' && JSON.stringify(known) === JSON.stringify(KIT_ORDER.filter((s) => known.includes(s))), 'kit/ blocking scripts load in the documented order (core first, then world, combat, systems, story, ui, boot)', kitBlock);
   rep.ok(!pageScripts.some((s) => s.local && /^kit\//.test(s.src) && !s.defer && pageScripts.indexOf(s) > pageScripts.findIndex((x) => x.defer)), 'blocking kit scripts all come before the first deferred script');
   // Godot port: billboarded particles drop their own scale unless the material keeps it; every quad then drew at 1 unit (DEVLOG #45)
   const gd = readFileSync(join(ROOT, 'godot', 'main.gd'), 'utf8');

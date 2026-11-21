@@ -46,7 +46,7 @@ P3 (new skin) starts with a checklist of the screen types commercial games ship 
 
 ![The CC0 mannequin as the fire mage, casting](docs/screens/p3b/mage-cast.jpg)
 
-The block-built mage is replaced by the Mannequin from Quaternius' **Universal Animation Library** (CC0, free Standard download). `scripts/slim_glb.py` keeps the mesh, the skeleton and seven animations (idle, jog, spell enter / channel / shoot, hit, death), drops texture coordinates and every bone track that never moves, and repacks it from 7.6 MB to 0.9 MB, stored as base64 in `assets/mage-model.js` so the page still works when opened from disk. The old hat and staff follow the head and right-hand bones. Each spell picks a clip (fireball and chain lightning shoot, meteor raises then shoots, the blood rune channels) and the clip is time-scaled to the game's own cast timing. If the loader or the model cannot load, the block mage stays.
+The block-built mage is replaced by the Mannequin from Quaternius' **Universal Animation Library** (CC0, free Standard download). `scripts/slim_glb.py` keeps the mesh, the skeleton and seven animations (idle, jog, spell enter / channel / shoot, hit, death), drops texture coordinates and every bone track that never moves, and repacks it from 7.6 MB to 0.9 MB, stored as base64 in `content/demo/models/mage-model.js` so the page still works when opened from disk. The old hat and staff follow the head and right-hand bones. Each spell picks a clip (fireball and chain lightning shoot, meteor raises then shoots, the blood rune channels) and the clip is time-scaled to the game's own cast timing. If the loader or the model cannot load, the block mage stays.
 
 The monster pack chosen for P3b (Quaternius' Ultimate Monsters, CC0) is only published through a Google Drive folder that was over its download quota on 2026-11-15, so the monsters are still the block-built ones.
 
@@ -254,7 +254,7 @@ The page is split so that a second game can take only the engine. `kit/` is the 
 | `content/demo/` | `story.js` (speakers, portraits, dialogue), `world.js` (towers, acts, boss name, file paths), `voice/` (24 dialogue recordings), `models/mage-model.js` (CC0 mage) |
 | `index.html` | HTML, CSS, script load order, `loop()` |
 
-Load order: three.js, then `content/demo/*.js`, then `kit/*.js`, then the deferred scripts. All of them are classic scripts sharing one global scope (top-level `const`, `let` and `function` are visible across files by name), so every function and variable keeps its old name. `tests/checks.mjs` fails if `kit/` contains demo story text or if `content/` contains engine logic.
+Load order: three.js, then `content/demo/*.js`, then `kit/*.js`, then the deferred scripts. All of them are classic scripts sharing one global scope (top-level `const`, `let` and `function` are visible across files by name), so every function and variable keeps its old name. `tests/checks.mjs` fails if `kit/` contains demo story text or if `content/` contains engine logic. At load time `kit/core.js` validates the pack: a missing required field (`towers`, `towerPos`, `acts`, or an act and tower count that do not match) stops the load and writes the reason on the loading screen; a missing optional field (speakers, portraits, dialogue, voice folder, boss name) gets a safe default and a warning in `window.__contentWarnings`. Save and settings keys carry the pack id (`CONTENT.id`; the demo, id `demo`, keeps the original `eg-save`, `eg-settings` and `eg-keys` so existing saves stay valid).
 
 ## Development log
 
@@ -285,6 +285,7 @@ Zero dependencies: Node 22+ and Chrome (or set `CHROME_PATH`). One command runs 
 | End-to-end | `npm run test:e2e` | 55 checks driven only by real keyboard and mouse events: start story, advance dialogue with Space, walk with W, cast with clicks and keys, equip from the inventory, die and retry, switch the Lab panel, set dry grass on fire with a click and watch it spread and kill; change a setting by keyboard, pause with Esc (the mage cannot move), confirm a return to title, reload and continue from act 3, die in lava and read the cause |
 | Checks | `npm run test:checks` | 68 checks: Performance budget under load (spells, and a 40×40 burning terrain field), no leaks across five restarts, no horizontal scroll at 375 px, accessible names, non-blank frames, documentation links, diagram sources in sync, no function declared twice, engine/content boundary (no story text in `kit/`, no engine logic in `content/`), script load order |
 | Screens | `npm run test:screens` | 11 screens at 1280×720 and 375×667: screenshot each and check the layout rules; `--save=<phase>` keeps them in `docs/screens/` |
+| Breaker | `npm run test:breaker` | 60+ adversarial checks on the engine/content split (part of `npm test`): content with missing fields, unknown dialogue codes or speakers, other tower counts, another pack on the same origin, load order and 404s, `file://`, and whether the static gates can be fooled; the repo's own differences from main are listed explicitly and anything else is red |
 | Mutation | part of `npm test` | Copies the project, plants nine known defects and requires the unit and check suites to turn red |
 | Deployed site | `npm run test:live` | Re-runs smoke, unit, e2e and checks against GitHub Pages |
 
@@ -349,7 +350,7 @@ P3 換皮的第一步，是整理市面遊戲的整套畫面類型做成檢核�
 
 ![CC0 人偶當火術師施法](docs/screens/p3b/mage-cast.jpg)
 
-原本用方塊拼的法師，換成 Quaternius〈Universal Animation Library〉的人偶（CC0，免費的 Standard 版）。`scripts/slim_glb.py` 只留模型、骨架與七個動作（待機、慢跑、施法起手／持續／放出、受擊、死亡），拿掉貼圖座標與整段不動的骨骼軌道，從 7.6 MB 縮到 0.9 MB，以 base64 存在 `assets/mage-model.js`，所以直接開檔也能玩。原本的帽子和法杖跟著頭與右手的骨頭走。每招法術各配一段動作（焰核彈與鏈雷是放出、星墜先起手再放出、血環是持續），播放速度對齊遊戲本身的施法時間。載入器或模型載不到時，維持原本的方塊法師。
+原本用方塊拼的法師，換成 Quaternius〈Universal Animation Library〉的人偶（CC0，免費的 Standard 版）。`scripts/slim_glb.py` 只留模型、骨架與七個動作（待機、慢跑、施法起手／持續／放出、受擊、死亡），拿掉貼圖座標與整段不動的骨骼軌道，從 7.6 MB 縮到 0.9 MB，以 base64 存在 `content/demo/models/mage-model.js`，所以直接開檔也能玩。原本的帽子和法杖跟著頭與右手的骨頭走。每招法術各配一段動作（焰核彈與鏈雷是放出、星墜先起手再放出、血環是持續），播放速度對齊遊戲本身的施法時間。載入器或模型載不到時，維持原本的方塊法師。
 
 P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Google Drive 資料夾發布，2026-11-15 當天超過下載上限，怪物暫時還是方塊拼的。
 
@@ -399,7 +400,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 | `content/demo/` | `story.js`（說話者、頭像、對白）、`world.js`（塔與幕、首領名稱、檔案路徑）、`voice/`（24 句預錄語音）、`models/mage-model.js`（CC0 人偶） |
 | `index.html` | HTML、CSS、script 載入順序、`loop()` |
 
-載入順序：three.js、`content/demo/*.js`、`kit/*.js`、最後是 `defer` 腳本。全是一般 script、共用同一個全域範圍（頂層 `const`、`let`、`function` 在檔案之間以名稱共用），所以每個函式與變數維持原名。`tests/checks.mjs` 會在 `kit/` 出現示範劇情文字、或 `content/` 出現引擎邏輯時變紅。
+載入順序：three.js、`content/demo/*.js`、`kit/*.js`、最後是 `defer` 腳本。全是一般 script、共用同一個全域範圍（頂層 `const`、`let`、`function` 在檔案之間以名稱共用），所以每個函式與變數維持原名。`tests/checks.mjs` 會在 `kit/` 出現示範劇情文字、或 `content/` 出現引擎邏輯時變紅。`kit/core.js` 載入時會驗證內容包：缺少必要欄位（`towers`、`towerPos`、`acts`，或幕數與塔數不一致）就停下來，把原因寫在讀取畫面上；缺少選填欄位（說話者、頭像、對白、語音資料夾、首領名稱）就補安全預設並把警告記在 `window.__contentWarnings`。存檔與設定的鍵名帶內容包識別（`CONTENT.id`；示範版 id 為 `demo`，沿用原本的 `eg-save`、`eg-settings`、`eg-keys`，既有存檔不失效）。
 
 ### 開發紀錄
 
@@ -430,6 +431,7 @@ npm test
 | 端對端 | `npm run test:e2e` | 55 項，只用真實鍵盤滑鼠事件操作：進故事模式、空白鍵翻對白、按 W 走路、點擊與按鍵施法、從行囊穿裝、死亡重來、切換拆解台、點一下燒起枯草並看火勢蔓延燒死怪物；用鍵盤改設定、按 Esc 暫停（角色真的不動）、確認後回標題、重新載入從第 3 幕繼續、踩熔岩死亡並看到死因 |
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次、引擎與內容的邊界（`kit/` 沒有劇情文字、`content/` 沒有引擎邏輯）、script 載入順序 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
+| 破壞者測試 | `npm run test:breaker`（也包在 `npm test` 裡） | 60 多項針對引擎與內容拆分的對抗檢查：內容缺欄位、對白代號或說話者對不上、塔數與幕數不同、同網域的另一個內容包、載入順序與檔案 404、直接開 `file://`、靜態閘門能不能被繞過；與拆分前主線的差異逐項列明，其餘一律紅燈 |
 | 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋九個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 

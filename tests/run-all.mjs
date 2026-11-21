@@ -5,6 +5,7 @@
 //   e2e       real keyboard/mouse flows                          (tests/e2e.mjs)
 //   checks    performance, leaks, phone width, a11y, docs, diagrams (tests/checks.mjs)
 //   screens   every menu/result screen at desktop + phone size: screenshot + layout rules (tests/screens.mjs)
+//   breaker   adversarial checks for the engine/content split: odd content packs, load failures, gate bypasses (tests/breaker.mjs)
 //   mutation  copy the project, plant defects, require the suites to turn red
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
@@ -27,6 +28,7 @@ rows.push(['unit', run('tests/unit.mjs', url ? [url] : [])]);
 rows.push(['e2e', run('tests/e2e.mjs', url ? [url] : [])]);
 rows.push(['checks', run('tests/checks.mjs', url ? [url] : [])]);
 rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
+if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
   // plant nine defects in a scratch copy; the suites must notice

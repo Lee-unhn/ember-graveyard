@@ -19,9 +19,9 @@ function startMusic(){if(!AC||musicTimer)return;const chords=[[220,261.6,329.6],
 // 設定：四種音量、粒子密度、減少震動與停格、字幕大小、掉寶形狀標記（存在瀏覽器裡，讀不到就用預設）
 const SET_DEFAULT={fx:'high',bright:1.4,master:.8,music:.5,sfx:.8,voice:.8,particles:'high',reduceShake:false,subSize:1,lootShapes:true};
 const SET=Object.assign({},SET_DEFAULT);
-try{const s=JSON.parse(localStorage.getItem('eg-settings')||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
+try{const s=JSON.parse(localStorage.getItem(EG_KEY('eg-settings'))||'null');if(s&&typeof s==='object')for(const k in SET_DEFAULT)if(typeof s[k]===typeof SET_DEFAULT[k])SET[k]=s[k]}catch(e){}
 let DENSITY=1;
-function saveSettings(){try{localStorage.setItem('eg-settings',JSON.stringify(SET))}catch(e){}}
+function saveSettings(){try{localStorage.setItem(EG_KEY('eg-settings'),JSON.stringify(SET))}catch(e){}}
 function applySettings(){DENSITY={low:.4,mid:.7,high:1}[SET.particles]||1;
   if(AC){master.gain.value=.55*SET.master;sfxBus.gain.value=soundOn?SET.sfx:0;musicBus.gain.value=SET.music}
   document.documentElement.style.setProperty('--sub',SET.subSize)}
@@ -39,7 +39,7 @@ const sfx={cast:()=>nz(.22,1800,500,'bandpass',.22,1.2),whoosh:()=>nz(.18,2500,7
 
 /* ---------- 操作 ---------- */
 const KB_DEFAULT={up:'KeyW',left:'KeyA',down:'KeyS',right:'KeyD',fire:'Digit1',bolt:'Digit2',meteor:'Digit3',blood:'Digit4',inv:'KeyI'};
-const KB=Object.assign({},KB_DEFAULT);try{const k=JSON.parse(localStorage.getItem('eg-keys')||'{}');for(const n in KB_DEFAULT)if(typeof k[n]==='string')KB[n]=k[n]}catch(e){}
+const KB=Object.assign({},KB_DEFAULT);try{const k=JSON.parse(localStorage.getItem(EG_KEY('eg-keys'))||'{}');for(const n in KB_DEFAULT)if(typeof k[n]==='string')KB[n]=k[n]}catch(e){}
 const keys={},mouse=new THREE.Vector2(),aim=new V3(),ray=new THREE.Raycaster(),gplane=new THREE.Plane(new V3(0,1,0),0);let lmb=false;
 addEventListener('keydown',e=>{keys[e.code]=true;
   if(e.code==='Space'){e.preventDefault();if(dlg)nextLine();else if(!$('#result').hidden)closeResult();return}

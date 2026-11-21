@@ -118,7 +118,9 @@ async function terrainFlow() {
       spawnEnemy('spider', .5, -5.5, 1); for (const [x, z] of [[-2.5, -5.5], [3.5, -5.5], [.5, -8.5]]) spawnEnemy('spider', x, z, .6);
       for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); window.__tk0 = terrainKills;
       // the camera glides after the mage was moved; snap it now, or the aim point below is projected through a camera that is still on its way (DEVLOG #44, #51)
-      camSnap = true; updateCamera(1 / 60); })()`);
+      camSnap = true; updateCamera(1 / 60);
+      // project() reads camera.matrixWorldInverse, which three.js only refreshes when a frame renders: without this the aim point is sometimes projected through the previous frame's camera (seen as a flaky "casts a fireball" failure with aim stuck at 0,0)
+      camera.updateMatrixWorld(true); camera.matrixWorldInverse.copy(camera.matrixWorld).invert(); })()`);
     const aim = await p.evaluate(`(() => { const v = new THREE.Vector3(.5, 1, -5.5).project(camera); return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight]; })()`);
     // hold the button until the game has actually cast: on a slow software-GPU CI box a short click can fall between two frames
     await p.mouse('mouseMoved', aim[0], aim[1]); await p.mouse('mousePressed', aim[0], aim[1]);

@@ -11,7 +11,12 @@ CONTENT.towers=[
 CONTENT.towerPos=[[0,-15],[16,-1],[1,16],[-16,1]];
 // 幕：n＝這幕要擊倒的數量，mix＝三種怪的比例，dlg＝開幕對白代號，after＝點亮塔後播的對白代號
 CONTENT.acts=[{dlg:'intro',n:18,mix:[1,0,0],after:'t1'},{n:24,mix:[.6,.4,0],after:'t2'},{n:28,mix:[.45,.35,.2],after:'t3'},{n:30,mix:[.35,.35,.3],after:'t4'}];
-CONTENT.text={bossName:'無燈之主'};
+// 內容包識別：存檔與設定的鍵名用它區分內容包。'demo' 沿用原本的 eg-save／eg-settings／eg-keys（玩家既有存檔不失效）；其他內容包請取不同的 id
+CONTENT.id='demo';
+// 畫面文字：bossName＝首領血條、提示、死亡畫面；introNote＝標題畫面的開場說明；endNote＝結局畫面的結語（後兩項選填）
+CONTENT.text={bossName:'無燈之主',
+  introNote:'故事模式約 15 分鐘：點亮四座燈塔、學會四招法術，最後對上無燈之主。自由試玩：四招全開，可切換拆解台。需要鍵盤與滑鼠；怪物死後會掉裝備，走過去自動撿起，按 I 穿上。',
+  endNote:'四座燈塔重新亮起。燼語墓園今晚會很安靜。'};
 // 對白語音檔的資料夾（檔名＝對白代號_第幾句_說話者.ogg）、人偶模型的腳本檔
 CONTENT.voiceDir='content/demo/voice/';
 CONTENT.modelScript='content/demo/models/mage-model.js';
