@@ -91,10 +91,11 @@ async function freeFlow() {
     await p.mouse('mouseMoved', W / 2, H / 2 - 150); await p.mouse('mousePressed', W / 2, H / 2 - 150, 'right'); await p.mouse('mouseReleased', W / 2, H / 2 - 150, 'right');
     rep.ok(await p.waitFor(`projs.some(q => q.kind === 'bolt') || cds.bolt > 0`, 3000), 'right click casts chain lightning');
     // keys 3 and 4
-    await p.waitFor('!player.cast', 2000); await p.key('Digit3', '3', '3');
-    rep.ok(await p.waitFor('cds.meteor > 0', 2000), 'key 3 casts meteor rain');
-    await p.waitFor('!player.cast', 3000); await p.key('Digit4', '4', '4');
-    rep.ok(await p.waitFor('cds.blood > 0 && rites.length > 0', 2000), 'key 4 casts the blood rune');
+    // cast times run in game time; on a software-rendered CI box a frame can take 0.2 s, so wait for the condition, not a fixed time (DEVLOG #58)
+    await p.waitFor('!player.cast', 10000); await p.key('Digit3', '3', '3');
+    rep.ok(await p.waitFor('cds.meteor > 0', 6000), 'key 3 casts meteor rain');
+    await p.waitFor('!player.cast', 10000); await p.key('Digit4', '4', '4');
+    rep.ok(await p.waitFor('cds.blood > 0 && rites.length > 0', 6000), 'key 4 casts the blood rune');
     rep.ok(await p.waitFor('player.kills > 0', 8000), 'spells kill monsters in real time');
     // atlas viewer and sound toggles
     await p.clickSel('#btnAtlas'); rep.ok(await p.evaluate(`!document.querySelector('#atlasPop').hidden`), '"view flipbook" shows the atlas');
