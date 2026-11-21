@@ -31,7 +31,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant fourteen defects in a scratch copy; the suites must notice
+  // plant eighteen defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -55,6 +55,10 @@ if (!args.includes('--skip-mutation') && !url) {
     plant('else if(egBossDownRestart()){}else{', 'else{');                                                    // 12. dying right after the boss falls sends the player back to act 4 (F06)
     plant('>=c&&d<bd', '>=-2&&d<bd');                                                                          // 13. fireball homing ignores the cone and chases a monster behind it (DEVLOG timeline #45)
     plant('const s=spellP(id),cs=castMul();', 'const s=SPELL_DEF[id],cs=castMul();');                         // 14. a cooldown override is not read by the cast (DEVLOG timeline #45)
+    plant("EG_PO[on?'add':'delete'](o)", 'on?EG_PO.add(o):EG_PO.clear()');                                  // 15. releasing one pause owner releases every owner (DEVLOG timeline #46)
+    plant("const b=EG_RK[e.code]&&$('.keybtn.waiting');", 'const b=0;');                                        // 16. the key-remap rows accept a reserved key (DEVLOG timeline #46)
+    plant("'fire',0,'meteor')", "'fire',0,'fire')");                                                            // 17. a meteor impact is reported as a fireball hit (DEVLOG timeline #46)
+    plant('timers.length=caAcc=emitHot.acc=0;ambAcc={};for(const T of TOWERS)T.acc={}', 'timers.length=0');      // 18. clearEffects keeps the emission timers' phase, so a seeded scene no longer repeats (DEVLOG timeline #46)
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

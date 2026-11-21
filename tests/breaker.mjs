@@ -69,7 +69,17 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 //  - HTML_FORWARD turns main's index.html into what the page must look like now (content-specific text moved into the content pack).
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
-const REVERSE = [["EG_KEY('eg-save')", "'eg-save'"], ["EG_KEY('eg-settings')", "'eg-settings'"], ["EG_KEY('eg-keys')", "'eg-keys'"],
+const REVERSE = [
+  // extension interface, second round (DEVLOG timeline #46): hit events name the spell part that caused them, skill-bar numbers come from the spell table,
+  // new-game / continue events, the remap rows can be redrawn. These undo the newest edits first, so the older pairs below still find their text.
+  ["function dealDamage(e,amt,kind,src){", "function dealDamage(e,amt,kind){"], ["{spell:kind,kind,source:src||null,", "{spell:kind,"],
+  ["function aoe(pos,r,dmg,kind,skip,src){", "function aoe(pos,r,dmg,kind,skip){"], ["egAoeJit(),kind,src)", "egAoeJit(),kind)"],
+  ["'fire',0,'fire')", "'fire')"], ["'bolt','bolt')", "'bolt')"], ["'bolt',hit,'boltSplash')", "'bolt',hit)"], ["'bolt','boltChain')", "'bolt')"],
+  ["'fire',0,'meteor')", "'fire')"], ["'burn',0,'meteorBurn')", "'burn')"], ["'blood','blood')", "'blood')"], ["'blood',0,'blood')", "'blood')"],
+  ["egZh(spellP('fire').shots)+'連發'", "'三連發'"], ["`彈跳 ${spellP('bolt').bounces} 次`", "'彈跳 6 次'"], ["egZh(spellP('meteor').drops)+'顆連落'", "'十顆連落'"],
+  ["function startStory(fromAct=0,cont){", "function startStory(fromAct=0){"], ["story.act=fromAct;egEmit(cont?'continueGame':'newGame',fromAct);beginAct(fromAct)}", "beginAct(fromAct)}"],
+  ["startStory(s?s.act:0,!!s)", "startStory(s?s.act:0)"], ["label, aimNow, redrawKeys }", "label, aimNow }"],
+  ["EG_KEY('eg-save')", "'eg-save'"], ["EG_KEY('eg-settings')", "'eg-settings'"], ["EG_KEY('eg-keys')", "'eg-keys'"],
   // spell parameter table, extension events and the extension pause (DEVLOG timeline #45): each line below is a main line with one literal number swapped for a read through spellP(id) (the defaults in SPELL_DEF are main's literals), or with one egEmit(...) call or egHeld check added. They run first because the meteor lines are also touched by the #42/#44 pairs further down.
   ["const SPELL_DEF={fire:{cd:.36,dur:.3,rel:.5,shots:3,spread:.2,damage:34,radius:2.2,speed:19,life:1.3,homingTurn:0,homingCone:0},\n  bolt:{cd:1.05,dur:.38,rel:.45,damage:30,bounces:6,range:7.5,firstHop:.88,decay:.92,hopDelay:.075},\n  meteor:{cd:5,dur:.72,rel:.6,drops:10,damage:60,radius:2.7,burnRadius:2.2,burnTime:3.5,spread:4.4,interval:.17,sizeMin:.8,sizeMax:1.05,pattern:'scatter',arcLength:8},\n  blood:{cd:4.5,dur:1.9,rel:.02,bolts:8,damage:26,interval:.09,duration:2.4,seek:15}},SPELLS=JSON.parse(JSON.stringify(SPELL_DEF));", "const SPELLS={fire:{cd:.36,dur:.3,rel:.5},bolt:{cd:1.05,dur:.38,rel:.45},meteor:{cd:5,dur:.72,rel:.6},blood:{cd:4.5,dur:1.9,rel:.02}};"],
   ["e.hp-=amt;egEmit('hit',{spell:kind,target:e,amount:amt});", "e.hp-=amt;"],
@@ -177,7 +187,11 @@ function parity() {
   const Hlines = kitBlockingRaw.map((s) => [s.src, s.text.split('\n').filter((l) => l.trim().startsWith(MARK)).length]).filter(([, n]) => n);
   rep.ok(Hlines.every(([f]) => f === 'kit/core.js' || f === 'kit/boot.js'), 'parity: the /*H*/ hardening marker appears only in kit/core.js and kit/boot.js (content validation, load errors, page text from content)', Hlines);
   const allKit = kitBlockingRaw.map((s) => s.text).join('\n');
-  const unused = REVERSE.filter(([now]) => !allKit.includes(now)).map(([now]) => now);
+  // the six deferred modules are reversed too (byte-for-byte check below), so a replacement may live there
+  const kitAndDeferred = allKit + ['controls', 'pixel', 'lighting', 'detail', 'mist', 'postfx'].map((f) => read(`kit/${f}.js`)).join('\n');
+  // checked in order, on the text the earlier pairs have already undone: a newer edit to an already-changed line is undone first
+  let undone = kitAndDeferred; const unused = [];
+  for (const [now, was] of REVERSE) { if (!undone.includes(now)) unused.push(now); undone = undone.split(now).join(was); }
   rep.ok(unused.length === 0, 'parity: every recorded replacement of a main line really occurs in kit/ (the list of allowed deviations cannot rot)', unused);
   const norm = (t) => t.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'));
   const A = norm(mainTags[0]), B = norm(kitBlocking), sa = new Set(A), sb = new Set(B);

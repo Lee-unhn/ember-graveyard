@@ -302,7 +302,10 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
 /*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;
 /*H*/ // 擴充腳本介面 window.EG（kit/ 之後載入的 script 用，見 CONTENT-API.md）：法術參數、事件、暫停
-/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending'.split(' ');let egHeld=false;
+/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame'.split(' ');let egHeld=false;
+/*H*/ // 暫停的持有者、保留鍵、技能列數字（1–10 寫中文數字）
+/*H*/ const EG_PO=new Set(),EG_RK={},egZh=n=>n>0&&n<11?'一二三四五六七八九十'[n-1]:n;
+/*H*/ addEventListener('keydown',e=>{const b=EG_RK[e.code]&&$('.keybtn.waiting');if(b){e.preventDefault();e.stopImmediatePropagation();b.textContent='這個鍵保留給'+EG_RK[e.code]}},true);
 /*H*/ const egW=m=>console.warn('[EG] '+m);
 /*H*/ function egEmit(n,a){const L=EG_EV[n];if(L)for(const f of [...L])try{f(a)}catch(e){egW(n+' listener threw: '+(e&&e.message||e))}}
 /*H*/ // 火球追蹤：轉向前方 homingCone 度以內最近的活怪，每秒最多轉 homingTurn 弧度
@@ -315,7 +318,16 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/   off(n,f){const L=EG_EV[n]||[],i=L.indexOf(f);if(i>=0)L.splice(i,1)},
 /*H*/   setSpellParams(id,o){const D=SPELL_DEF[id];if(!D||!o||typeof o!=='object'){egW('setSpellParams: unknown spell or not an object: '+id);return false}let all=true;
 /*H*/     for(const k of Object.keys(o)){const v=o[k],d=D[k],good=d!==undefined&&typeof v===typeof d&&(typeof v==='string'?['scatter','arc'].includes(v):v>=0&&isFinite(v)&&(!/^(shots|bounces|drops|bolts)$/.test(k)||Number.isInteger(v)));
-/*H*/       if(good)SPELLS[id][k]=v;else{all=false;egW('setSpellParams: '+id+'.'+k+' ignored (unknown key, wrong type or out of range)')}}return all},
-/*H*/   resetSpellParams(id){for(const k of id===undefined?Object.keys(SPELL_DEF):[id])if(SPELL_DEF[k])Object.assign(SPELLS[k],SPELL_DEF[k]);else egW('resetSpellParams: unknown spell '+k)},
+/*H*/       if(good)SPELLS[id][k]=v;else{all=false;egW('setSpellParams: '+id+'.'+k+' ignored (unknown key, wrong type or out of range)')}}refreshSkillLabels();return all},
+/*H*/   resetSpellParams(id){for(const k of id===undefined?Object.keys(SPELL_DEF):[id])if(SPELL_DEF[k])Object.assign(SPELLS[k],SPELL_DEF[k]);else egW('resetSpellParams: unknown spell '+k);refreshSkillLabels()},
 /*H*/   spellParams(id){return SPELLS[id]?{...SPELLS[id]}:undefined},
-/*H*/   pause(on){egHeld=!!on},isPaused:()=>egHeld,inCombat:()=>enemies.some(e=>e.alive)||story.phase==='boss',events:[...EG_EVENTS]};
+/*H*/   pause(on,o='default'){EG_PO[on?'add':'delete'](o);egHeld=EG_PO.size>0},isPaused:()=>egHeld,pausedBy:()=>[...EG_PO],inCombat:()=>enemies.some(e=>e.alive)||story.phase==='boss',events:[...EG_EVENTS],
+/*H*/   player:()=>({x:player.pos.x,z:player.pos.z,hp:player.hp,maxHp:player.maxhp,alive:player.alive}),
+/*H*/   towers:()=>TOWERS.map((T,i)=>({index:i,name:T.name,spell:T.spell,x:T.x,z:T.z,lit:!!(T.lit||T.pulse),active:story.on&&i===story.act&&!T.lit&&!T.pulse})),
+/*H*/   ui(){const h=i=>!$('#'+i).hidden;return{running,dialog:!!dlg,menu:menuOpen,result:h('result'),ending:h('ending'),inventory:h('inv'),settings:h('settings')}},
+/*H*/   isTouch:()=>!!(window.EGControls&&EGControls.touch),reservedKeys:()=>({...EG_RK}),
+/*H*/   reserveKey(c,l){if(typeof c!=='string'||!c)return egW('reserveKey: not a key code: '+c);EG_RK[c]=String(l||c);
+/*H*/     for(const n in KB)if(KB[n]===c){const d=KB_DEFAULT[n]===c?'':KB_DEFAULT[n];egW(`reserveKey: ${c} was bound to ${n}, now ${d||'unbound'}`);KB[n]=d}window.EGControls&&EGControls.redrawKeys()},
+/*H*/   seed(n){Math.random=n==null?_sysRandom:mulberry32(n)},
+/*H*/   clearEffects(){for(const S of [ADD,SMOKE]){S.pool.push(...S.list);S.list.length=0}const k=(L,f)=>{for(const o of L.splice(0)){o.dead=true;f(o)}},r=(m,g)=>{scene.remove(m);(g?egFree:egFreeMat)(m)};
+/*H*/     k(projs,o=>0);k(meteors,o=>{r(o.mesh);r(o.ring)});k(rocks,o=>r(o.mesh));k(burns,o=>r(o.decal,1));k(rites,o=>r(o.mesh,1));k(shocks,o=>r(o.mesh));k(dmgs,o=>o.el.remove());timers.length=caAcc=emitHot.acc=0;ambAcc={};for(const T of TOWERS)T.acc={}}};

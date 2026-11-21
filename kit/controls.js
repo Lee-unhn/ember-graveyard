@@ -136,5 +136,5 @@ body.touch #lab{display:none}`;
     || (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches && (navigator.maxTouchPoints || 0) > 0);
   if (wantTouch) enableTouch();
   requestAnimationFrame(aimAssist);
-  window.EGControls = { enableTouch, get touch() { return touchOn; }, setMove, joyEnd, label, aimNow };
+  window.EGControls = { enableTouch, get touch() { return touchOn; }, setMove, joyEnd, label, aimNow, redrawKeys };
 })();

@@ -18,6 +18,8 @@ window.__runUnit = async (only) => {
     setTier(1); setRoute(0);
     Object.assign(SET, SET_DEFAULT); applySettings(); hitStop = 0; shakeAmt = 0; for (const id of MENUS) document.querySelector('#' + id).hidden = true; syncMenu();
     if (window.EG) { EG.resetSpellParams(); EG.pause(false); } // extension state (spell overrides, hold) never leaks into the next test; guarded so this file also runs on an engine without EG
+    if (window.EG && EG.pausedBy) for (const o of EG.pausedBy()) EG.pause(false, o); // every named hold too
+    if (window.EG && EG.seed) EG.seed(null); // and the page's own random numbers again
   };
   const atlasPx = (x, y) => [...atlas.getContext('2d').getImageData(x, y, 1, 1).data];
   const cellAlpha = (sheet, f, px, py) => { const sx = (sheet % 2) * 512 + (f % 4) * 128, sy = Math.floor(sheet / 2) * 512 + Math.floor(f / 4) * 128; return atlasPx(sx + px, sy + py)[3]; };
@@ -957,12 +959,13 @@ window.__runUnit = async (only) => {
   });
   test('events: each of the ten fires once, with its payload, in a scripted run; EG.off removes a listener', () => {
     fresh(); const got = {}, fns = {}; for (const n of EG.events) { fns[n] = (a) => (got[n] = got[n] || []).push(a); EG.on(n, fns[n]); }
-    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending', 'the event list');
+    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending,newGame,continueGame', 'the event list');
+    const TEN = EG.events.slice(0, 10); // newGame / continueGame have their own test below
     try { withContent({ combat: { critChance: 0 } }, () => {
       const e = still(spawnEnemy('lizard', 4, 0, 1) || enemies[0]);
       tryCast('fire'); dealDamage(e, 5, 'fire'); hurtPlayer(1e9, 'test cause'); restart();
       startStory(0); while (dlg) endDialog(); igniteTower(TOWERS[0]); startBoss(); killEnemy(story.boss); showEnding(); });
-      for (const n of EG.events) eq((got[n] || []).length, 1, n + ' fired once');
+      for (const n of TEN) eq((got[n] || []).length, 1, n + ' fired once');
       eq(got.cast[0], 'fire'); eq(got.hit[0].spell, 'fire'); eq(got.hit[0].amount, 5); ok(got.hit[0].target && got.hit[0].target.type === 'lizard', 'hit target is the monster');
       eq(got.kill[0], 'lord'); eq(got.playerDeath[0], 'test cause'); eq(got.actStart[0], 0); eq(got.towerLit[0], 0);
       EG.off('cast', fns.cast); fresh(); tryCast('fire'); eq(got.cast.length, 1, 'no call after off');
@@ -989,6 +992,118 @@ window.__runUnit = async (only) => {
       EG.pause(false); eq(EG.isPaused(), false); ok(await until(() => e.pos.x < x0 - .2 && fired === 1, 30000), `moves and the timer runs again after release (x ${e.pos.x.toFixed(2)}, timer ${fired})`);
       clearWorld(); eq(EG.inCombat(), false, 'cleared: not in combat'); story.phase = 'boss'; eq(EG.inCombat(), true, 'boss fight counts as combat'); story.phase = 'idle';
     } finally { if (window.EG) EG.pause(false); fresh(); }
+  });
+
+  // ---------------------------------------------------------------- extension scripts, second round (DEVLOG timeline #46): live skill-bar numbers, read-only queries,
+  // new-game / continue events, named pause holds, reserved keys, seeded randomness, effect clearing, the spell part behind each hit
+  test('skill bar numbers come from the live spell table: an override changes the shot, bounce and drop counts shown, a reset brings the old text back', () => {
+    fresh(); setTier(1); const t = (s) => document.querySelector('#m' + s).textContent;
+    eq(t('fire'), '三連發'); eq(t('bolt'), '彈跳 6 次'); eq(t('meteor'), '十顆連落');
+    ok(EG.setSpellParams('fire', { shots: 5 }), 'shots accepted'); ok(EG.setSpellParams('bolt', { bounces: 8 }), 'bounces accepted'); ok(EG.setSpellParams('meteor', { drops: 12 }), 'drops accepted');
+    eq(t('fire'), '五連發', 'five shots'); eq(t('bolt'), '彈跳 8 次', 'eight bounces'); eq(t('meteor'), '12顆連落', 'twelve drops');
+    EG.resetSpellParams(); eq(t('fire'), '三連發', 'reset'); eq(t('bolt'), '彈跳 6 次', 'reset'); eq(t('meteor'), '十顆連落', 'reset');
+    setTier(0); eq(t('fire'), '單發', 'not upgraded: single shot text unchanged'); fresh();
+  });
+  test('read-only queries: EG.player, EG.towers, EG.ui and EG.isTouch report the state and hand out copies', () => {
+    fresh(); player.pos.set(3, 0, -2); player.hp = 40;
+    const p = EG.player(); eq(JSON.stringify(p), JSON.stringify({ x: 3, z: -2, hp: 40, maxHp: 100, alive: true }), 'player');
+    p.hp = 1; p.x = 99; eq(player.hp, 40, 'player() is a copy'); eq(player.pos.x, 3);
+    const tw = EG.towers(); eq(tw.length, TOWERS.length, 'one row per tower');
+    tw.forEach((r, i) => { eq(r.index, i); eq(r.x, TOWERS[i].x); eq(r.z, TOWERS[i].z); eq(r.name, TOWERS[i].name); eq(r.spell, TOWERS[i].spell); eq(typeof r.lit, 'boolean'); eq(r.active, false, 'free play: no active tower'); });
+    tw[0].lit = !tw[0].lit; tw[0].x = 1e6; eq(EG.towers()[0].x, TOWERS[0].x, 'towers() is a copy'); eq(TOWERS[0].lit, !tw[0].lit);
+    eq(JSON.stringify(EG.ui()), JSON.stringify({ running: true, dialog: false, menu: false, result: false, ending: false, inventory: false, settings: false }), 'plain play');
+    playDialog(Object.keys(CONTENT.dialog)[0], null); eq(EG.ui().dialog, true, 'dialog'); endDialog(); eq(EG.ui().dialog, false);
+    togglePause(true); eq(EG.ui().menu, true, 'pause menu'); togglePause(false); eq(EG.ui().menu, false);
+    toggleInv(); eq(EG.ui().inventory, true, 'inventory'); toggleInv(); eq(EG.ui().inventory, false);
+    document.querySelector('#settings').hidden = false; syncMenu(); const u = EG.ui(); eq(u.settings && u.menu, true, 'settings counts as a menu'); document.querySelector('#settings').hidden = true; syncMenu();
+    document.querySelector('#ending').hidden = false; eq(EG.ui().ending, true, 'ending'); document.querySelector('#ending').hidden = true;
+    eq(typeof EG.isTouch(), 'boolean'); eq(EG.isTouch(), EGControls.touch, 'same answer as the touch module');
+    fresh();
+  });
+  test('newGame and continueGame: which one fires and when; inside continueGame, EG.towers() already shows the towers the save had lit', () => {
+    fresh(); const log = [], L = {}, prev = localStorage.getItem(SAVE_KEY);
+    for (const n of ['newGame', 'continueGame', 'towerLit', 'actStart']) EG.on(n, L[n] = (a) => log.push([n, a, n === 'continueGame' ? EG.towers().map((t) => t.lit + '/' + t.active).join() : '']));
+    try {
+      startStory(0); while (dlg) endDialog();
+      eq(log.map((x) => x[0] + ':' + x[1]).join(), 'newGame:0,actStart:0', 'a fresh story');
+      log.length = 0; writeSave(2); document.querySelector('#goContinue').onclick(); while (dlg) endDialog();
+      eq(log.map((x) => x[0] + ':' + x[1]).join(), 'continueGame:2,actStart:2', 'continue: continueGame before actStart, and no towerLit for the towers the save had lit');
+      eq(log[0][2], TOWERS.map((T, i) => (i < 2) + '/' + (i === 2)).join(), 'towers 0 and 1 lit, tower 2 active, when the listener runs');
+      log.length = 0; localStorage.removeItem(SAVE_KEY); document.querySelector('#goContinue').onclick(); while (dlg) endDialog();
+      eq(log.map((x) => x[0]).join(), 'newGame,actStart', 'continue with no save is a new game');
+    } finally { for (const n in L) EG.off(n, L[n]); if (prev === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, prev); story.on = false; fresh(); }
+  });
+  test('pause owners: held while any owner holds, each owner releases only its own hold, the one-argument calls still work', () => {
+    fresh(); try {
+      EG.pause(true, 'panel'); EG.pause(true, 'tutorial'); eq(EG.isPaused(), true); eq(EG.pausedBy().sort().join(), 'panel,tutorial');
+      EG.pause(false, 'panel'); eq(EG.isPaused(), true, 'still held by tutorial'); eq(EG.pausedBy().join(), 'tutorial');
+      tryCast('fire'); eq(player.cast, null, 'no casting while any owner holds');
+      EG.pause(false); eq(EG.isPaused(), true, 'releasing the default owner leaves the tutorial hold');
+      EG.pause(false, 'tutorial'); eq(EG.isPaused(), false, 'last owner released'); eq(EG.pausedBy().length, 0);
+      EG.pause(true); EG.pause(true); eq(EG.pausedBy().join(), 'default', 'one-argument call holds as "default"'); EG.pause(false); eq(EG.isPaused(), false, 'holding twice is one hold');
+      const c = EG.pausedBy(); c.push('x'); eq(EG.pausedBy().length, 0, 'pausedBy() is a copy');
+    } finally { if (EG.pausedBy) for (const o of EG.pausedBy()) EG.pause(false, o); fresh(); }
+  });
+  test('reserved keys: the remap row refuses a reserved key and says why; a saved binding on a reserved key goes back to its default with a warning', () => {
+    fresh(); const warns = [], w = console.warn, kb0 = { ...KB }, store = localStorage.getItem(EG_KEY('eg-keys')); console.warn = (...a) => warns.push(a.join(' '));
+    const key = (code) => dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true }));
+    try {
+      KB.bolt = 'F9'; // as if the player's saved keys had put the chain bolt on F9
+      EG.reserveKey('F9', '擴充面板');
+      eq(KB.bolt, 'Digit2', 'the conflicting binding is back to its default'); ok(warns.some((x) => /F9/.test(x) && /bolt/.test(x)), 'and it warned');
+      eq(document.querySelector('.keybtn[data-k=bolt]').textContent, '2', 'the remap row shows the restored key'); eq(EG.reservedKeys().F9, '擴充面板');
+      const b = document.querySelector('.keybtn[data-k=fire]'); b.click(); ok(b.classList.contains('waiting'), 'row waits for a key');
+      key('F9'); eq(KB.fire, 'Digit1', 'remap refused the reserved key'); ok(/擴充面板/.test(b.textContent), 'the row shows the reason: ' + b.textContent);
+      key('F7'); eq(KB.fire, 'F7', 'a free key is still accepted');
+      const r = EG.reservedKeys(); r.F9 = 'x'; eq(EG.reservedKeys().F9, '擴充面板', 'reservedKeys() is a copy');
+      const n = warns.length; EG.reserveKey(5); eq(warns.length, n + 1, 'a non-string code warns');
+    } finally { console.warn = w; Object.assign(KB, kb0); if (store === null) localStorage.removeItem(EG_KEY('eg-keys')); else localStorage.setItem(EG_KEY('eg-keys'), store); EGControls.redrawKeys(); fresh(); }
+  });
+  test('hit events name the spell part behind each hit (source), next to the damage kind the terrain uses', () => {
+    fresh(); const got = [], f = (h) => got.push(h.source + '/' + h.kind + '/' + h.spell); EG.on('hit', f);
+    const run = (frames) => { for (let i = 0; i < frames; i++) logic(1 / 60); };
+    try { withContent({ combat: { critChance: 0 } }, () => {
+      still(spawnEnemy('ghost', 1.2, 0, 1) || enemies[0]); spawnFireball(V(0, 1, 0), V(1, 0, 0)); run(1);
+      eq(got[0], 'fire/fire/fire', 'fireball blast');
+      fresh(); got.length = 0; still(spawnEnemy('ghost', 10, 10, 1) || enemies[0]); dropMeteor(V(10, 0, 10), 1, 0); run(120);
+      eq(got[0], 'meteor/fire/fire', 'meteor impact: source meteor, damage kind still fire');
+      const burn = got.filter((x) => /\/burn\//.test(x)); ok(burn.length >= 2 && burn.every((x) => x === 'meteorBurn/burn/burn'), 'burning ground under the meteor: ' + got.join());
+      fresh(); got.length = 0; setTier(1); for (const x of [0, 4, 8]) still(spawnEnemy('ghost', x, 10, 1) || enemies[enemies.length - 1]); spawnOrb(V(-3, 1, 10), V(1, 0, 0)); run(120);
+      eq(got.join(), 'bolt/bolt/bolt,boltChain/bolt/bolt,boltChain/bolt/bolt', 'chain bolt: direct hit, then two hops');
+      fresh(); got.length = 0; setTier(0); for (const x of [0, 1]) still(spawnEnemy('ghost', x, 10, 1) || enemies[enemies.length - 1]); spawnOrb(V(-3, 1, 10), V(1, 0, 0)); run(60);
+      eq(got.join(), 'bolt/bolt/bolt,boltSplash/bolt/bolt', 'not upgraded: direct hit and the splash next to it');
+      fresh(); got.length = 0; still(spawnEnemy('ghost', 3, 0, 1) || enemies[0]); startBlood(); run(200);
+      ok(got.length === 8 && got.every((x) => x === 'blood/blood/blood'), 'blood rite: eight hits, source blood: ' + got.join());
+      fresh(); got.length = 0; const e = still(spawnEnemy('ghost', 5, 5, 1) || enemies[0]); dealDamage(e, 5, 'terrain'); eq(got[0], 'null/terrain/terrain', 'damage that no spell caused has source null');
+    }); } finally { EG.off('hit', f); if (EG.clearEffects) EG.clearEffects(); fresh(); }
+  });
+  test('EG.clearEffects removes every live particle, projectile, meteor, burning patch, rite and pending timer; monsters stay', () => {
+    fresh(); setTier(1); const e = still(spawnEnemy('ghost', 0, 9, 1) || enemies[0]);
+    player.face = 0; releaseCast({ id: 'fire', target: V(0, 0, 9) }); castMeteor(V(6, 0, 6)); startBlood(); dropMeteor(V(-6, 0, 6), 1, 0);
+    for (let i = 0; i < 50; i++) { logic(1 / 60); visuals(1 / 60); }
+    ok(ADD.list.length > 0 && meteors.length + burns.length > 0 && rites.length > 0 && timers.length > 0, `effects running (particles ${ADD.list.length}, meteors ${meteors.length}, burns ${burns.length}, rites ${rites.length}, timers ${timers.length})`);
+    EG.clearEffects();
+    eq(ADD.list.length + SMOKE.list.length, 0, 'particles'); eq(projs.length, 0, 'projectiles'); eq(meteors.length + rocks.length, 0, 'meteors'); eq(burns.length, 0, 'burning ground');
+    eq(rites.length, 0, 'rites'); eq(timers.length, 0, 'pending timers (queued meteor drops)'); eq(dmgs.length, 0, 'damage numbers');
+    ok(e.alive && enemies.includes(e), 'the monster is still there');
+    for (let i = 0; i < 30; i++) { logic(1 / 60); visuals(1 / 60); } eq(meteors.length + burns.length, 0, 'nothing comes back afterwards');
+    fresh();
+  });
+  // one scripted fight: six frozen monsters, every spell once, 300 frames; returns every hit as "source:amount"
+  const measured = (seed) => { fresh(); if (seed !== undefined) EG.seed(seed); EG.clearEffects(); const hits = [], f = (h) => hits.push(h.source + ':' + h.amount.toFixed(9)); EG.on('hit', f);
+    try { setTier(1); for (const [x, z] of [[-3, 8], [0, 9], [3, 8], [-2, 12], [2, 12], [0, 6]]) still(spawnEnemy('ghost', x, z, 1) || enemies[enemies.length - 1]);
+      player.face = 0; releaseCast({ id: 'fire', target: V(0, 0, 9) }); spawnOrb(V(0, 1, 0), V(0, 0, 1)); castMeteor(V(0, 0, 9)); startBlood();
+      for (let i = 0; i < 300; i++) { logic(1 / 60); visuals(1 / 60); }
+    } finally { EG.off('hit', f); EG.seed(null); EG.clearEffects(); }
+    return { hits: hits.join(), n: hits.length, total: hits.reduce((s, x) => s + +x.split(':')[1], 0) }; };
+  test('EG.seed + EG.clearEffects: the same seed gives the same hits and damage total twice; unseeded or another seed differs', () => {
+    const a = measured(7), b = measured(7), c = measured(8), u1 = measured(), u2 = measured();
+    ok(a.n >= 20, `the scene lands enough hits (${a.n})`); const A = a.hits.split(','), B = b.hits.split(','), k = A.findIndex((x, i) => x !== B[i]);
+    eq(b.total, a.total, `same seed: same damage total (first different hit #${k}: ${A[k]} vs ${B[k]})`); eq(b.hits, a.hits, 'same seed: same hits in the same order');
+    ok(c.hits !== a.hits, 'another seed: different hits'); ok(u1.total !== u2.total, `unseeded runs differ (${u1.total} vs ${u2.total}), so the test can see randomness`);
+    const r = Math.random; EG.seed(3); const s1 = [Math.random(), Math.random()]; EG.seed(3); const s2 = [Math.random(), Math.random()]; EG.seed(null);
+    eq(s1.join(), s2.join(), 'seeding restarts the sequence'); eq(Math.random, r, 'EG.seed(null) gives the page its own random numbers back');
+    fresh();
   });
 
   // ---------------------------------------------------------------- run

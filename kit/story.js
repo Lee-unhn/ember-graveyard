@@ -61,20 +61,20 @@ function updateTowers(dt){egPulse();
 
 const ACTS=CONTENT.acts;
 function obj(main,sub){const o=$('#objective');o.hidden=false;o.innerHTML=main+(sub?`<small>${sub}</small>`:'')}
-function refreshSkillLabels(){$('#mfire').textContent=tierOf('fire')?'三連發':'單發';$('#mbolt').textContent=tierOf('bolt')?'彈跳 6 次':'單擊';$('#mmeteor').textContent=tierOf('meteor')?'十顆連落':'單顆'}
+function refreshSkillLabels(){$('#mfire').textContent=tierOf('fire')?egZh(spellP('fire').shots)+'連發':'單發';$('#mbolt').textContent=tierOf('bolt')?`彈跳 ${spellP('bolt').bounces} 次`:'單擊';$('#mmeteor').textContent=tierOf('meteor')?egZh(spellP('meteor').drops)+'顆連落':'單顆'}
 function clearWorld(){for(const e of enemies){scene.remove(e.g);egFree(e.g);if(e.hpEl)e.hpEl.remove()}enemies.length=0;for(const L of loots){scene.remove(L.g);egFreeMat(L.g);L.el.remove()}loots.length=0;
   for(const p of projs)p.dead=true;projs.length=0;for(const s of shocks){scene.remove(s.mesh);egFreeMat(s.mesh)}shocks.length=0;timers.length=0;
   player.alive=true;player.hp=player.maxhp;player.cast=null;player.tacc=0;P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true);
   for(const m of meteors){m.dead=true;scene.remove(m.mesh);egFreeMat(m.mesh);scene.remove(m.ring);egFreeMat(m.ring)}meteors.length=0;for(const b of burns){b.dead=true;scene.remove(b.decal);egFree(b.decal)}burns.length=0;
   for(const id of MENUS)$('#'+id).hidden=true;resultThen=null;syncMenu();
   resetTerrain()}
-function startStory(fromAct=0){if(typeof fromAct!=='number')fromAct=0;initAudio();titleMode(false);$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();player.pos.set(0,0,4);player.kills=0;pickups=0;
+function startStory(fromAct=0,cont){if(typeof fromAct!=='number')fromAct=0;initAudio();titleMode(false);$('#intro').hidden=true;$('#ending').hidden=true;running=true;clearWorld();player.pos.set(0,0,4);player.kills=0;pickups=0;
   Object.assign(story,{on:true,act:0,phase:'idle',unlocked:new Set(['fire']),tier:{fire:0},seen:new Set(),t0:time,bestChain:0});
   TOWERS.forEach(T=>{setTowerLit(T,false);T.beam.visible=false});
   // 從存檔繼續：前面幾幕的燈塔直接點亮、法術直接解鎖，開場對白不再播
   for(let k=0;k<fromAct;k++){const T=TOWERS[k];setTowerLit(T,true);if(T.spell==='fire')story.tier.fire=1;else story.unlocked.add(T.spell)}
   if(fromAct>0)for(const a of ACTS.slice(0,fromAct))if(a.dlg)story.seen.add(a.dlg);
-  $('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();giveLamp();beginAct(fromAct)}
+  $('#tierLbl').hidden=true;$('#segTier').hidden=true;refreshSkillLabels();giveLamp();story.act=fromAct;egEmit(cont?'continueGame':'newGame',fromAct);beginAct(fromAct)}
 // 故事模式開場送一盞普通提燈；已經有就不送。行囊不存檔，所以從存檔繼續時也會送
 function giveLamp(){if(equipped.light||inv.some(i=>i.slot==='light'))return;const it=makeItem(0,BASES.find(b=>b.slot==='light'));it.name=EG_TERM.lampName;
   if(place(it)){equip(it);note(EG_TERM.lampGet)}}

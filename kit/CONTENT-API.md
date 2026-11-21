@@ -159,6 +159,8 @@
 
 四招的數字都在 `kit/combat.js` 的 `SPELL_DEF`（預設值），執行中一律經 `spellP(id)` 讀一份可覆寫的副本，**施放與命中當下才讀**，所以改了之後的下一次施放、下一次彈跳就生效。不覆寫時數值與行為和示範版完全相同。
 
+技能列上寫出數字的文字也由這張表產生：升級後的火球「三連發」來自 `fire.shots`、鏈雷「彈跳 6 次」來自 `bolt.bounces`、星墜「十顆連落」來自 `meteor.drops`（1 到 10 寫中文數字，其他寫阿拉伯數字，例如 `drops: 12` 顯示「12顆連落」）。`EG.setSpellParams`／`EG.resetSpellParams` 之後技能列立刻重寫；冷卻圈本來就讀 `cd`。`kit/` 的介面文字裡沒有其他寫死的法術數字（說明頁的「命中炸出 40 顆火星」是爆炸粒子數，不是法術參數）。
+
 | 招式 `id` | 欄位（預設） | 說明 |
 |---|---|---|
 | 全部 | `cd`、`dur`、`rel` | 冷卻秒數、施法動作秒數、動作進行到幾成時放出（皆再除以施法速度）；技能列的冷卻圈也讀 `cd` |
@@ -180,20 +182,53 @@
 | `EG.resetSpellParams(id)` | 該招回到預設；不給 `id` 就四招全部回預設 |
 | `EG.spellParams(id)` | 目前生效的參數（複本，改它不影響遊戲） |
 | `EG.on(事件, fn)`／`EG.off(事件, fn)` | 訂閱／取消；事件名打錯或 `fn` 不是函式時 `console.warn` 並略過 |
-| `EG.pause(true／false)`、`EG.isPaused()` | 擴充腳本自己的暫停：遊戲規則（怪物、投射物、計時器、故事進度）與施法全停，畫面照常更新，適合在塔下跳出升級面板。和暫停選單、對白各自獨立，互不解除；`isPaused()` 只回報這一個開關 |
+| `EG.pause(on, owner = 'default')` | 擴充腳本自己的暫停：遊戲規則（怪物、投射物、計時器、故事進度）與施法全停，畫面照常更新，適合在塔下跳出升級面板。每個持有者（任意字串）各自按住：`pause(true, 'panel')` 按住、`pause(false, 'panel')` 只放開 `'panel'` 自己那一份；**只要還有任何一個持有者按著，遊戲就停著**。同一個持有者按兩次仍算一份。只給一個參數時持有者是 `'default'`，所以舊的 `pause(true)`／`pause(false)` 寫法行為不變。和暫停選單、對白各自獨立，互不解除 |
+| `EG.isPaused()`、`EG.pausedBy()` | 有任何持有者按著就是 `true`；`pausedBy()` 回傳目前按著的持有者陣列（複本） |
 | `EG.inCombat()` | 場上有活著的怪，或正在首領戰 |
 | `EG.events` | 事件名清單 |
+
+### 唯讀查詢（Read-only queries）
+
+每次呼叫都回傳新的物件（複本），改它不會影響遊戲。
+
+| 呼叫 | 回傳 |
+|---|---|
+| `EG.player()` | `{ x, z, hp, maxHp, alive }`：主角的水平位置、目前與上限生命（引擎內部叫 `player.maxhp`）、是否活著 |
+| `EG.towers()` | 每座塔一筆 `{ index, name, spell, x, z, lit, active }`，順序同 `CONTENT.towers`。`lit`＝已完成（一般塔是點亮了；`respond` 塔是已應答，它的 `T.lit` 永遠是 `false`，這裡用完成狀態回報）；`active`＝故事模式中、目前這一幕要去的那座塔，而且還沒完成（自由試玩時全部是 `false`） |
+| `EG.ui()` | `{ running, dialog, menu, result, ending, inventory, settings }` 布林值：`running` 遊戲進行中（不在標題畫面）；`dialog` 對白框開著；`menu` 任何會擋住遊戲的選單開著（暫停、設定、說明、製作群、階段結算，即引擎的 `menuOpen`）；`result` 階段結算；`ending` 結局畫面；`inventory` 行囊；`settings` 設定 |
+| `EG.isTouch()` | 觸控模式是否開著（與 `kit/controls.js` 的 `EGControls.touch` 同一個答案） |
+
+### 保留按鍵（Reserved keys）
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.reserveKey(code, label)` | 把一個 `KeyboardEvent.code`（例：`'KeyQ'`、`'F9'`）保留給擴充腳本。之後在設定的「按鍵」列把任何動作改到這個鍵，會被拒絕，那一列顯示「這個鍵保留給 label」並繼續等下一個鍵（和引擎自己保留的 Space／Esc／P／Tab／R 一樣）。保留的當下，若玩家存下的按鍵已經把某個動作綁在這個鍵上：`console.warn` 一行、該動作改回預設鍵，按鍵列立刻重畫；預設鍵剛好就是這個鍵時，該動作改成不綁任何鍵（列上顯示「—」）。改回的值只在記憶體裡，玩家下次改任何按鍵時才會一起存下；所以每次載入都會再檢查、再警告一次。`code` 不是有內容的字串時 `console.warn` 並略過 |
+| `EG.reservedKeys()` | `{ code: label }`（複本） |
+
+「按鍵恢復預設」按鈕不看保留清單：請保留預設按鍵用不到的鍵（`KeyW` `KeyA` `KeyS` `KeyD` `Digit1`–`Digit4` `KeyI` 以外）。保留只擋改鍵，不會攔下遊戲本身對那個鍵的處理；按下時要做什麼，由擴充腳本自己聽 `keydown`。
+
+### 量測用：固定亂數與清空特效（Determinism for measurement）
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.seed(n)` | 從現在起 `Math.random` 換成以整數 `n` 起始的固定序列（與擺設墓碑用的同一個產生器）。引擎所有的亂數都經過 `Math.random`（`rand`、`randi`、`pick`、暴擊、範圍傷害的 ±10%、出怪、掉寶、粒子），所以都跟著固定。**換掉的是整頁的 `Math.random`**，同一頁的其他程式庫與擴充腳本也會拿到這個序列。再呼叫 `EG.seed(n)` 會從頭開始同一個序列 |
+| `EG.seed(null)` | 換回頁面原本的亂數 |
+| `EG.clearEffects()` | 清掉所有進行中的特效：粒子、浮字、投射物（火球、雷球）、星墜與落地的石塊、燃燒的地面（含焦痕）、血環、首領衝擊波，以及**所有排定中的計時器**（還沒落下的星墜、還沒跳的鏈雷都在裡面；故事流程的計時器也會被清掉，所以別在故事轉場中呼叫）。另外把環境、地形、塔火的發射計時歸零，同一個亂數序列才會產生同樣多的粒子、抽同樣多次亂數。怪物、掉落物、地形格子、墓碑等擺設**不動**（要整個重來用引擎的 `clearWorld()`） |
+
+同樣的初始狀態、同一個 `seed`、先 `clearEffects()`，再照同一份腳本推進遊戲（例如每格 `logic(1/60)`），造成的每一次傷害與總傷害都一樣（`tests/unit.spec.js` 的 `EG.seed + EG.clearEffects` 測試跑兩次比對）。用畫面自己的迴圈跑時，每格的時間長短不固定，結果不保證相同。
 
 ### 事件
 
 | 事件 | 參數 | 何時 |
 |---|---|---|
-| `towerLit` | 塔的索引（0 起算） | 玩家點亮一座塔（階段結算畫面出現前 1 秒）；從存檔繼續時直接亮起的塔不算 |
+| `towerLit` | 塔的索引（0 起算） | 玩家點亮一座塔（階段結算畫面出現前 1 秒）；從存檔繼續時直接亮起的塔不算（見 `continueGame`） |
+| `newGame` | 從第幾幕開始（恆為 `0`） | 開始一段新的故事：標題畫面的故事模式、結局畫面的「再玩一次」、沒有存檔時按「繼續」。發生在清場、塔全部熄滅之後，`actStart` 之前 |
+| `continueGame` | 從第幾幕接著玩 | 從存檔繼續。發生時前面幾幕的塔已經亮起、招式已經解鎖，`EG.towers()` 已回報它們 `lit: true`、要去的那座 `active: true`；這些塔**不會**另外發 `towerLit`。之後才發 `actStart`。擴充腳本要知道存檔裡哪些塔已亮，就在這個事件裡讀 `EG.towers()` |
 | `actStart` | 幕的索引 | 每一幕開始（開幕對白之前）；死亡後從本幕重來也會再發一次 |
 | `bossStart` | — | 首領出場（重來首領戰也算一次） |
 | `bossDown` | — | 首領倒下 |
 | `cast` | 招式 `id` | 一次施放成立（已扣冷卻） |
-| `hit` | `{ spell, target, amount }` | 每次對怪物造成傷害；`spell` 是傷害種類（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`），`amount` 已含暴擊 |
+| `hit` | `{ spell, kind, source, target, amount }` | 每次對怪物造成傷害；`amount` 已含暴擊。`kind` 是傷害種類，也就是地形系統用的元素（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`）；`spell` 與 `kind` 相同（舊欄位，保留相容）。`source` 是**真正造成這一下的法術部位**：`'fire'` 火球爆炸、`'meteor'` 星墜落地、`'meteorBurn'` 星墜留下的燃燒地面、`'bolt'` 鏈雷直擊、`'boltChain'` 鏈雷彈跳、`'boltSplash'` 未升級鏈雷打中後的周圍濺射、`'blood'` 血環的血光（含目標已倒、落空時的小範圍爆開）；不是法術造成的（燃燒的草地與熔岩、磷火爆炸、倒下的墓碑、直接呼叫 `dealDamage`）是 `null`。例：星墜落地是 `kind: 'fire', source: 'meteor'`，它的燃燒地面是 `kind: 'burn', source: 'meteorBurn'` |
 | `kill` | 怪物種類（`spider`／`lizard`／`ghost`／`lord`） | 怪物倒下 |
 | `playerDeath` | 死因文字（死亡畫面上那一個） | 主角倒下 |
 | `restart` | — | 按下重來，清場之前 |
@@ -207,14 +242,14 @@
 // ext/upgrade.js：排在 kit/boot.js 之後載入。點亮第一座塔時停住遊戲，讓玩家選「火球追蹤」
 EG.on('towerLit', (i) => {
   if (i !== 0) return;
-  EG.pause(true);
+  EG.pause(true, 'upgrade');   // 持有者 'upgrade'：放開時只放開這一份，不影響別的擴充腳本的暫停
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:60;padding:16px 20px;background:#1b1a22;color:#eee;border:1px solid #555;text-align:center';
   box.innerHTML = '<p>選一個升級</p><button type="button">火球會追著最近的怪轉彎</button>';
   box.querySelector('button').onclick = () => {
     EG.setSpellParams('fire', { homingTurn: 4, homingCone: 40 });
     box.remove();
-    EG.pause(false);
+    EG.pause(false, 'upgrade');
   };
   document.body.appendChild(box);
 });

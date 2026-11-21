@@ -66,12 +66,12 @@ function spawnEnemy(type,x,z,hpMul){const T=ETYPES[type],b=egSkin(type,buildEnem
 function pickType(mix){const r=Math.random();return r<mix[0]?'spider':r<mix[0]+mix[1]?'lizard':'ghost'}
 function spawnWave(n,mix=[.45,.35,.2],hpMul=1+(wave-1)*.25){for(let i=0;i<n;i++){let x,z;do{const a=rand(0,TAU),r=rand(12,40);x=Math.cos(a)*r;z=Math.sin(a)*r}while(Math.hypot(x-player.pos.x,z-player.pos.z)<11);
   spawnEnemy(pickType(mix),x,z,hpMul)}}
-function dealDamage(e,amt,kind){if(!e.alive)return;const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;e.hp-=amt;egEmit('hit',{spell:kind,target:e,amount:amt});e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
+function dealDamage(e,amt,kind,src){if(!e.alive)return;const cc=combatCfg(),crit=cc.critChance>0&&Math.random()<cc.critChance;if(crit)amt*=cc.critMul;e.hp-=amt;egEmit('hit',{spell:kind,kind,source:src||null,target:e,amount:amt});e.flash=.09;e.flinch=.14;e.aggro=true;e.lastKind=kind;if(crit)freezeFrame(.05);
   const col={fire:'#ffab5c',bolt:'#9fdcff',blood:'#ff6475',burn:'#d98b4a',terrain:'#c9e06a',crush:'#e0d6c2',boom:'#7fe0ff'}[kind]||'#fff';dmgText(e.pos,amt,col,crit);
   if(!e.hpEl&&e.type!=='lord'){e.hpEl=document.createElement('div');e.hpEl.className='hpb';e.hpEl.innerHTML='<i></i>';fxLayer.appendChild(e.hpEl)}
   if(e.hpEl)e.hpEl.firstChild.style.transform=`scaleX(${Math.max(0,e.hp/e.maxhp)})`;
   if(e.hp<=0)killEnemy(e)}
-function aoe(pos,r,dmg,kind,skip){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*egAoeJit(),kind)}}
+function aoe(pos,r,dmg,kind,skip,src){for(const e of enemies){if(!e.alive||e===skip)continue;if(Math.hypot(e.pos.x-pos.x,e.pos.z-pos.z)<r+e.radius*.5)dealDamage(e,dmg*egAoeJit(),kind,src)}}
 function killEnemy(e){e.alive=false;e.dying=0;player.kills++;egEmit('kill',e.type);if(e.hpEl){e.hpEl.remove();e.hpEl=null}
   if(e.type==='lord'){dropLoot(e.pos,3);dropLoot(e.pos,3);onBossDead(e);return}
   if(isTerrainKind(e.lastKind))onTerrainKill(e);
@@ -156,8 +156,8 @@ function updateProjs(dt){
     }
     let hit=null;for(const e of enemies){if(e.alive&&Math.hypot(e.pos.x-p.pos.x,e.pos.z-p.pos.z)<e.radius+.45){hit=e;break}}
     if(hit||p.life<=0||Math.hypot(p.pos.x,p.pos.z)>44){p.dead=true;projs.splice(i,1);
-      if(p.kind==='fire'){const F=spellP('fire');explode(p.pos,1);aoe(p.pos,F.radius,F.damage*fireMul(),'fire');terrainBlast(p.pos,1.6,'fire');damageProps(p.pos,1.8,1,'fire')}
-      else{zapBurst(p.pos);sfx.zap();terrainBlast(p.pos,.9,'bolt');if(hit){const B=spellP('bolt');dealDamage(hit,B.damage*spellMul(),'bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),B.bounces,B.damage*spellMul()*B.firstHop);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit)}}
+      if(p.kind==='fire'){const F=spellP('fire');explode(p.pos,1);aoe(p.pos,F.radius,F.damage*fireMul(),'fire',0,'fire');terrainBlast(p.pos,1.6,'fire');damageProps(p.pos,1.8,1,'fire')}
+      else{zapBurst(p.pos);sfx.zap();terrainBlast(p.pos,.9,'bolt');if(hit){const B=spellP('bolt');dealDamage(hit,B.damage*spellMul(),'bolt','bolt');if(tierOf('bolt'))chain(hit,new Set([hit]),B.bounces,B.damage*spellMul()*B.firstHop);else aoe(hit.pos,1.6,14*spellMul(),'bolt',hit,'boltSplash')}}
     }
   }
 }
@@ -167,7 +167,7 @@ function zapBurst(pos){ADD.emit({x:pos.x,y:pos.y,z:pos.z,kind:3,fm:2,frame:9,lif
 function chain(from,hitSet,n,dmg){if(n<=0)return;const B=spellP('bolt');after(B.hopDelay,()=>{
   let best=null,bd=B.range;for(const e of enemies){if(!e.alive||hitSet.has(e))continue;const d=Math.hypot(e.pos.x-from.pos.x,e.pos.z-from.pos.z);if(d<bd){bd=d;best=e}}
   if(!best)return;const a=new V3(from.pos.x,1,from.pos.z),b=new V3(best.pos.x,1,best.pos.z);bolt(a,b,.32,.16,true);zapBurst(b);sfx.zap();
-  hitSet.add(best);applyEl(cellOf(best.pos.x,best.pos.z),'bolt');dealDamage(best,dmg,'bolt');chain(best,hitSet,n-1,dmg*B.decay)})}
+  hitSet.add(best);applyEl(cellOf(best.pos.x,best.pos.z),'bolt');dealDamage(best,dmg,'bolt','boltChain');chain(best,hitSet,n-1,dmg*B.decay)})}
 function boltPath(a,b){let pts=[a.clone(),b.clone()],d=a.distanceTo(b)*.22;
   for(let l=0;l<4;l++){const np=[];for(let i=0;i<pts.length-1;i++){const m=pts[i].clone().lerp(pts[i+1],.5);m.x+=rand(-d,d);m.y+=rand(-d,d)*.6;m.z+=rand(-d,d);np.push(pts[i],m)}np.push(pts[pts.length-1]);pts=np;d*=.5}return pts}
 function bolt(a,b,w,life,branch){
@@ -206,7 +206,7 @@ function updateMeteors(dt){
     if(k>=1){meteors.splice(i,1);m.dead=true;scene.remove(m.ring);egFreeMat(m.ring);const p=m.to.clone();p.y=.35;
       explode(p,1.7*s);
       for(let j=0;j<30;j++){const d=randUnit(),sp=rand(4,9);SMOKE.emit({x:p.x,y:.3,z:p.z,vx:d.x*sp,vy:Math.abs(d.y)*sp+2,vz:d.z*sp,kind:2,fm:2,frame:randi(0,4),life:rand(.6,1),s0:.35,s1:.2,grav:18,r:.2,g:.16,b:.13,a0:.9,a1:.6})}
-      const M=spellP('meteor');aoe(p,M.radius*egMetR(s),M.damage*(combatCfg().meteorSizeDamage?s:1)*fireMul(),'fire');addBurn(p,M.burnRadius*egMetR(s),M.burnTime);meteorTerrain(p,2.2*egMetR(s));damageProps(p,2.6*egMetR(s),3,'meteor');
+      const M=spellP('meteor');aoe(p,M.radius*egMetR(s),M.damage*(combatCfg().meteorSizeDamage?s:1)*fireMul(),'fire',0,'meteor');addBurn(p,M.burnRadius*egMetR(s),M.burnTime);meteorTerrain(p,2.2*egMetR(s));damageProps(p,2.6*egMetR(s),3,'meteor');
       m.mesh.position.set(p.x,.15*s,p.z);rocks.push({mesh:m.mesh,t:0});
       shake(.38*s)}
   }
@@ -220,7 +220,7 @@ function updateBurns(dt){for(let i=burns.length-1;i>=0;i--){const b=burns[i];b.t
   if(b.t<b.life-.4)rate(b.acc,'f',22*b.r,dt,()=>{const a=rand(0,TAU),rr=Math.sqrt(Math.random())*b.r*.9;
     ADD.emit({x:b.pos.x+Math.cos(a)*rr,y:.2,z:b.pos.z+Math.sin(a)*rr,vx:rand(-.2,.2),vy:rand(1,2.2),vz:rand(-.2,.2),kind:0,fm:0,fps:24,life:rand(.4,.7),s0:rand(.5,1),s1:.15,r:1,g:.8,b:.6,a0:.95,a1:0,fadeIn:.15})});
   rate(b.acc,'e',8,dt,()=>ADD.emit({x:b.pos.x+rand(-b.r,b.r)*.7,y:.2,z:b.pos.z+rand(-b.r,b.r)*.7,vy:rand(.8,1.6),vx:rand(-.3,.3),vz:rand(-.3,.3),kind:3,fm:2,frame:8,life:rand(.8,1.2),s0:.12,s1:.03,r:1,g:.55,b:.2,a0:1,a1:0}));
-  b.tick-=dt;if(b.tick<=0&&b.t<b.life){b.tick=.5;aoe(b.pos,b.r,7*fireMul(),'burn');const a=rand(0,TAU),rr=Math.random()*b.r;applyEl(cellOf(b.pos.x+Math.cos(a)*rr,b.pos.z+Math.sin(a)*rr),'fire')}
+  b.tick-=dt;if(b.tick<=0&&b.t<b.life){b.tick=.5;aoe(b.pos,b.r,7*fireMul(),'burn',0,'meteorBurn');const a=rand(0,TAU),rr=Math.random()*b.r;applyEl(cellOf(b.pos.x+Math.cos(a)*rr,b.pos.z+Math.sin(a)*rr),'fire')}
   b.decal.material.opacity=.9*fade;if(b.light&&b.light.owner===b)b.light.i0=1.6*fade;
   if(b.t>=b.life){b.dead=true;scene.remove(b.decal);egFree(b.decal);burns.splice(i,1)}}}
 
@@ -251,7 +251,7 @@ function updateRites(dt){
         rate(b.acc,'t',140,dt,()=>ADD.emit({x:b.pos.x+rand(-.06,.06),y:b.pos.y,z:b.pos.z+rand(-.06,.06),kind:0,fm:0,fps:30,life:rand(.12,.18),s0:.48,s1:.05,r:1,g:.2,b:.26,a0:1,a1:.3}));
         if(t>=1){b.dead=true;explode(b.pos,.5,[1,.25,.32],false);sfx.boom(.45);
           terrainBlast(new V3(b.pos.x,0,b.pos.z),1.2,'blood');
-          if(b.target&&b.target.alive)dealDamage(b.target,R.damage*spellMul(),'blood');else aoe(b.pos,1.3,18*spellMul(),'blood')}}}
+          if(b.target&&b.target.alive)dealDamage(b.target,R.damage*spellMul(),'blood','blood');else aoe(b.pos,1.3,18*spellMul(),'blood',0,'blood')}}}
     if(ts>2.45*q&&o.bolts.every(b=>b.dead)){o.dead=true;scene.remove(o.mesh);egFree(o.mesh);rites.splice(i,1)}}
 }
 

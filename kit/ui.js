@@ -92,7 +92,7 @@ $('#pResume').onclick=()=>togglePause(false);$('#pSettings').onclick=()=>openSub
 $('#pRestart').onclick=()=>{togglePause(false);restart()};$('#pTitle').onclick=()=>{$('#pConfirm').hidden=false;$('#pYes').focus()};$('#pNo').onclick=()=>{$('#pConfirm').hidden=true};$('#pYes').onclick=goTitle;
 $('#sBack').onclick=()=>backSub('settings');$('#hBack').onclick=()=>backSub('help');$('#cBack').onclick=()=>backSub('credits');
 $('#rNext').onclick=closeResult;$('#deadTitle').onclick=goTitle;$('#endCredits').onclick=()=>openSub('credits','ending');
-$('#goContinue').onclick=()=>{const s=readSave();startStory(s?s.act:0)};
+$('#goContinue').onclick=()=>{const s=readSave();startStory(s?s.act:0,!!s)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running&&!menuOpen&&!dlg&&player.alive)togglePause(true)});
 // 死因與提示、讀取畫面的提示
 const DEATH_TIPS={[EG_TERM.lava]:EG_TERM.tipLava,[EG_TERM.bossShock]:EG_TERM.tipShock,[EG_TERM.gas]:EG_TERM.tipGas};
