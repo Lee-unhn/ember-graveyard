@@ -94,7 +94,7 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
     await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} };
   return { send, evaluate, waitFor, key, keyDown, keyUp, mouse, click, clickSel, touch, tapSel, screenshot, errors, close };
 }
-const VK = { KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyI: 73, KeyR: 82, Space: 32, Digit1: 49, Digit2: 50, Digit3: 51, Digit4: 52, Escape: 27, Tab: 9, KeyP: 80, ArrowLeft: 37, ArrowRight: 39 };
+const VK = { KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyF: 70, KeyG: 71, KeyI: 73, KeyR: 82, Space: 32, Digit1: 49, Digit2: 50, Digit3: 51, Digit4: 52, Escape: 27, Tab: 9, KeyP: 80, ArrowLeft: 37, ArrowRight: 39 };
 
 /** Tiny reporter shared by every suite: fail-loud, counts, exit code. */
 export function reporter(title) {

@@ -11,7 +11,7 @@ const castMul=()=>1+stats.cast/100, spellMul=()=>egGearMul(1+stats.spell/100), f
 // 法術參數表（預設值）；執行中一律經 spellP(id) 讀 SPELLS 這份可覆寫的副本（EG.setSpellParams，見 CONTENT-API.md）
 const SPELL_DEF={fire:{cd:.36,dur:.3,rel:.5,shots:3,spread:.2,damage:34,radius:2.2,speed:19,life:1.3,homingTurn:0,homingCone:0},
   bolt:{cd:1.05,dur:.38,rel:.45,damage:30,bounces:6,range:7.5,firstHop:.88,decay:.92,hopDelay:.075},
-  meteor:{cd:5,dur:.72,rel:.6,drops:10,damage:60,radius:2.7,burnRadius:2.2,burnTime:3.5,spread:4.4,interval:.17,sizeMin:.8,sizeMax:1.05,pattern:'scatter',arcLength:8},
+  meteor:{cd:5,dur:.72,rel:.6,drops:10,damage:60,radius:2.7,burnRadius:2.2,burnTime:3.5,spread:4.4,interval:.17,sizeMin:.8,sizeMax:1.05,pattern:'scatter',arcLength:8,arcMinRadius:0},
   blood:{cd:4.5,dur:1.9,rel:.02,bolts:8,damage:26,interval:.09,duration:2.4,seek:15}},SPELLS=JSON.parse(JSON.stringify(SPELL_DEF));
 const cds={fire:0,bolt:0,meteor:0,blood:0};
 const timers=[];function after(t,fn){timers.push({t,fn})}

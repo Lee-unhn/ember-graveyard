@@ -20,6 +20,7 @@ window.__runUnit = async (only) => {
     if (window.EG) { EG.resetSpellParams(); EG.pause(false); } // extension state (spell overrides, hold) never leaks into the next test; guarded so this file also runs on an engine without EG
     if (window.EG && EG.pausedBy) for (const o of EG.pausedBy()) EG.pause(false, o); // every named hold too
     if (window.EG && EG.seed) EG.seed(null); // and the page's own random numbers again
+    if (window.EG && EG.enableBlink) EG.enableBlink(false); // blink is off unless a test turns it on
   };
   const atlasPx = (x, y) => [...atlas.getContext('2d').getImageData(x, y, 1, 1).data];
   const cellAlpha = (sheet, f, px, py) => { const sx = (sheet % 2) * 512 + (f % 4) * 128, sy = Math.floor(sheet / 2) * 512 + Math.floor(f / 4) * 128; return atlasPx(sx + px, sy + py)[3]; };
@@ -860,7 +861,7 @@ window.__runUnit = async (only) => {
     ok(window.EG && typeof EG.spellParams === 'function', 'window.EG.spellParams exists');
     const want = { fire: { cd: .36, dur: .3, rel: .5, shots: 3, spread: .2, damage: 34, radius: 2.2, speed: 19, life: 1.3, homingTurn: 0, homingCone: 0 },
       bolt: { cd: 1.05, dur: .38, rel: .45, damage: 30, bounces: 6, range: 7.5, firstHop: .88, decay: .92, hopDelay: .075 },
-      meteor: { cd: 5, dur: .72, rel: .6, drops: 10, damage: 60, radius: 2.7, burnRadius: 2.2, burnTime: 3.5, spread: 4.4, interval: .17, sizeMin: .8, sizeMax: 1.05, pattern: 'scatter', arcLength: 8 },
+      meteor: { cd: 5, dur: .72, rel: .6, drops: 10, damage: 60, radius: 2.7, burnRadius: 2.2, burnTime: 3.5, spread: 4.4, interval: .17, sizeMin: .8, sizeMax: 1.05, pattern: 'scatter', arcLength: 8, arcMinRadius: 0 },
       blood: { cd: 4.5, dur: 1.9, rel: .02, bolts: 8, damage: 26, interval: .09, duration: 2.4, seek: 15 } };
     for (const id in want) { const p = EG.spellParams(id); eq(Object.keys(p).length, Object.keys(want[id]).length, id + ' key count'); for (const k in want[id]) eq(p[k], want[id][k], `${id}.${k}`); }
     // cooldown, cast time and release point that a cast really sets
@@ -959,7 +960,7 @@ window.__runUnit = async (only) => {
   });
   test('events: each of the ten fires once, with its payload, in a scripted run; EG.off removes a listener', () => {
     fresh(); const got = {}, fns = {}; for (const n of EG.events) { fns[n] = (a) => (got[n] = got[n] || []).push(a); EG.on(n, fns[n]); }
-    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending,newGame,continueGame', 'the event list');
+    eq(EG.events.join(), 'towerLit,actStart,bossStart,bossDown,cast,hit,kill,playerDeath,restart,ending,newGame,continueGame,blink', 'the event list');
     const TEN = EG.events.slice(0, 10); // newGame / continueGame have their own test below
     try { withContent({ combat: { critChance: 0 } }, () => {
       const e = still(spawnEnemy('lizard', 4, 0, 1) || enemies[0]);
@@ -1104,6 +1105,131 @@ window.__runUnit = async (only) => {
     const r = Math.random; EG.seed(3); const s1 = [Math.random(), Math.random()]; EG.seed(3); const s2 = [Math.random(), Math.random()]; EG.seed(null);
     eq(s1.join(), s2.join(), 'seeding restarts the sequence'); eq(Math.random, r, 'EG.seed(null) gives the page its own random numbers back');
     fresh();
+  });
+
+  // ---------------------------------------------------------------- blink (optional fifth basic move), meteor arc minimum radius, remap wait (DEVLOG timeline #47)
+  // obstacles are taken out for these tests so a seeded tombstone never sits on a landing spot; tests that need one put their own in
+  const bpress = (code) => document.body.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true }));
+  const blinkScene = (fn) => async () => {
+    fresh(); ok(window.EG && typeof EG.enableBlink === 'function' && typeof EG.blink === 'function', 'EG.enableBlink and EG.blink exist');
+    const obs = obstacles.splice(0); EG.enableBlink(true); player.pos.set(0, 0, 0);
+    try { await fn(); } finally { obstacles.length = 0; obstacles.push(...obs); EG.enableBlink(false); fresh(); }
+  };
+  const shownEl = (s) => { const e = document.querySelector(s); return !!e && !(e.closest('.srow') || e).hidden; };
+  test('blink is off by default: its key does nothing, no skill tile, help line or remap row, and its parameters have their defaults', () => {
+    fresh(); ok(window.EG && typeof EG.blinkEnabled === 'function', 'EG.blinkEnabled exists'); eq(EG.blinkEnabled(), false, 'off by default');
+    eq(KB_DEFAULT.blink, 'KeyF', 'default key F'); eq(KB.blink, 'KeyF');
+    const p = EG.spellParams('blink'); ok(p, 'blink is in the parameter table');
+    for (const [k, v] of Object.entries({ cd: 2.5, distance: 5.5, invuln: .25, passEnemies: true, passProps: true })) eq(p[k], v, 'blink.' + k);
+    eq(Object.keys(p).length, 5, 'five parameters');
+    player.pos.set(0, 0, 0); bpress('KeyF'); eq(player.pos.x, 0, 'F does not move the mage while blink is off'); eq(player.pos.z, 0);
+    eq(EG.blink(1, 0), false, 'EG.blink refuses while off'); eq(cds.blink, 0, 'no cooldown started');
+    for (const s of ['.sk[data-s=blink]', '#hBlink', '.keybtn[data-k=blink]']) ok(!shownEl(s), s + ' is not shown');
+    eq(document.querySelectorAll('.keybtn').length, 9, 'the settings still list nine keys');
+    fresh();
+  });
+  test('CONTENT.blink: true, false or an object of blink parameters loads; any other type stops loading and names the field', () => {
+    for (const v of [5, 'yes', [1]]) { const r = tryContent((C) => { C.blink = v; }); ok(r.err && r.err.includes('CONTENT.blink'), `${JSON.stringify(v)}: expected an error naming CONTENT.blink, got ${r.err}`); }
+    for (const v of [true, false, { distance: 7 }]) eq(tryContent((C) => { C.blink = v; }).err, null, JSON.stringify(v) + ' loads');
+  });
+  test('blink: its key teleports the mage the blink distance along the movement keys, starts the cooldown and fires the blink event with from and to', blinkScene(() => {
+    const got = [], f = (a) => got.push(a); EG.on('blink', f);
+    try {
+      keys[KB.right] = true; bpress(KB.blink); keys[KB.right] = false;
+      near(player.pos.x, 5.5, 1e-9, 'moved 5.5 east'); near(player.pos.z, 0, 1e-9); eq(cds.blink, 2.5, 'cooldown started');
+      eq(got.length, 1, 'one blink event'); eq(JSON.stringify(got[0]), JSON.stringify({ from: { x: 0, z: 0 }, to: { x: 5.5, z: 0 } }), 'event payload');
+      keys[KB.left] = true; bpress(KB.blink); keys[KB.left] = false; near(player.pos.x, 5.5, 1e-9, 'a second press during the cooldown does nothing'); eq(got.length, 1, 'and fires no event');
+      for (let i = 0; i < 26; i++) updatePlayer(.1); eq(cds.blink, 0, 'cooldown runs out with game time');
+      keys[KB.up] = keys[KB.right] = true; bpress(KB.blink); keys[KB.up] = keys[KB.right] = false;
+      near(player.pos.x, 5.5 + 5.5 / Math.SQRT2, 1e-9, 'diagonal x'); near(player.pos.z, -5.5 / Math.SQRT2, 1e-9, 'diagonal z (up is -z)');
+      cds.blink = 0; player.pos.set(0, 0, 0); player.face = Math.PI; bpress(KB.blink); near(player.pos.z, -5.5, 1e-9, 'no movement key: along the facing direction'); near(player.pos.x, 0, 1e-9);
+      cds.blink = 0; player.pos.set(0, 0, 0); ok(EG.blink(0, 1), 'EG.blink(dx, dz) blinks in a given direction (no mouse needed)'); near(player.pos.z, 5.5, 1e-9);
+      cds.blink = 0; EG.pause(true, 'panel'); eq(EG.blink(1, 0), false, 'no blink while an extension holds the game'); EG.pause(false, 'panel');
+      cds.blink = 0; togglePause(true); eq(EG.blink(1, 0), false, 'no blink behind the pause menu'); togglePause(false);
+      cds.blink = 0; player.alive = false; eq(EG.blink(1, 0), false, 'no blink when dead'); player.alive = true;
+    } finally { EG.off('blink', f); for (const n of ['up', 'down', 'left', 'right']) keys[KB[n]] = false; }
+  }));
+  test('blink invulnerability: no damage for the invuln window after a blink, damage again after it; invuln 0 turns it off', blinkScene(() => {
+    EG.blink(1, 0); hurtPlayer(10); eq(player.hp, 100, 'no damage right after the blink');
+    updatePlayer(.2); hurtPlayer(10); eq(player.hp, 100, 'still safe 0.2 s later');
+    updatePlayer(.1); hurtPlayer(10); eq(player.hp, 90, 'hurt again after 0.3 s');
+    EG.setSpellParams('blink', { invuln: 0 }); cds.blink = 0; player.hp = 100; EG.blink(1, 0); hurtPlayer(10); eq(player.hp, 90, 'invuln 0: no safe window');
+  }));
+  test('blink never ends outside the arena or inside a solid prop or rock tile; passProps / passEnemies false stop before the first prop / monster', blinkScene(() => {
+    player.pos.set(40, 0, 0); ok(EG.blink(1, 0), 'blink toward the edge'); ok(Math.hypot(player.pos.x, player.pos.z) <= 42.5 + 1e-9, 'inside the arena: ' + player.pos.x); ok(player.pos.x > 42, 'as far as the edge allows: ' + player.pos.x);
+    cds.blink = 0; player.pos.set(42.4, 0, 0); eq(EG.blink(1, 0), false, 'no room at the edge: no blink'); eq(player.pos.x, 42.4, 'stays'); eq(cds.blink, 0, 'and keeps the cooldown free');
+    cds.blink = 0; player.pos.set(0, 0, 0); obstacles.push({ x: 5.5, z: 0, r: 1 }); EG.blink(1, 0); ok(player.pos.x <= 4.1 + 1e-9 && player.pos.x > 3.5, 'a tomb on the landing spot: lands just short of it, not inside: ' + player.pos.x);
+    obstacles.length = 0; obstacles.push({ x: 2.5, z: 0, r: .5 }); cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); near(player.pos.x, 5.5, 1e-9, 'passProps (default): over a prop in the way');
+    EG.setSpellParams('blink', { passProps: false }); cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); ok(player.pos.x <= 1.6 + 1e-9 && player.pos.x > 1, 'passProps false: stops before the prop: ' + player.pos.x);
+    obstacles.length = 0; EG.resetSpellParams('blink');
+    const c = cellOf(5.5, 0), t0 = TT[c], tm0 = TM[c]; setT(c, TER.OBSID);
+    try { cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); const p = { x: player.pos.x, z: player.pos.z }; solidPush(p, .4); ok(p.x === player.pos.x && p.z === player.pos.z && player.pos.x < 5, 'a rock tile on the landing spot: lands outside it: ' + player.pos.x); }
+    finally { setT(c, t0, tm0); }
+    const e = still(spawnEnemy('lizard', 3, 0, 1) || enemies[0]); cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); near(player.pos.x, 5.5, 1e-9, 'passEnemies (default): through a monster');
+    EG.setSpellParams('blink', { passEnemies: false }); cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); ok(player.pos.x < 3 - e.radius - .4 + 1e-9 && player.pos.x > 0, 'passEnemies false: stops before the monster: ' + player.pos.x);
+  }));
+  test('blink parameters go through EG.setSpellParams: distance and cooldown change, bad values warn and are ignored, reset brings the defaults', blinkScene(() => {
+    const warns = [], w = console.warn; console.warn = (...a) => warns.push(a.join(' '));
+    try {
+      ok(EG.setSpellParams('blink', { distance: 3, cd: 1 }), 'accepted'); EG.blink(1, 0); near(player.pos.x, 3, 1e-9, 'distance 3'); eq(cds.blink, 1, 'cooldown 1');
+      for (const o of [{ distance: -1 }, { distance: NaN }, { passProps: 'no' }, { range: 4 }]) { const n = warns.length; eq(EG.setSpellParams('blink', o), false, JSON.stringify(o) + ' rejected'); ok(warns.length > n, 'warned'); }
+      eq(EG.spellParams('blink').distance, 3, 'rejected values changed nothing'); EG.resetSpellParams('blink'); eq(EG.spellParams('blink').distance, 5.5, 'reset');
+    } finally { console.warn = w; }
+  }));
+  test('blink effect: particles at both ends and along the path, one pooled light, a sound and a small shake; low particle density emits fewer; reduced shake keeps the camera still and dims the flash', blinkScene(() => {
+    ok(typeof sfx.blink === 'function', 'sfx.blink exists'); const s0 = sfx.blink; let snd = 0; sfx.blink = () => snd++;
+    // earlier flashes leave the light pool first, so only this blink's light is read
+    const run = (dx) => { EG.clearEffects(); for (const s of LP) if (s.busy && s.life < 9) { s.busy = false; s.l.intensity = 0; } shakeAmt = 0; cds.blink = 0; const x0 = player.pos.x; EG.blink(dx, 0); const x1 = player.pos.x, L = LP.filter((s) => s.busy && s.life < 9 && Math.abs(s.l.position.x - x1) < .2 && Math.abs(s.l.position.z) < .2);
+      return { n: ADD.list.length, x0, x1, light: L.length ? Math.max(...L.map((s) => s.l.intensity)) : 0, shake: shakeAmt, parts: ADD.list.map((q) => q.x) }; };
+    try {
+      EG.seed(11); const a = run(1);
+      ok(a.n >= 40, `lavish: ${a.n} particles`); ok(a.parts.some((x) => Math.abs(x - a.x0) < .6) && a.parts.some((x) => Math.abs(x - a.x1) < .6), 'bursts at the departure and arrival points');
+      ok(a.parts.some((x) => x > a.x0 + 1.5 && x < a.x1 - 1.5), 'a trail between them'); ok(a.light >= 3, 'a flash from the light pool: ' + a.light); ok(a.shake > 0, 'small shake'); eq(snd, 1, 'one sound');
+      SET.particles = 'low'; applySettings(); EG.seed(11); const b = run(-1); ok(b.n < a.n * .7, `low density emits fewer (${b.n} vs ${a.n})`);
+      SET.particles = 'high'; SET.reduceShake = true; applySettings(); EG.seed(11); const c = run(1); eq(c.shake, 0, 'reduced shake: no shake'); ok(c.light > 0 && c.light <= a.light / 2, `reduced shake: dimmer flash (${c.light} vs ${a.light})`);
+    } finally { sfx.blink = s0; EG.seed(null); SET.reduceShake = false; SET.particles = 'high'; applySettings(); }
+  }));
+  test('blink UI: when on, a skill tile, a help line and a remap row show its key; remapping moves the blink; a reserved key is refused; off removes them', blinkScene(async () => {
+    const kb0 = { ...KB }, store = localStorage.getItem(EG_KEY('eg-keys')), warns = [], w = console.warn; console.warn = (...a) => warns.push(a.join(' '));
+    try {
+      await frames(2); const tile = document.querySelector('.sk[data-s=blink]');
+      ok(tile && !tile.hidden && tile.parentElement.id === 'skills', 'skill tile in the skill bar'); eq(tile.querySelector('.k').textContent, EGControls.touch ? '' : 'F', 'tile shows the key');
+      ok(shownEl('#hBlink') && /F/.test(document.querySelector('#hBlink').textContent), 'help line with the key'); ok(shownEl('.keybtn[data-k=blink]'), 'remap row'); eq(document.querySelector('.keybtn[data-k=blink]').textContent, 'F');
+      openSub('settings', 'intro'); document.querySelector('.keybtn[data-k=blink]').click(); bpress('KeyG'); eq(KB.blink, 'KeyG', 'remapped to G'); eq(JSON.parse(localStorage.getItem(EG_KEY('eg-keys'))).blink, 'KeyG', 'saved');
+      EG.reserveKey('F10', 'test panel'); document.querySelector('.keybtn[data-k=blink]').click(); bpress('F10'); eq(KB.blink, 'KeyG', 'a reserved key is refused'); bpress('Escape'); backSub('settings');
+      await frames(2); eq(tile.querySelector('.k').textContent, EGControls.touch ? '' : 'G', 'tile follows the new key'); ok(/G/.test(document.querySelector('#hBlink').textContent), 'help follows');
+      player.pos.set(0, 0, 0); cds.blink = 0; keys[KB.right] = true; bpress('KeyF'); near(player.pos.x, 0, 1e-9, 'the old key does nothing'); bpress('KeyG'); keys[KB.right] = false; near(player.pos.x, 5.5, 1e-9, 'the new key blinks');
+      KB.blink = 'F11'; EG.reserveKey('F11', 'test panel'); eq(KB.blink, 'KeyF', 'a saved blink key that becomes reserved goes back to F'); ok(warns.some((x) => /F11/.test(x) && /blink/.test(x)), 'with a warning');
+      EG.enableBlink(false); for (const s of ['.sk[data-s=blink]', '#hBlink', '.keybtn[data-k=blink]']) ok(!shownEl(s), s + ' gone when off'); eq(document.querySelectorAll('.keybtn').length, 9, 'nine key rows again');
+    } finally { console.warn = w; Object.assign(KB, kb0); if (store === null) localStorage.removeItem(EG_KEY('eg-keys')); else localStorage.setItem(EG_KEY('eg-keys'), store); keys[KB.right] = false; EGControls.redrawKeys(); }
+  }));
+  test('meteor arcMinRadius: default 0 keeps the arc around a close target (it wraps); a minimum radius pushes every drop out to it so the arc stays an arc', () => {
+    fresh(); setTier(1); player.pos.set(0, 0, 0); const drops = [], real = dropMeteor;
+    try { window.dropMeteor = (T) => { drops.push(T.clone()); };
+      eq(EG.spellParams('meteor').arcMinRadius, 0, 'default 0');
+      EG.setSpellParams('meteor', { pattern: 'arc', arcLength: 8, drops: 5 }); castMeteor(V(0, 0, 1));
+      drops.forEach((T, i) => near(Math.hypot(T.x, T.z), 1, 1e-9, `default: drop ${i} at the target distance 1`));
+      const span = (L) => { const a = L.map((T) => Math.atan2(T.z, T.x)); return Math.abs(a[4] - a[0]) < 1e-9 ? 0 : 8 / Math.hypot(L[0].x, L[0].z); };
+      ok(span(drops) > 2 * Math.PI, 'default: an arc of 8 at radius 1 goes all the way round the caster (the old behaviour)');
+      drops.length = 0; ok(EG.setSpellParams('meteor', { arcMinRadius: 3 }), 'accepted'); castMeteor(V(0, 0, 1));
+      drops.forEach((T, i) => near(Math.hypot(T.x, T.z), 3, 1e-9, `drop ${i} pushed out to radius 3`)); ok(span(drops) < 2 * Math.PI, 'the arc no longer closes');
+      near(drops[2].x, 0, 1e-9, 'middle drop still on the cast direction'); near(drops[2].z, 3, 1e-9);
+      drops.length = 0; castMeteor(V(0, 0, 10)); drops.forEach((T) => near(Math.hypot(T.x, T.z), 10, 1e-9, 'a farther target keeps its own radius'));
+    } finally { window.dropMeteor = real; fresh(); }
+  });
+  test('remap wait ends when the player leaves settings (close button, Esc, going to the title and starting play): nothing is bound, the next key acts normally', async () => {
+    fresh(); const kb0 = { ...KB }, store = localStorage.getItem(EG_KEY('eg-keys'));
+    const row = () => document.querySelector('.keybtn[data-k=fire]'), waits = () => !!document.querySelector('.keybtn.waiting');
+    try {
+      for (const [how, leave] of [['close button', () => document.querySelector('#sBack').click()], ['Esc twice', () => { bpress('Escape'); bpress('Escape'); }], ['title, then play', () => { goTitle(); startFree(); }]]) {
+        fresh(); openSub('settings', 'pause'); row().click(); ok(waits(), how + ': row waits');
+        leave(); await Promise.resolve(); await frames(1);
+        ok(document.querySelector('#settings').hidden, how + ': settings closed'); ok(!waits(), how + ': no row waits after leaving');
+        if (!running) startFree(); for (const id of MENUS) document.querySelector('#' + id).hidden = true; syncMenu(); paused = false;
+        bpress('KeyW'); eq(KB.fire, 'Digit1', how + ': W did not become the fireball key'); ok(keys.KeyW, how + ': W reached the game'); keys.KeyW = false;
+        bpress('Digit1'); ok(player.cast && player.cast.id === 'fire', how + ': 1 still casts the fireball'); player.cast = null;
+      }
+    } finally { Object.assign(KB, kb0); if (store === null) localStorage.removeItem(EG_KEY('eg-keys')); else localStorage.setItem(EG_KEY('eg-keys'), store); EGControls.redrawKeys(); fresh(); }
   });
 
   // ---------------------------------------------------------------- run

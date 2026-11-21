@@ -52,7 +52,9 @@ The monster pack chosen for P3b (Quaternius' Ultimate Monsters, CC0) is only pub
 
 ## Phones and key remapping (P4)
 
-On a touch-only device the game switches to touch controls: drag anywhere on the left half to move (a joystick appears under your finger), tap a skill tile to cast it at the nearest monster within range, hold the fireball tile to keep firing, and use the bag and pause buttons in the top right. Landscape gives the widest view. Add `?touch=1` to the address to force touch mode on a desktop. On a keyboard, every movement and spell key can be remapped in Settings; pressing a key that is already used swaps the two.
+On a touch-only device the game switches to touch controls: drag anywhere on the left half to move (a joystick appears under your finger), tap a skill tile to cast it at the nearest monster within range, hold the fireball tile to keep firing, and use the bag and pause buttons in the top right. Landscape gives the widest view. Add `?touch=1` to the address to force touch mode on a desktop. On a keyboard, every movement and spell key can be remapped in Settings; pressing a key that is already used swaps the two, and leaving Settings while a row still waits for a key cancels the wait without binding anything.
+
+**Optional blink (engine feature, off in the demo)**: a fifth basic move, a short teleport along the movement keys (or the facing direction) with a cooldown, a brief invulnerability window and a violet spark burst, trail and flash. It never lands outside the arena or inside a prop or rock tile. A content pack turns it on with `CONTENT.blink: true` (or an object of its parameters), an extension with `EG.enableBlink(true)`; then the skill bar, help screen, key settings (default `F`) and touch controls gain it, and `EG.on('blink', …)` reports `{from, to}`. See [kit/CONTENT-API.md](kit/CONTENT-API.md).
 
 ## What it demonstrates
 
@@ -78,6 +80,7 @@ Everything — textures, rune circle, rock, sounds — is generated in code. No 
 | Right click / `2` | Chain lightning |
 | `3` | Meteor (lands at the cursor) |
 | `4` | Blood rune barrage |
+| `F` | Blink (only when a content pack or extension turns it on) |
 | `I` | Inventory (left click equip, right click discard) |
 | Wheel | Zoom |
 | `Space` / click | Next dialogue line |
@@ -356,7 +359,9 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 
 ### 手機操作與按鍵重設（P4）
 
-只有觸控螢幕的裝置會自動切換成觸控操作：左半邊任意處拖曳移動（手指落點會出現搖桿）；點下方技能施放，會自動瞄準範圍內最近的怪物；按住焰核彈連發；右上角是行囊與暫停。橫放手機視野最大。在電腦上想試，可以在網址後面加 `?touch=1`。用鍵盤時，移動與四招的按鍵都能在「設定」裡重設；按到已經有用途的鍵，兩個會互換。
+只有觸控螢幕的裝置會自動切換成觸控操作：左半邊任意處拖曳移動（手指落點會出現搖桿）；點下方技能施放，會自動瞄準範圍內最近的怪物；按住焰核彈連發；右上角是行囊與暫停。橫放手機視野最大。在電腦上想試，可以在網址後面加 `?touch=1`。用鍵盤時，移動與四招的按鍵都能在「設定」裡重設；按到已經有用途的鍵，兩個會互換；某一列還在等按鍵時離開「設定」，等待直接取消、不會綁到任何鍵。
+
+**選用的閃現（引擎功能，示範版關閉）**：第五個基本動作，往移動方向（沒按方向鍵時往面向）瞬移一小段，有冷卻、短暫無敵，出發與抵達各有一團紫色火星、中間一道殘影與一下閃光；不會落在場外，也不會落進擺設或岩石格裡。內容包用 `CONTENT.blink: true`（或閃現參數的物件）開啟，擴充腳本用 `EG.enableBlink(true)`；開啟後技能列、說明頁、按鍵設定（預設 `F`）與觸控按鈕才會出現它，`EG.on('blink', …)` 回報 `{from, to}`。見 [kit/CONTENT-API.md](kit/CONTENT-API.md)。
 
 ### 看得到的重點
 
@@ -382,6 +387,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 | 右鍵／`2` | 鏈雷 |
 | `3` | 星墜（落在游標處） |
 | `4` | 血環 |
+| `F` | 閃現（內容包或擴充腳本開啟時才有） |
 | `I` | 行囊（左鍵穿上、右鍵丟掉） |
 | 滾輪 | 鏡頭遠近 |
 | `空白鍵`／點一下 | 下一句對白 |

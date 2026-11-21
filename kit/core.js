@@ -40,6 +40,7 @@ if(!window.CONTENT)throw new Error('CONTENT 未載入：請先載入 content/<�
 /*H*/     if(k==='sarcSpawn'){if(v!=='mix'&&!(lst(v)&&v.every(x=>['spider','lizard','ghost'].includes(x))))W(w,'"mix"，或 spider／lizard／ghost 組成的非空陣列')}else if(['meteorSizeDamage','aoeJitter','meteorSizeRadius','gearDamage'].includes(k)&&typeof v!=='boolean')W(w,B)});
 /*H*/   objChk(C.loot,'CONTENT.loot',['names','prefixes'],(k,v,w)=>{if(k==='prefixes'){if(!lst(v))W(w,'非空的字串陣列')}else objChk(v,w,['staff','helm','armor','gloves','boots','ring','amulet','lantern'],(k2,v2,w2)=>{if(!lst(v2))W(w2,'非空的字串陣列')})});
 /*H*/   objChk(C.render,'CONTENT.render',['shadowTransparentBodies'],(k,v,w)=>{if(typeof v!=='boolean')W(w,B)});
+/*H*/   if(C.blink!==undefined&&typeof C.blink!=='boolean'&&!isObj(C.blink))W('CONTENT.blink','true、false，或閃現參數的物件');
 /*H*/   if(isObj(C.text)&&C.text.loadTips!==undefined&&!lst(C.text.loadTips))W('CONTENT.text.loadTips','非空的字串陣列');
 /*H*/   if(bad.length)throw new Error('CONTENT 不完整：'+bad.join('；'));
 /*H*/   for(const k of ['speakers','portraits','dialog'])if(!isObj(C[k])){cwarn('CONTENT.'+k+' 沒有給：'+(k==='dialog'?'所有對白略過':k==='speakers'?'說話者名字留空':'頭像留空'));C[k]={}}
@@ -302,7 +303,7 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
 /*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;
 /*H*/ // 擴充腳本介面 window.EG（kit/ 之後載入的 script 用，見 CONTENT-API.md）：法術參數、事件、暫停
-/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame'.split(' ');let egHeld=false;
+/*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame blink'.split(' ');let egHeld=false;
 /*H*/ // 暫停的持有者、保留鍵、技能列數字（1–10 寫中文數字）
 /*H*/ const EG_PO=new Set(),EG_RK={},egZh=n=>n>0&&n<11?'一二三四五六七八九十'[n-1]:n;
 /*H*/ addEventListener('keydown',e=>{const b=EG_RK[e.code]&&$('.keybtn.waiting');if(b){e.preventDefault();e.stopImmediatePropagation();b.textContent='這個鍵保留給'+EG_RK[e.code]}},true);
@@ -312,8 +313,8 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ function egHome(p,dt){const F=spellP('fire');if(!(F.homingTurn>0))return;const sp=Math.hypot(p.vel.x,p.vel.z),c=Math.cos(F.homingCone*Math.PI/180);let best=null,bd=1e9;
 /*H*/   for(const e of enemies){if(!e.alive)continue;const dx=e.pos.x-p.pos.x,dz=e.pos.z-p.pos.z,d=Math.hypot(dx,dz)||1e-6;if((dx*p.vel.x+dz*p.vel.z)/(d*sp)>=c&&d<bd){bd=d;best=e}}
 /*H*/   if(!best)return;const cur=Math.atan2(p.vel.x,p.vel.z),df=Math.atan2(best.pos.x-p.pos.x,best.pos.z-p.pos.z)-cur,a=cur+clamp(Math.atan2(Math.sin(df),Math.cos(df)),-F.homingTurn*dt,F.homingTurn*dt);p.vel.x=Math.sin(a)*sp;p.vel.z=Math.cos(a)*sp}
-/*H*/ // 星墜 arc 排法：圓心是施法者、半徑是到落點的距離，在施法方向排一段長 arcLength 的弧，依落下順序從一端排到另一端
-/*H*/ function egArc(T,i,M){const x=player.pos.x,z=player.pos.z,R=Math.hypot(T.x-x,T.z-z)||1,a=Math.atan2(T.z-z,T.x-x)+(M.drops>1?i/(M.drops-1)-.5:0)*M.arcLength/R;return new V3(x+Math.cos(a)*R,0,z+Math.sin(a)*R)}
+/*H*/ // 星墜 arc 排法：圓心是施法者、半徑是到落點的距離（至少 arcMinRadius），在施法方向排一段長 arcLength 的弧，依落下順序從一端排到另一端
+/*H*/ function egArc(T,i,M){const x=player.pos.x,z=player.pos.z,R=Math.max(M.arcMinRadius,Math.hypot(T.x-x,T.z-z)||1),a=Math.atan2(T.z-z,T.x-x)+(M.drops>1?i/(M.drops-1)-.5:0)*M.arcLength/R;return new V3(x+Math.cos(a)*R,0,z+Math.sin(a)*R)}
 /*H*/ window.EG={on(n,f){if(!EG_EVENTS.includes(n)||typeof f!=='function')return egW('on: unknown event or not a function: '+n);(EG_EV[n]=EG_EV[n]||[]).push(f)},
 /*H*/   off(n,f){const L=EG_EV[n]||[],i=L.indexOf(f);if(i>=0)L.splice(i,1)},
 /*H*/   setSpellParams(id,o){const D=SPELL_DEF[id];if(!D||!o||typeof o!=='object'){egW('setSpellParams: unknown spell or not an object: '+id);return false}let all=true;

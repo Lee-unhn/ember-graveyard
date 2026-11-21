@@ -60,6 +60,8 @@ body.touch #lab{display:none}`;
     for (const n in KB) if (n !== waiting && KB[n] === e.code) KB[n] = KB[waiting]; // taken: swap the two
     KB[waiting] = e.code; waiting = null; saveKeys(); redrawKeys();
   }, true);
+  // leaving settings (close button, Esc, title, play) ends a pending wait, so the next key is not bound by accident
+  const st = $('#settings'); if (st) new MutationObserver(() => { if (waiting && st.hidden) { waiting = null; redrawKeys(); } }).observe(st, { attributes: true, attributeFilter: ['hidden'] });
 
   // ---------------------------------------------------------------- touch controls
   const joy = { id: null, x0: 0, y0: 0 };

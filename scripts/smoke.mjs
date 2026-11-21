@@ -17,7 +17,8 @@ import { pageSources } from '../tests/lib/pagesrc.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_BYTES = 150 * 1024;
 // raised from 200 KB to 208 KB for the extension interface (spell parameter table, window.EG events and pause, DEVLOG #45); the selftest proves it still fails one byte over
-const MAX_CODE_BYTES = 208 * 1024;
+// raised from 208 KB to 214 KB for the optional blink move (kit/blink.js, about 5.6 KB: movement, landing rules, effect, sound, touch tile, remap row; DEVLOG #47)
+const MAX_CODE_BYTES = 214 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);

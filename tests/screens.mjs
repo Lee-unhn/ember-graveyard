@@ -35,10 +35,12 @@ const SCENES = [
   // F14: the same HUD checks without touch controls (a desktop browser zoomed to 200% is 640 x 400 CSS pixels) and in the middle of an act, not only at the boss
   ['fight-hud-desktop', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
   ['boss-hud-desktop', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;startBoss();for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
+  // optional blink move switched on (DEVLOG timeline #47): a fifth skill tile right after a blink, on the desktop bar and (below) on the touch bar
+  ['blink-hud-desktop', `EG.enableBlink(true);startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});cds.blink=0;EG.blink(1,0);logic(.1)`, null, `EG.enableBlink(false)`],
   ['touch-play', `document.querySelector('#dead').hidden=true;EGControls.enableTouch();startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0})`, null],
   // boss fight on a phone: the objective bar and the boss health bar must not cover each other or the status panel, the bag/pause buttons or the rotate hint (DEVLOG #84)
   ['boss-hud', `EGControls.enableTouch();startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;startBoss();for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
-  ['fight-hud', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],
+  ['fight-hud', `startStory(0);while(dlg)endDialog();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});logic(.1)`, null],  ['blink-hud', `EG.enableBlink(true);startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});cds.blink=0;EG.blink(-1,0);logic(.1)`, null, `EG.enableBlink(false)`],
 ];
 
 const LAYOUT = (sel) => `(() => {
@@ -69,7 +71,7 @@ const LAYOUT = (sel) => `(() => {
 const srv = remote ? null : await serve();
 const url = remote || `http://127.0.0.1:${srv.address().port}/index.html`;
 const files = [];
-const HUD_SCENES = ['fight-hud-desktop', 'boss-hud-desktop', 'boss-hud', 'fight-hud'];
+const HUD_SCENES = ['fight-hud-desktop', 'boss-hud-desktop', 'boss-hud', 'fight-hud', 'blink-hud-desktop', 'blink-hud'];
 for (const [vp, w, h, only] of [['desktop', 1280, 720], ['phone', 375, 667], ['phone-narrow', 320, 568, ['boss-hud']], ['phone-landscape', 667, 375, ['boss-hud']],
   ['zoom-200', 640, 400, HUD_SCENES], ['phone-tall', 375, 812, HUD_SCENES], ['phone-wide', 812, 375, HUD_SCENES]]) {
   const page = await openPage(url, { width: w, height: h });
@@ -89,7 +91,7 @@ for (const [vp, w, h, only] of [['desktop', 1280, 720], ['phone', 375, 667], ['p
       if (L.sideScroll) bad.push('page scrolls sideways');
       if (L.titleHud) bad.push(`${L.titleHud} battle HUD panels behind the title`);
       if (L.smallTouch) bad.push(`${L.smallTouch} touch controls under 44 px or off screen`);
-      if (name.startsWith('boss-hud') || name.startsWith('fight-hud')) {
+      if (name.startsWith('boss-hud') || name.startsWith('fight-hud') || name.startsWith('blink-hud')) {
         if (name.startsWith('boss-hud') && !L.bossShown) bad.push('boss health bar is not shown');
         if (L.hudOverlap.length) bad.push('HUD blocks overlap: ' + L.hudOverlap.join(', '));
         if (L.hudOutside.length) bad.push('HUD blocks leave the screen sideways: ' + L.hudOutside.join(', '));

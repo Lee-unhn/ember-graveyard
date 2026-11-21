@@ -31,7 +31,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant eighteen defects in a scratch copy; the suites must notice
+  // plant twenty-one defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -59,6 +59,9 @@ if (!args.includes('--skip-mutation') && !url) {
     plant("const b=EG_RK[e.code]&&$('.keybtn.waiting');", 'const b=0;');                                        // 16. the key-remap rows accept a reserved key (DEVLOG timeline #46)
     plant("'fire',0,'meteor')", "'fire',0,'fire')");                                                            // 17. a meteor impact is reported as a fireball hit (DEVLOG timeline #46)
     plant('timers.length=caAcc=emitHot.acc=0;ambAcc={};for(const T of TOWERS)T.acc={}', 'timers.length=0');      // 18. clearEffects keeps the emission timers' phase, so a seeded scene no longer repeats (DEVLOG timeline #46)
+    plant('||cds.blink>0)return false;', ')return false;');                                                    // 19. blink ignores its cooldown (DEVLOG timeline #47)
+    plant('if(!inArena(x,z))break;', '');                                                                        // 20. blink can end outside the arena (DEVLOG timeline #47)
+    plant('if (waiting && st.hidden) {', 'if (0) {');                                                            // 21. a remap wait survives leaving settings and binds the next key in play (DEVLOG timeline #47)
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

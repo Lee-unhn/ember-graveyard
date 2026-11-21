@@ -70,6 +70,10 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [
+  // optional blink move, meteor arc minimum radius, remap wait (DEVLOG timeline #47): the blink itself lives in the new deferred module kit/blink.js;
+  // in the parity files only the meteor table gains arcMinRadius (default 0 = main) and controls.js gains the line that ends a remap wait when settings close
+  ["arcLength:8,arcMinRadius:0}", "arcLength:8}"],
+  ["\n  // leaving settings (close button, Esc, title, play) ends a pending wait, so the next key is not bound by accident\n  const st = $('#settings'); if (st) new MutationObserver(() => { if (waiting && st.hidden) { waiting = null; redrawKeys(); } }).observe(st, { attributes: true, attributeFilter: ['hidden'] });", ""],
   // extension interface, second round (DEVLOG timeline #46): hit events name the spell part that caused them, skill-bar numbers come from the spell table,
   // new-game / continue events, the remap rows can be redrawn. These undo the newest edits first, so the older pairs below still find their text.
   ["function dealDamage(e,amt,kind,src){", "function dealDamage(e,amt,kind){"], ["{spell:kind,kind,source:src||null,", "{spell:kind,"],
@@ -366,6 +370,7 @@ async function runtime() {
   writeVariant('no_modelScript', (C) => { delete C.modelScript; });
   writeVariant('model_404', (C) => { C.modelScript = 'content/none/model.js'; });
   writeVariant('renamed_boss', (C) => { C.text.bossName = '白霜巨龍'; });
+  writeVariant('blink_pack', (C) => { C.blink = { distance: 7 }; });
   writeVariant('other_pack_id', (C) => { C.id = 'frost-dragon'; C.towers.push(C.towers[0]); C.towerPos.push([-10, -12]); C.acts.push({ n: 10, mix: [1, 0, 0], after: 't4' }); });
   writeVariant('other_pack', (C) => { delete C.id; C.towers.push(C.towers[0]); C.towerPos.push([-10, -12]); C.acts.push({ n: 10, mix: [1, 0, 0], after: 't4' }); });
   // load-order / 404 variants
@@ -444,6 +449,12 @@ async function runtime() {
   // ---- 1f. the boss name the content gives
   { await load(base + 'renamed_boss.html'); await prep(); const res = await p.evaluate(`(() => { try { startStory(0); startBoss(); return { err: null, bar: (document.querySelector('#bossbar .nm') || {}).textContent, obj: $('#objective').textContent }; } catch (e) { return { err: String(e.message) }; } })()`);
     rep.ok(res.err === null && res.bar === '白霜巨龍', 'content: CONTENT.text.bossName is what the boss health bar shows', res); }
+  // ---- 1f2. a content pack that turns the optional blink on with its own distance (DEVLOG timeline #47); the control pack leaves it off
+  { const off = (await load(base + 'control.html')).ready && await p.evaluate(`!EG.blinkEnabled() && !document.querySelector('.sk[data-s=blink]')`);
+    await load(base + 'blink_pack.html'); await prep();
+    const res = await p.evaluate(`(() => { try { startFree(); for (const o of obstacles) o.r = 0; player.pos.set(0, 0, 0); const on = EG.blinkEnabled(), tile = !!document.querySelector('.sk[data-s=blink]'), moved = EG.blink(1, 0) && player.pos.x;
+      EG.resetSpellParams(); return { err: null, on, tile, moved, d: EG.spellParams('blink').distance }; } catch (e) { return { err: String(e.message) }; } })()`);
+    rep.ok(off && res.err === null && res.on && res.tile && Math.abs(res.moved - 7) < 1e-9 && res.d === 7, 'content: CONTENT.blink turns the blink on with its own distance (7, still 7 after a reset); without it the blink stays off', { off, res }); }
   // ---- 1g. saves from another pack on the same origin
   { await load(base + 'control.html'); await p.evaluate(`localStorage.setItem('eg-save', JSON.stringify({ v: 1, act: 3 }))`);
     await load(base + 'other_pack.html'); const cont = await p.evaluate(`!document.querySelector('#goContinue').hidden`);

@@ -231,7 +231,42 @@ async function touchFlow() {
   } finally { await p.close(); }
 }
 
-try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); }
+async function blinkFlow() {
+  // blink (DEVLOG timeline #47): hold D toward a band of solid rock the mage cannot walk through, press F, land on the far side
+  const p = await openPage(url, { width: W, height: H });
+  try {
+    await p.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled`, 60000);
+    rep.ok(await p.evaluate(`!EG.blinkEnabled() && !document.querySelector('.sk[data-s=blink]')`), 'blink is off on the demo page (no tile)');
+    await p.clickSel('#go'); await sleep(200);
+    // setup: blink on, monsters parked far away and harmless, props near the start without collision, a 2 m band of rock from x = 2 to 4
+    await p.evaluate(`EG.enableBlink(true); window.__blinks = []; EG.on('blink', (a) => __blinks.push(a));
+      for (const e of enemies) { e.pos.set(30, 0, 30); e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); }
+      for (const o of obstacles) if (Math.hypot(o.x, o.z) < 14) o.r = 0;
+      player.pos.set(0, 0, 0); for (let x = 2; x < 4; x++) for (let z = -8; z < 8; z++) setT(cellOf(x + .5, z + .5), TER.OBSID)`);
+    rep.ok(await p.evaluate(`!document.querySelector('.sk[data-s=blink]').hidden && /F/.test(document.querySelector('.sk[data-s=blink] .k').textContent)`), 'blink on: a fifth skill tile shows the F key');
+    await p.keyDown('KeyD');
+    rep.ok(await p.waitFor(`player.pos.x > 1.3`, 5000), 'holding D walks the mage east to the rock'); await sleep(400);
+    rep.ok(await p.evaluate(`player.pos.x < 2`), 'the rock band stops the walk');
+    await p.key('KeyF', 'f', 'f');
+    rep.ok(await p.waitFor(`__blinks.length === 1`, 3000), 'pressing F fires one blink event');
+    rep.ok(await p.evaluate(`player.pos.x > 4.4 && Math.abs(player.pos.z) < .3`), 'F carries the mage across the rock band');
+    rep.ok(await p.evaluate(`(() => { const b = __blinks[0]; return b.from.x > 1.3 && b.from.x < 2 && b.to.x > 4.4 && b.to.x - b.from.x <= 5.5 + 1e-9; })()`), 'the event reports from (before the rock) and to (past it), at most 5.5 apart');
+    rep.ok(await p.evaluate(`cds.blink > 0 && cds.blink <= 2.5`), 'the cooldown runs');
+    // the tile's cooldown ring is redrawn by its own animation frame, so wait for it instead of reading it at once
+    rep.ok(await p.waitFor(`+document.querySelector('.sk[data-s=blink] .cd').style.getPropertyValue('--p') > 0`, 3000), 'the tile shows the cooldown');
+    const x1 = await p.evaluate('player.pos.x');
+    await p.keyUp('KeyD'); await p.keyDown('KeyA'); await sleep(30); await p.key('KeyF', 'f', 'f'); await p.keyUp('KeyA'); await sleep(150);
+    rep.ok(await p.evaluate(`__blinks.length === 1 && player.pos.x > 4.2 && player.pos.x <= ${x1} + .01`), 'F again during the cooldown does nothing (no second event, still past the rock)');
+    rep.ok(await p.waitFor(`cds.blink === 0`, 8000), 'the cooldown runs out');
+    // walk west until the far edge of the rock is less than 5.5 away (x < 6.5), so the blink can clear it; the mage drifts a little after each key, so a fixed spot is not used
+    await p.keyDown('KeyA'); await p.waitFor(`player.pos.x < 6.5`, 5000); await p.key('KeyF', 'f', 'f'); await p.keyUp('KeyA');
+    const back = await p.waitFor(`__blinks.length === 2 && player.pos.x < 2`, 5000);
+    rep.ok(back, 'after the cooldown, A + F blinks back west across the rock', back ? '' : await p.evaluate(`JSON.stringify({ blinks: __blinks, x: player.pos.x, cd: cds.blink, running, paused, menuOpen, held: EG.isPaused(), alive: player.alive, keyA: keys.KeyA })`));
+    rep.ok(p.errors.length === 0, 'blink flow: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);
