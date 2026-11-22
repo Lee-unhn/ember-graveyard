@@ -131,7 +131,7 @@ async function browserProbe(root, liveUrl) {
   console.log('  probing ' + url);
   const prof = mkdtempSync(join(tmpdir(), 'eg-probe-'));
   const proc = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
-    '--window-size=1280,800', '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    '--window-size=1280,800', '--no-first-run', '--no-default-browser-check', ...(process.env.EG_AUDIBLE ? [] : ['--mute-audio']), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   try {
     const wsUrl = await new Promise((res, rej) => {
       let buf = ''; const t = setTimeout(() => rej(new Error('Chrome did not start')), 20000);

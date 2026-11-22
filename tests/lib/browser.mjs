@@ -34,7 +34,7 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
   if (!chrome) throw new Error('no Chrome/Chromium found (set CHROME_PATH)');
   const prof = mkdtempSync(join(tmpdir(), 'eg-cdp-'));
   const args = ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
-    `--window-size=${width},${height}`, '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', 'about:blank'];
+    `--window-size=${width},${height}`, '--no-first-run', '--no-default-browser-check', ...(process.env.EG_AUDIBLE ? [] : ['--mute-audio']), '--autoplay-policy=no-user-gesture-required', 'about:blank'];
   if (process.platform === 'linux') args.unshift('--no-sandbox');
   const proc = spawn(chrome, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise((res, rej) => {
