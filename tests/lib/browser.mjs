@@ -34,7 +34,7 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
   if (!chrome) throw new Error('no Chrome/Chromium found (set CHROME_PATH)');
   const prof = mkdtempSync(join(tmpdir(), 'eg-cdp-'));
   const args = ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
-    `--window-size=${width},${height}`, '--no-first-run', '--no-default-browser-check', ...(process.env.EG_AUDIBLE ? [] : ['--mute-audio']), '--autoplay-policy=no-user-gesture-required', 'about:blank'];
+    `--window-size=${width},${height}`, '--no-first-run', '--no-default-browser-check', ...(process.env.EG_AUDIBLE ? [] : ['--mute-audio', '--disable-audio-output']), '--autoplay-policy=no-user-gesture-required', 'about:blank'];
   if (process.platform === 'linux') args.unshift('--no-sandbox');
   const proc = spawn(chrome, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise((res, rej) => {
@@ -60,6 +60,11 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
     return r.result.result.value;
   };
   await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
+  // The game reads lines aloud with the OS speech engine when a line has no recorded voice; that sound bypasses the browser's audio
+  // output, so --disable-audio-output cannot silence it. Tests replace speak() with a silent stand-in that still fires start and end
+  // (EG_AUDIBLE=1 keeps the real voice). window.__egSpoken counts the lines that would have been read.
+  if (!process.env.EG_AUDIBLE) await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { try { const S = window.speechSynthesis; if (!S) return; window.__egSpoken = 0;
+    S.speak = function (u) { window.__egSpoken++; setTimeout(() => { try { u.dispatchEvent(new Event('start')); u.dispatchEvent(new Event('end')); } catch (e) {} }, 0); }; } catch (e) {} })();` });
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   if (mobile) await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   // CPU_THROTTLE=6 reproduces a slow CI runner locally (Chrome slows its own CPU by that factor)
