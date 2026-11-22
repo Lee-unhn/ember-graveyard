@@ -266,6 +266,52 @@ async function blinkFlow() {
   } finally { await p.close(); }
 }
 
+async function blinkSafetyFlow() {
+  // DEVLOG timeline #49, real keys only: an old saved key map with a spell on F, Ctrl/Meta/Alt + F, keys behind the ending screen, cooldowns into a new game
+  const p = await openPage(url, { width: W, height: H });
+  const ready = () => p.waitFor(`document.querySelector('#loading').hidden && !document.querySelector('#go').disabled && window.EG && EG.enableBlink`, 60000);
+  const keyMod = async (code, mod) => { const base = { code, key: code.slice(-1).toLowerCase(), windowsVirtualKeyCode: code.charCodeAt(code.length - 1), modifiers: mod };
+    await p.send('Input.dispatchKeyEvent', { type: 'keyDown', ...base }); await p.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }); };
+  const gameTime = async (s) => { const t = await p.evaluate('time'); await p.waitFor(`time > ${t} + ${s}`, 30000); }; // game time, not wall time (frames are capped at 0.05 s)
+  try {
+    await ready();
+    // setup: the key map a player saved before blink existed, with the fireball moved to F; then a reload, as on the player's next visit
+    await p.evaluate(`localStorage.setItem(EG_KEY('eg-keys'), JSON.stringify({ up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD', fire: 'KeyF', bolt: 'Digit2', meteor: 'Digit3', blood: 'Digit4', inv: 'KeyI' }))`);
+    await p.send('Page.reload'); await sleep(300); await ready();
+    const kb = await p.evaluate('JSON.stringify(KB)');
+    rep.ok(await p.evaluate(`(() => { const v = Object.values(KB).filter(Boolean); return KB.fire === 'KeyF' && KB.blink === '' && new Set(v).size === v.length; })()`), 'old key map with the fireball on F: after the reload the fireball keeps F, blink has no key, no two actions share a key', kb);
+    await p.clickSel('#go'); rep.ok(await p.waitFor('running', 30000), 'blink safety: free play started');
+    // setup: blink on, harmless monsters far away, no props near the start, long cooldowns so they are still running when the next game starts
+    await p.evaluate(`EG.enableBlink(true); window.__b = []; window.__c = []; EG.on('blink', (a) => __b.push(a)); EG.on('cast', (id) => __c.push(id));
+      for (const e of enemies) { e.pos.set(30, 0, 30); e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); } for (const o of obstacles) if (Math.hypot(o.x, o.z) < 14) o.r = 0;
+      player.pos.set(0, 0, 0); EG.setSpellParams('blink', { cd: 30 }); EG.setSpellParams('meteor', { cd: 30 })`);
+    await keyMod('KeyF', 0);
+    rep.ok(await p.waitFor(`__c.includes('fire')`, 5000) && await p.evaluate(`__b.length === 0`), 'F casts the fireball only, no blink', await p.evaluate('JSON.stringify({ b: __b, c: __c })'));
+    // setup: blink back on F, the fireball back on 1, nothing cooling down
+    await p.evaluate(`KB.blink = 'KeyF'; KB.fire = 'Digit1'; EGControls.redrawKeys(); for (const k in cds) cds[k] = 0; __c.length = 0; player.pos.set(0, 0, 0)`);
+    await gameTime(.4);
+    for (const [name, mod] of [['Alt', 1], ['Ctrl', 2], ['Meta', 4]]) { await keyMod('KeyF', mod); await keyMod('Digit1', mod); }
+    await gameTime(.3);
+    rep.ok(await p.evaluate(`__b.length === 0 && __c.length === 0 && cds.blink === 0`), 'Ctrl+F, Meta+F, Alt+F do not blink; Ctrl/Meta/Alt+1 do not cast', await p.evaluate('JSON.stringify({ b: __b.length, c: __c })'));
+    await keyMod('KeyF', 8);
+    rep.ok(await p.waitFor(`__b.length === 1`, 5000), 'Shift+F blinks (Shift is not a browser shortcut)');
+    await keyMod('Digit3', 0); rep.ok(await p.waitFor(`__c.includes('meteor')`, 5000), 'setup check: 3 casts the meteor, both cooldowns now run');
+    await p.waitFor('!player.cast', 30000);
+    // setup: jump to the ending screen of a story (the boss is not under test)
+    await p.evaluate(`story.on = true; story.t0 = time; showEnding(); __b.length = 0; __c.length = 0; window.__pos = [player.pos.x, player.pos.z]`);
+    rep.ok(await p.evaluate(`!document.querySelector('#ending').hidden`), 'the ending screen is shown');
+    const cdBlink = await p.evaluate('cds.blink'); await p.evaluate('cds.blink = 0; cds.fire = 0');
+    await keyMod('KeyF', 0); await keyMod('Digit1', 0); await p.keyDown('KeyD'); await gameTime(.6); await p.keyUp('KeyD');
+    rep.ok(await p.evaluate(`__b.length === 0 && __c.length === 0 && !player.cast && Math.hypot(player.pos.x - __pos[0], player.pos.z - __pos[1]) < 1e-6`), 'behind the ending screen F does not blink, 1 does not cast, holding D does not move the mage',
+      await p.evaluate('JSON.stringify({ b: __b.length, c: __c, cast: player.cast && player.cast.id, moved: [player.pos.x - __pos[0], player.pos.z - __pos[1]] })'));
+    await p.evaluate(`cds.blink = ${cdBlink}`); // setup: the blink cooldown left from before the ending (cleared above only so the ending check could not hide behind it)
+    await p.clickSel('#endAgain');
+    rep.ok(await p.waitFor(`story.on && story.act === 0 && document.querySelector('#ending').hidden`, 5000), 'the ending button starts a new game');
+    rep.ok(await p.evaluate(`Object.values(cds).every((v) => v === 0)`), 'the new game starts with every cooldown ready (blink and meteor were still cooling down)', await p.evaluate('JSON.stringify(cds)'));
+    rep.ok(p.errors.length === 0, 'blink safety: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
 async function keyTapFlow() {
   // DEVLOG timeline #48: a real tap of a spell key, made while its cooldown is ready and nothing is paused, must always cast.
   // KEYTAPS=n sets the number of presses (default 100, 25 per key); every press is a keyDown + keyUp sent back to back (shorter than a frame).
@@ -307,7 +353,7 @@ async function keyTapFlow() {
 }
 
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
-try { if (only === 'keytaps') await keyTapFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await keyTapFlow(); } }
+try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); } }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

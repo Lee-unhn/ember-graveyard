@@ -249,7 +249,7 @@ function rate(acc,key,r,dt,fn){acc[key]=(acc[key]||0)+r*dt;while(acc[key]>=1){ac
 const LP=[];for(let i=0;i<10;i++){const l=new THREE.PointLight(0xffffff,0,8,2);scene.add(l);LP.push({l,busy:false,t:0,life:0,i0:0,follow:null,flick:0,born:0})}
 let lightClock=0;
 function getLight(force){let s=LP.find(x=>!x.busy);if(!s&&force){s=LP.reduce((a,b)=>a.born<b.born?a:b)}return s}
-function flash(pos,color,inten,dist,life){const s=getLight(true);s.busy=true;s.follow=null;s.t=0;s.life=life;s.i0=inten;s.born=lightClock;s.flick=0;
+function flash(pos,color,inten,dist,life){if(egFlashOff)inten*=.3;const s=getLight(true);s.busy=true;s.follow=null;s.t=0;s.life=life;s.i0=inten;s.born=lightClock;s.flick=0;
   s.l.color.setHex(color);s.l.distance=dist;s.l.position.copy(pos);s.l.intensity=inten}
 function attachLight(obj,color,inten,dist,force=true,flick=0){const s=getLight(force);if(!s)return null;s.busy=true;s.follow=obj;s.t=0;s.life=Infinity;s.i0=inten;s.born=lightClock;s.flick=flick;
   s.l.color.setHex(color);s.l.distance=dist;s.l.intensity=inten;s.owner=obj;return s}
@@ -306,6 +306,8 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame blink dialogStart dialogEnd'.split(' ');let egHeld=false;
 /*H*/ // egQ＝施法動作中按下的招式與當時的動作（動作結束那格施放）；egMusicOff＝擴充腳本關掉內建音樂
 /*H*/ let egQ=[],egMusicOff=false;
+/*H*/ // 結局畫面擋輸入、組合鍵不施法、新局歸零、減少閃光（DEVLOG #49）
+/*H*/ let egFlashOff=false;const egEnd=()=>story.phase==='end',egMod=e=>e.ctrlKey||e.metaKey||e.altKey,egRun=()=>{for(const k in cds)cds[k]=0;egQ=[];hitStop=shakeAmt=player.hurtT=0;EG.clearEffects()};
 /*H*/ // 暫停的持有者、保留鍵、技能列數字（1–10 寫中文數字）
 /*H*/ const EG_PO=new Set(),EG_RK={},egZh=n=>n>0&&n<11?'一二三四五六七八九十'[n-1]:n;
 /*H*/ addEventListener('keydown',e=>{const b=EG_RK[e.code]&&$('.keybtn.waiting');if(b){e.preventDefault();e.stopImmediatePropagation();b.textContent='這個鍵保留給'+EG_RK[e.code]}},true);
@@ -333,6 +335,7 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/   music(on){egMusicOff=!on;if(!AC)return;if(on)return startMusic();if(!musicTimer)return;clearInterval(musicTimer);musicTimer=null;const o=musicBus;o.gain.setTargetAtTime(0,AC.currentTime,.1);setTimeout(()=>o.disconnect(),900);(musicBus=AC.createGain()).connect(master);applySettings()},musicBus:()=>musicBus,
 /*H*/   reserveKey(c,l){if(typeof c!=='string'||!c)return egW('reserveKey: not a key code: '+c);EG_RK[c]=String(l||c);
 /*H*/     for(const n in KB)if(KB[n]===c){const d=KB_DEFAULT[n]===c?'':KB_DEFAULT[n];egW(`reserveKey: ${c} was bound to ${n}, now ${d||'unbound'}`);KB[n]=d}window.EGControls&&EGControls.redrawKeys()},
+/*H*/   reduceFlashing(on){return egFlashOff=!!on},flashingReduced:()=>egFlashOff,
 /*H*/   seed(n){Math.random=n==null?_sysRandom:mulberry32(n)},
 /*H*/   clearEffects(){for(const S of [ADD,SMOKE]){S.pool.push(...S.list);S.list.length=0}const k=(L,f)=>{for(const o of L.splice(0)){o.dead=true;f(o)}},r=(m,g)=>{scene.remove(m);(g?egFree:egFreeMat)(m)};
 /*H*/     k(projs,o=>0);k(meteors,o=>{r(o.mesh);r(o.ring)});k(rocks,o=>r(o.mesh));k(burns,o=>r(o.decal,1));k(rites,o=>r(o.mesh,1));k(shocks,o=>r(o.mesh));k(dmgs,o=>o.el.remove());timers.length=caAcc=emitHot.acc=0;ambAcc={};for(const T of TOWERS)T.acc={}}};

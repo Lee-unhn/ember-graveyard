@@ -1301,6 +1301,76 @@ window.__runUnit = async (only) => {
     } finally { U.uCA.value = 0; U.uTint.value.set(1, 1, 1); SET.fx = fx; rt.dispose(); oldM.dispose(); fresh(); EGPost.render(); }
   });
 
+  // ---------------------------------------------------------------- blink key collisions, modifier keys, the ending screen, a new run, reduced flashing (DEVLOG timeline #49)
+  const kpress = (code, mods = {}) => document.body.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true, ...mods }));
+  const noDupKeys = () => { const v = Object.values(KB).filter(Boolean); return new Set(v).size === v.length; };
+  test('blink key collision: a key map saved before blink existed that has F on a spell gives blink no key (the spell keeps F, no two actions share a key, F only casts)', blinkScene(async () => {
+    const kb0 = { ...KB };
+    try {
+      // setup: what an old saved map looks like next to blink's default (the spell was moved to F before blink existed)
+      EG.enableBlink(false); KB.fire = 'KeyF'; KB.blink = 'KeyF'; EG.enableBlink(true);
+      eq(KB.fire, 'KeyF', 'the spell keeps F'); eq(KB.blink, '', 'blink has no key'); ok(noDupKeys(), 'no two actions share a key: ' + JSON.stringify(KB));
+      const got = []; const f = (a) => got.push(a); EG.on('blink', f); keys[KB.right] = true; kpress('KeyF'); keys[KB.right] = false; EG.off('blink', f);
+      ok(player.cast && player.cast.id === 'fire', 'F casts the spell'); eq(got.length, 0, 'and does not blink'); near(player.pos.x, 0, 1e-9, 'the mage stays');
+      await frames(2); eq(document.querySelector('.keybtn[data-k=blink]').textContent, '—', 'the remap row shows blink without a key');
+      player.cast = null; cds.fire = 0; KB.fire = 'Digit1'; KB.blink = 'KeyG'; EG.enableBlink(false); EG.enableBlink(true); eq(KB.blink, 'KeyG', 'a free key stays bound');
+    } finally { Object.assign(KB, kb0); EGControls.redrawKeys(); }
+  }));
+  test('Ctrl, Meta and Alt combos never blink, cast or open the bag (Ctrl+F is the browser\'s find); Shift does not block', blinkScene(() => {
+    try {
+      for (const m of ['ctrlKey', 'metaKey', 'altKey']) {
+        cds.blink = 0; player.pos.set(0, 0, 0); keys[KB.right] = true; kpress(KB.blink, { [m]: true }); keys[KB.right] = false;
+        near(player.pos.x, 0, 1e-9, m + ' + blink key: no blink'); eq(cds.blink, 0, m + ': no cooldown started');
+        cds.fire = 0; player.cast = null; kpress(KB.fire, { [m]: true }); eq(player.cast, null, m + ' + spell key: no cast');
+        kpress(KB.inv, { [m]: true }); ok(document.querySelector('#inv').hidden, m + ' + bag key: the bag stays closed');
+      }
+      cds.blink = 0; player.pos.set(0, 0, 0); keys[KB.right] = true; kpress(KB.blink, { shiftKey: true }); keys[KB.right] = false; near(player.pos.x, 5.5, 1e-9, 'Shift + blink key blinks');
+      kpress(KB.fire, { shiftKey: true }); ok(player.cast && player.cast.id === 'fire', 'Shift + spell key casts');
+    } finally { keys[KB.right] = false; if (!document.querySelector('#inv').hidden) toggleInv(); }
+  }));
+  test('ending screen: no cast, no blink and no movement behind it (keys, held left button, EG.blink)', blinkScene(() => {
+    const save = localStorage.getItem(SAVE_KEY);
+    try {
+      story.on = true; story.t0 = time; showEnding(); ok(!document.querySelector('#ending').hidden, 'setup: the ending screen is shown'); player.pos.set(0, 0, 0);
+      keys[KB.right] = true; kpress(KB.blink); near(player.pos.x, 0, 1e-9, 'blink key: no blink'); eq(EG.blink(1, 0), false, 'EG.blink refuses');
+      kpress(KB.fire); tryCast('meteor'); eq(player.cast, null, 'spell key and tryCast: no cast'); eq(cds.fire + cds.meteor, 0, 'no cooldown started');
+      lmb = true; for (let i = 0; i < 10; i++) updatePlayer(.05); lmb = false; keys[KB.right] = false;
+      eq(player.cast, null, 'held left button: no cast'); near(player.pos.x, 0, 1e-9, 'held movement key: the mage stays'); near(player.pos.z, 0, 1e-9);
+    } finally { keys[KB.right] = false; lmb = false; document.querySelector('#ending').hidden = true; story.on = false; story.phase = 'idle'; if (save !== null) localStorage.setItem(SAVE_KEY, save); }
+  }));
+  test('a new run starts clean: new game, continue, restart and free play reset every cooldown, the blink safety window, a queued cast, hit-stop, shake and a blood rite in progress', blinkScene(() => {
+    const save = localStorage.getItem(SAVE_KEY), s0 = sfx.blink; sfx.blink = () => {};
+    const dirty = (how) => {
+      while (dlg) endDialog(); paused = false; story.phase = story.on ? 'fight' : 'idle'; player.pos.set(0, 0, 0); cds.blink = 0;
+      ok(EG.blink(1, 0), how + ': setup blink'); startBlood(); Object.assign(cds, { fire: .3, bolt: .9, meteor: 4.5, blood: 4 }); egQ = ['bolt', player.cast || {}]; hitStop = .2; shakeAmt = .4;
+    };
+    try {
+      for (const [how, go] of [['new game', () => startStory(0)], ['continue', () => startStory(2, true)], ['restart', () => restart()], ['free play', () => startFree()]]) {
+        dirty(how); go(); while (dlg) endDialog();
+        for (const k in cds) eq(cds[k], 0, `${how}: ${k} ready`);
+        eq(egQ.length, 0, how + ': no queued cast'); eq(hitStop, 0, how + ': no hit-stop'); eq(shakeAmt, 0, how + ': no shake'); eq(rites.length, 0, how + ': no blood rite from the last run');
+        player.hp = player.maxhp; hurtPlayer(5); eq(player.hp, player.maxhp - 5, how + ': no blink safety window from the last run');
+      }
+    } finally { sfx.blink = s0; story.on = false; if (save === null) localStorage.removeItem(SAVE_KEY); else localStorage.setItem(SAVE_KEY, save); }
+  }));
+  test('EG.reduceFlashing: off by default and the flash numbers are unchanged; on dims every pooled flash (blink, explosion, chain hit) and the monster hit whitening, and the blink skips its shake', blinkScene(() => {
+    ok(typeof EG.reduceFlashing === 'function' && typeof EG.flashingReduced === 'function', 'EG.reduceFlashing and EG.flashingReduced exist'); eq(EG.flashingReduced(), false, 'off by default');
+    const freeLP = () => { for (const s of LP) if (s.busy && s.life < 9) { s.busy = false; s.l.intensity = 0; } };
+    const lit = () => Math.max(0, ...LP.filter((s) => s.busy && s.life < 9).map((s) => s.l.intensity));
+    const blinkRun = () => { EG.clearEffects(); freeLP(); shakeAmt = 0; cds.blink = 0; player.pos.set(0, 0, 0); EG.blink(1, 0); return { light: lit(), shake: shakeAmt }; };
+    const e = still(spawnEnemy('lizard', 8, 8, 1) || enemies[0]), whiten = () => { dealDamage(e, 1, 'fire'); updateEnemies(.001); return e.mats[0].emissive.r; };
+    try {
+      const a = blinkRun(); eq(a.light, 5, 'off: blink flash 5'); ok(a.shake > 0, 'off: blink shakes');
+      freeLP(); flash(V(0, 1, 0), 0xffffff, 4, 9, .3); eq(lit(), 4, 'off: a flash of 4 stays 4'); freeLP(); explode(V(0, 1, 0), 1); eq(lit(), 4.5, 'off: explosion flash 4.5');
+      const w0 = whiten(); near(w0, .85, 1e-6, 'off: hit whitening .85');
+      eq(EG.reduceFlashing(true), true, 'returns the new state'); eq(EG.flashingReduced(), true, 'on');
+      const b = blinkRun(); near(b.light, 1.5, 1e-9, 'on: blink flash dimmed like reduce-shake (1.5)'); eq(b.shake, 0, 'on: the blink does not shake');
+      freeLP(); flash(V(0, 1, 0), 0xffffff, 4, 9, .3); near(lit(), 1.2, 1e-9, 'on: any pooled flash at 0.3'); freeLP(); explode(V(0, 1, 0), 1); near(lit(), 1.35, 1e-9, 'on: explosion flash 0.3');
+      ok(whiten() <= w0 * .31, 'on: hit whitening dimmed');
+      eq(EG.reduceFlashing(false), false, 'off again'); const c = blinkRun(); eq(c.light, 5, 'off again: blink flash 5');
+    } finally { EG.reduceFlashing(false); EG.clearEffects(); freeLP(); }
+  }));
+
   // ---------------------------------------------------------------- run
   for (const [name, fn] of tests) { if (only && !name.includes(only)) continue;
     try { await fn(); results.push({ name, ok: true }); }

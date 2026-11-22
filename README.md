@@ -54,7 +54,7 @@ The monster pack chosen for P3b (Quaternius' Ultimate Monsters, CC0) is only pub
 
 On a touch-only device the game switches to touch controls: drag anywhere on the left half to move (a joystick appears under your finger), tap a skill tile to cast it at the nearest monster within range, hold the fireball tile to keep firing, and use the bag and pause buttons in the top right. Landscape gives the widest view. Add `?touch=1` to the address to force touch mode on a desktop. On a keyboard, every movement and spell key can be remapped in Settings; pressing a key that is already used swaps the two, and leaving Settings while a row still waits for a key cancels the wait without binding anything. A spell key pressed while another spell is still being cast is not lost: it is kept and cast the moment that cast ends.
 
-**Optional blink (engine feature, off in the demo)**: a fifth basic move, a short teleport along the movement keys (or the facing direction) with a cooldown, a brief invulnerability window and a violet spark burst, trail and flash. It never lands outside the arena or inside a prop or rock tile. A content pack turns it on with `CONTENT.blink: true` (or an object of its parameters), an extension with `EG.enableBlink(true)`; then the skill bar, help screen, key settings (default `F`) and touch controls gain it, and `EG.on('blink', …)` reports `{from, to}`. See [kit/CONTENT-API.md](kit/CONTENT-API.md).
+**Optional blink (engine feature, off in the demo)**: a fifth basic move, a short teleport along the movement keys (or the facing direction) with a cooldown, a brief invulnerability window and a violet spark burst, trail and flash. It never lands outside the arena or inside a prop or rock tile. A content pack turns it on with `CONTENT.blink: true` (or an object of its parameters), an extension with `EG.enableBlink(true)`; then the skill bar, help screen, key settings (default `F`) and touch controls gain it, and `EG.on('blink', …)` reports `{from, to}`. A key map saved before blink existed that already uses `F` keeps `F` on its action and leaves blink without a key (set one in the key settings). Ctrl, Alt and Meta combinations never blink, cast or open the bag (they belong to the browser); Shift does not block. See [kit/CONTENT-API.md](kit/CONTENT-API.md).
 
 ## What it demonstrates
 
@@ -361,7 +361,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 
 只有觸控螢幕的裝置會自動切換成觸控操作：左半邊任意處拖曳移動（手指落點會出現搖桿）；點下方技能施放，會自動瞄準範圍內最近的怪物；按住焰核彈連發；右上角是行囊與暫停。橫放手機視野最大。在電腦上想試，可以在網址後面加 `?touch=1`。用鍵盤時，移動與四招的按鍵都能在「設定」裡重設；按到已經有用途的鍵，兩個會互換；某一列還在等按鍵時離開「設定」，等待直接取消、不會綁到任何鍵。另一招的施法動作還沒做完時按下的招式鍵不會被吃掉：會記住，等那個動作一結束就施放。
 
-**選用的閃現（引擎功能，示範版關閉）**：第五個基本動作，往移動方向（沒按方向鍵時往面向）瞬移一小段，有冷卻、短暫無敵，出發與抵達各有一團紫色火星、中間一道殘影與一下閃光；不會落在場外，也不會落進擺設或岩石格裡。內容包用 `CONTENT.blink: true`（或閃現參數的物件）開啟，擴充腳本用 `EG.enableBlink(true)`；開啟後技能列、說明頁、按鍵設定（預設 `F`）與觸控按鈕才會出現它，`EG.on('blink', …)` 回報 `{from, to}`。見 [kit/CONTENT-API.md](kit/CONTENT-API.md)。
+**選用的閃現（引擎功能，示範版關閉）**：第五個基本動作，往移動方向（沒按方向鍵時往面向）瞬移一小段，有冷卻、短暫無敵，出發與抵達各有一團紫色火星、中間一道殘影與一下閃光；不會落在場外，也不會落進擺設或岩石格裡。內容包用 `CONTENT.blink: true`（或閃現參數的物件）開啟，擴充腳本用 `EG.enableBlink(true)`；開啟後技能列、說明頁、按鍵設定（預設 `F`）與觸控按鈕才會出現它，`EG.on('blink', …)` 回報 `{from, to}`。閃現出現之前存下的改鍵若已經把 `F` 給了別的動作，`F` 留給那個動作，閃現先不綁鍵（到設定的按鍵列指定）。見 [kit/CONTENT-API.md](kit/CONTENT-API.md)。
 
 ### 看得到的重點
 
@@ -389,6 +389,7 @@ P3b 選定的怪物包（Quaternius〈Ultimate Monsters〉，CC0）只透過 Goo
 | `4` | 血環 |
 | `F` | 閃現（內容包或擴充腳本開啟時才有） |
 | `I` | 行囊（左鍵穿上、右鍵丟掉） |
+| `Ctrl`／`Alt`／`⌘` 加上述按鍵 | 不施法、不閃現、不開行囊（留給瀏覽器的快捷鍵，例如 `Ctrl+F` 搜尋）；`Shift` 不影響 |
 | 滾輪 | 鏡頭遠近 |
 | `空白鍵`／點一下 | 下一句對白 |
 
@@ -438,7 +439,7 @@ npm test
 | 其他驗證 | `npm run test:checks` | 高負載效能預算（法術，以及 40×40 整片燃燒的地形）、重開五次無洩漏、375 像素寬無水平捲動、無障礙名稱、畫面非空白、文件連結、圖源同步、沒有函式被宣告兩次、引擎與內容的邊界（`kit/` 沒有劇情文字、`content/` 沒有引擎邏輯）、script 載入順序 |
 | 截圖自查 | `npm run test:screens` | 11 個畫面 × 1280×720 與 375×667：逐一截圖並檢查版面規則；`--save=<階段>` 存進 `docs/screens/` |
 | 破壞者測試 | `npm run test:breaker`（也包在 `npm test` 裡） | 60 多項針對引擎與內容拆分的對抗檢查：內容缺欄位、對白代號或說話者對不上、塔數與幕數不同、同網域的另一個內容包、載入順序與檔案 404、直接開 `file://`、靜態閘門能不能被繞過；與拆分前主線的差異逐項列明，其餘一律紅燈 |
-| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋十二個已知缺陷，單元與其他驗證必須變紅 |
+| 突變測試 | 包在 `npm test` 裡 | 複製一份專案、故意埋三十二個已知缺陷，單元與其他驗證必須變紅 |
 | 線上版 | `npm run test:live` | 對 GitHub Pages 重跑煙霧、單元、端對端、其他驗證 |
 
 每次推送與 pull request，GitHub Actions 都會自動跑 `npm test`。

@@ -64,7 +64,7 @@ function obj(main,sub){const o=$('#objective');o.hidden=false;o.innerHTML=main+(
 function refreshSkillLabels(){$('#mfire').textContent=tierOf('fire')?egZh(spellP('fire').shots)+'連發':'單發';$('#mbolt').textContent=tierOf('bolt')?`彈跳 ${spellP('bolt').bounces} 次`:'單擊';$('#mmeteor').textContent=tierOf('meteor')?egZh(spellP('meteor').drops)+'顆連落':'單顆'}
 function clearWorld(){for(const e of enemies){scene.remove(e.g);egFree(e.g);if(e.hpEl)e.hpEl.remove()}enemies.length=0;for(const L of loots){scene.remove(L.g);egFreeMat(L.g);L.el.remove()}loots.length=0;
   for(const p of projs)p.dead=true;projs.length=0;for(const s of shocks){scene.remove(s.mesh);egFreeMat(s.mesh)}shocks.length=0;timers.length=0;
-  player.alive=true;player.hp=player.maxhp;player.cast=null;player.tacc=0;P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true);
+  player.alive=true;player.hp=player.maxhp;player.cast=null;player.tacc=0;egRun();P.g.rotation.set(0,0,0);$('#dead').hidden=true;$('#bossbar').hidden=true;story.boss=null;setDark(0,true);
   for(const m of meteors){m.dead=true;scene.remove(m.mesh);egFreeMat(m.mesh);scene.remove(m.ring);egFreeMat(m.ring)}meteors.length=0;for(const b of burns){b.dead=true;scene.remove(b.decal);egFree(b.decal)}burns.length=0;
   for(const id of MENUS)$('#'+id).hidden=true;resultThen=null;syncMenu();
   resetTerrain()}

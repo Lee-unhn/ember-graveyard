@@ -84,7 +84,7 @@ function updateEnemies(dt){
   for(let i=list.length-1;i>=0;i--){const e=list[i];
     if(e.dying>=0){e.dying+=dt;const k=e.dying/.55;e.g.scale.set(1+k*.3,Math.max(.01,1-k),1+k*.3);e.g.position.y=-k*.3;if(k>=1){scene.remove(e.g);egFree(e.g);list.splice(i,1)}continue}
     if(e.flinch>0){e.flinch=Math.max(0,e.flinch-dt);const k=e.flinch/.14;e.g.scale.set(1+.16*k,1-.12*k,1+.16*k)}else if(e.g.scale.x!==1)e.g.scale.set(1,1,1);  // 受擊抖動
-    if(e.flash>0){e.flash-=dt;for(const m of e.mats)m.emissive.setRGB(.85,.75,.7)}else for(const m of e.mats)m.emissive.copy(m.userData.e0);
+    if(e.flash>0){e.flash-=dt;for(const m of e.mats)m.emissive.setRGB(.85,.75,.7).multiplyScalar(egFlashOff?.3:1)}else for(const m of e.mats)m.emissive.copy(m.userData.e0);
     const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,d=Math.hypot(dx,dz)||1;let mx=0,mz=0;
     if(player.alive&&(d<24||e.aggro)){e.aggro=true;if(d>e.radius+.55){mx=dx/d;mz=dz/d}}
     else{e.wt-=dt;if(e.wt<=0){e.wa=rand(0,TAU);e.wt=rand(1,3)}mx=Math.cos(e.wa)*.35;mz=Math.sin(e.wa)*.35}

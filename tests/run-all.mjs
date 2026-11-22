@@ -31,7 +31,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant twenty-seven defects in a scratch copy; the suites must notice
+  // plant thirty-two defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -68,6 +68,11 @@ if (!args.includes('--skip-mutation') && !url) {
     plant('musicTimer||egMusicOff)return', 'musicTimer)return');                                                 // 25. the engine restarts its own music after an extension switched it off (DEVLOG timeline #48)
     plant('SET.reduceShake ? 0 : 1;', '1;');                                                                     // 26. chromatic aberration ignores the reduce-shake setting (DEVLOG timeline #48)
     plant('c * uTint, 0.0', 'c * uTint * .995, 0.0');                                                            // 27. the default picture is no longer pixel-identical (DEVLOG timeline #48)
+    plant("if(c&&u[c]){KB[n]=''", "if(0){KB[n]=''");                                                             // 28. blink keeps F although an old saved map has a spell on F (DEVLOG timeline #49)
+    plant('egMod=e=>e.ctrlKey||e.metaKey||e.altKey', 'egMod=e=>0');                                              // 29. Ctrl+F blinks, Ctrl+1 casts (DEVLOG timeline #49)
+    plant("egEnd=()=>story.phase==='end'", 'egEnd=()=>0');                                                       // 30. casting, blinking and walking behind the ending screen (DEVLOG timeline #49)
+    plant('player.tacc=0;egRun();', 'player.tacc=0;');                                                           // 31. cooldowns and the queued cast carry into a new game (DEVLOG timeline #49)
+    plant('if(egFlashOff)inten*=.3;', '');                                                                       // 32. EG.reduceFlashing leaves the pooled flashes bright (DEVLOG timeline #49)
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

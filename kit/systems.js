@@ -43,9 +43,9 @@ const KB=Object.assign({},KB_DEFAULT);try{const k=JSON.parse(localStorage.getIte
 const keys={},mouse=new THREE.Vector2(),aim=new V3(),ray=new THREE.Raycaster(),gplane=new THREE.Plane(new V3(0,1,0),0);let lmb=false;
 addEventListener('keydown',e=>{keys[e.code]=true;
   if(e.code==='Space'){e.preventDefault();if(dlg)nextLine();else if(!$('#result').hidden)closeResult();return}
-  if(e.code==='Tab'){e.preventDefault();toggleInv()}if(e.code===KB.inv)toggleInv();
+  if(e.code==='Tab'){e.preventDefault();toggleInv()}if(e.code===KB.inv&&!egMod(e))toggleInv();
   if(e.code==='KeyR'&&!$('#dead').hidden)restart();
-  const m=['fire','bolt','meteor','blood'].find(s=>KB[s]===e.code);if(m)tryCast(m);
+  const m=['fire','bolt','meteor','blood'].find(s=>KB[s]===e.code);if(m&&!egMod(e))tryCast(m);
   if(e.code==='Escape'||e.code==='KeyP'){if(!$('#settings').hidden)backSub('settings');else if(!$('#help').hidden)backSub('help');else if(!$('#credits').hidden)backSub('credits');
     else if(!$('#inv').hidden)toggleInv();else if(!$('#result').hidden)closeResult();else togglePause()}});
 addEventListener('keyup',e=>{keys[e.code]=false});
@@ -59,7 +59,7 @@ for(const el of document.querySelectorAll('.sk'))el.addEventListener('click',()=
 function toggleInv(){if(egNoBag())return;const p=$('#inv');p.hidden=!p.hidden;if(!p.hidden)renderInv();else hideTip()}
 $('#invClose').onclick=toggleInv;
 
-function tryCast(id,poll){if(egHeld)return;if(!running||paused||menuOpen||!player.alive)return;
+function tryCast(id,poll){if(egHeld||egEnd())return;if(!running||paused||menuOpen||!player.alive)return;
   if(!story.unlocked.has(id)){if(story.on)note(`這招還沒學會，先${EG_TERM.light}${EG_TERM.tower}`);return}
   if(player.cast&&!poll)egQ=[id,player.cast];if(player.cast||cds[id]>0)return;
   const s=spellP(id),cs=castMul();
@@ -80,7 +80,7 @@ function hurtPlayer(d,src=EG_TERM.monster){if(!player.alive)return;player.hp-=d;
 function updatePlayer(dt){
   for(const k in cds)cds[k]=Math.max(0,cds[k]-dt);
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
-  if(player.alive){
+  if(player.alive&&!egEnd()){
     if(lmb)tryCast('fire',1);
     let mx=(keys[KB.right]?1:0)-(keys[KB.left]?1:0),mz=(keys[KB.down]?1:0)-(keys[KB.up]?1:0);const l=Math.hypot(mx,mz);
     const c=player.cast,root=c&&c.id==='blood'?0:c?.45:1,ptp=TP[tileAt(player.pos.x,player.pos.z)],sp=6.2*(1+stats.move/100)*root*(ptp.pm||1);

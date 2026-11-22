@@ -70,6 +70,12 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [
+  // blink key collision, modifier keys, ending screen, new-run reset, reduced flashing (DEVLOG timeline #49): Ctrl/Meta/Alt combos do not cast or open the bag; no cast or movement
+  // behind the ending screen; clearWorld resets cooldowns, the queued cast, hit-stop, shake and leftover effects; with EG.reduceFlashing on, pooled flashes and the hit whitening dim (off = main)
+  ["if(e.code===KB.inv&&!egMod(e))toggleInv();", "if(e.code===KB.inv)toggleInv();"], ["if(m&&!egMod(e))tryCast(m);", "if(m)tryCast(m);"],
+  ["function tryCast(id,poll){if(egHeld||egEnd())return;", "function tryCast(id,poll){if(egHeld)return;"], ["if(player.alive&&!egEnd()){", "if(player.alive){"],
+  ["player.tacc=0;egRun();", "player.tacc=0;"], ["function flash(pos,color,inten,dist,life){if(egFlashOff)inten*=.3;", "function flash(pos,color,inten,dist,life){"],
+  [".setRGB(.85,.75,.7).multiplyScalar(egFlashOff?.3:1)}", ".setRGB(.85,.75,.7)}"],
   // key taps during another cast, dialogue events, built-in music switch, post-effect tint and aberration (DEVLOG timeline #48): a press made while another cast runs is
   // kept and cast when that cast ends (the held left button polls with a flag so it cannot replace it); the defaults reproduce main's behaviour and picture
   ["function tryCast(id,poll){", "function tryCast(id){"], ["if(player.cast&&!poll)egQ=[id,player.cast];", ""], ["if(lmb)tryCast('fire',1);", "if(lmb)tryCast('fire');"],
