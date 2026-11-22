@@ -294,7 +294,8 @@ async function keyTapFlow() {
       if (s === sc[4]) await p.mouse('mouseReleased', 520, 180);
       if (s === sc[1]) await p.keyUp(dir);
       // the press counts as cast if the cast event for this spell arrives before the mage is idle again (a press during another cast may wait for that cast to end)
-      await p.waitFor(`__kt.slice(${n0}).includes('${id}') || !player.cast`, 6000);
+      // the wait ends as soon as the mage is idle; the 30 s cap is only for slow software rendering, where 血環's 1.9 s of game time took over 6 s of wall time on CI
+      await p.waitFor(`__kt.slice(${n0}).includes('${id}') || !player.cast`, 30000);
       if (!(await p.evaluate(`__kt.slice(${n0}).includes('${id}')`))) { miss[s] = (miss[s] || 0) + 1; if (misses.length < 3) misses.push({ id, s, at: await p.evaluate('__snap') }); }
       if (i % 8 === 7) await p.evaluate('player.pos.set(0, 0, 0)'); // setup: keep the mage in the middle
     }
