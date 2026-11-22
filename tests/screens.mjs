@@ -7,7 +7,8 @@
 //   node tests/screens.mjs https://...      check a deployed copy
 import { mkdirSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, serve, openPage, reporter, sleep } from './lib/browser.mjs';
+import { inflateSync } from 'node:zlib';
+import { ROOT, serve, openPage, reporter, sleep, spriteInit } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const remote = args.find((a) => /^https?:/.test(a));
@@ -72,7 +73,8 @@ const srv = remote ? null : await serve();
 const url = remote || `http://127.0.0.1:${srv.address().port}/index.html`;
 const files = [];
 const HUD_SCENES = ['fight-hud-desktop', 'boss-hud-desktop', 'boss-hud', 'fight-hud', 'blink-hud-desktop', 'blink-hud'];
-for (const [vp, w, h, only] of [['desktop', 1280, 720], ['phone', 375, 667], ['phone-narrow', 320, 568, ['boss-hud']], ['phone-landscape', 667, 375, ['boss-hud']],
+const spritesOnly = args.includes('--sprites-only');
+for (const [vp, w, h, only] of spritesOnly ? [] : [['desktop', 1280, 720], ['phone', 375, 667], ['phone-narrow', 320, 568, ['boss-hud']], ['phone-landscape', 667, 375, ['boss-hud']],
   ['zoom-200', 640, 400, HUD_SCENES], ['phone-tall', 375, 812, HUD_SCENES], ['phone-wide', 812, 375, HUD_SCENES]]) {
   const page = await openPage(url, { width: w, height: h });
   try {
@@ -108,6 +110,51 @@ for (const [vp, w, h, only] of [['desktop', 1280, 720], ['phone', 375, 667], ['p
       if (after) await page.evaluate(after);
     }
     R.ok(page.errors.length === 0, `${vp}: console errors 0`, page.errors.slice(0, 3).join(' | '));
+  } finally { await page.close(); }
+}
+
+// pixel sprites (kit/sprites.js) with the test atlases: play view at full resolution and with the whole screen in low resolution.
+// The low-resolution shot is read back pixel by pixel: inside the play area every k x k block (k = the scale) must be one colour.
+const pngRGBA = (buf) => { // minimal PNG reader (8-bit RGB / RGBA, the formats Chrome writes): returns { w, h, px(x, y) -> [r, g, b] }
+  let o = 8, w = 0, h = 0, ct = 0; const idat = [];
+  while (o < buf.length) { const n = buf.readUInt32BE(o), t = buf.toString('latin1', o + 4, o + 8), d = buf.subarray(o + 8, o + 8 + n); o += 12 + n;
+    if (t === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); ct = d[9]; } else if (t === 'IDAT') idat.push(d); else if (t === 'IEND') break; }
+  const bpp = ct === 6 ? 4 : 3, raw = inflateSync(Buffer.concat(idat)), stride = w * bpp, out = Buffer.alloc(h * stride);
+  for (let y = 0; y < h; y++) { const f = raw[y * (stride + 1)], src = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let x = 0; x < stride; x++) { const a = x >= bpp ? out[y * stride + x - bpp] : 0, b = y ? out[(y - 1) * stride + x] : 0, c = x >= bpp && y ? out[(y - 1) * stride + x - bpp] : 0;
+      const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      out[y * stride + x] = (src[x] + [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][f]) & 255; } }
+  return { w, h, px: (x, y) => [...out.subarray(y * stride + x * bpp, y * stride + x * bpp + 3)] };
+};
+for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) for (const [mode, opts] of [['sprites', {}], ['sprites-lowres', { pixelScreen: { rows: 360 } }]]) {
+  if (remote) break;
+  const page = await openPage(url, { width: w, height: h, mobile: vp === 'phone', init: spriteInit(opts) });
+  try {
+    R.ok(await page.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready`, 60000), `${vp}: ${mode}: test atlases loaded`);
+    await page.evaluate(`try{localStorage.clear()}catch(e){};startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});
+      for(const [x,z] of [[2.5,-2],[-2.5,-1.5],[0,-4]]){spawnEnemy('spider',x,z,1);const e=enemies[enemies.length-1];e.T=Object.assign({},e.T,{speed:0,dmg:0})}
+      const C=(x,z)=>(Math.round(z)+GH)*GN+Math.round(x)+GH;for(let x=-6;x<=6;x++)for(let z=-6;z<=2;z++){if(Math.hypot(x-3,z+3)<2)setT(C(x,z),TER.LAVA,30);else if(Math.hypot(x+3,z+2)<1.8)setT(C(x,z),TER.WATER)}caAcc=-1e9;
+      window.__fr=0;(function f(){__fr++;requestAnimationFrame(f)})()`);
+    await page.waitFor(`EGSprites.state.actors >= 4 && __fr > 6`, 10000); // a few drawn frames, counted by the page itself
+    const png = Buffer.from((await page.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64');
+    const f = join(OUT, `${vp}-${mode}.png`); writeFileSync(f, png); files.push(f);
+    const L = await page.evaluate(`(() => { const d = EGSprites.debug(player); return { side: document.scrollingElement.scrollWidth > innerWidth + 1, k: EGSprites.state.scale, low: EGSprites.state.lowRes, cw: parseFloat(canvas.style.width) || innerWidth, ch: parseFloat(canvas.style.height) || innerHeight, shown: !!d && d.visible, actors: EGSprites.state.actors }; })()`);
+    // the block check reads the canvas alone: page overlays (toast, damage numbers, panels) are hidden for a second shot
+    const only = mode === 'sprites-lowres' ? (await page.evaluate(`(() => { const st = document.createElement('style'); st.id = 'egOnlyCanvas'; st.textContent = 'body * { visibility: hidden !important } #c { visibility: visible !important }'; document.head.appendChild(st); return 1; })()`),
+      await page.waitFor(`(window.__fr0 = window.__fr0 || __fr) && __fr > __fr0 + 2`, 5000), Buffer.from((await page.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64')) : png;
+    const img = pngRGBA(only), bad = [];
+    if (L.side) bad.push('page scrolls sideways'); if (!L.shown) bad.push('player sprite not shown');
+    let lum = 0, lum2 = 0, n = 0; for (let y = 0; y < img.h; y += 7) for (let x = 0; x < img.w; x += 7) { const [r, g, b] = img.px(x, y), l = .3 * r + .59 * g + .11 * b; lum += l; lum2 += l * l; n++; }
+    const std = Math.sqrt(lum2 / n - (lum / n) ** 2); if (std < 4) bad.push(`blank picture (luminance std ${std.toFixed(1)})`);
+    if (mode === 'sprites-lowres') {
+      if (!L.low || !Number.isInteger(L.k) || L.k < 2) bad.push('not in low resolution at a whole-number scale ' + L.k);
+      // the middle of the play area (HUD panels sit at the edges): every k x k block aligned to the canvas corner must be one colour
+      let blocks = 0, mixed = 0; const k = L.k, x0 = Math.ceil(L.cw * .2 / k) * k, x1 = Math.floor(L.cw * .8 / k) * k, y0 = Math.ceil(L.ch * .3 / k) * k, y1 = Math.floor(L.ch * .7 / k) * k;
+      for (let y = y0; y < y1; y += k) for (let x = x0; x < x1; x += k) { const c = img.px(x, y).join(); blocks++; for (let j = 0; j < k && c; j++) for (let i = 0; i < k; i++) if (img.px(x + i, y + j).join() !== c) { mixed++; j = k; break; } }
+      if (mixed / blocks > .01) bad.push(`${mixed} of ${blocks} ${k}x${k} blocks are not one colour`);
+      R.ok(bad.length === 0, `${vp}: ${mode}: ${blocks} blocks checked at x${k}, ${mixed} mixed`, bad.join('; '));
+    } else R.ok(bad.length === 0, `${vp}: ${mode}: play view with ${L.actors} sprites`, bad.join('; '));
+    R.ok(page.errors.length === 0, `${vp}: ${mode}: console errors 0`, page.errors.slice(0, 3).join(' | '));
   } finally { await page.close(); }
 }
 srv?.close();

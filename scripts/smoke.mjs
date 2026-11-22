@@ -20,7 +20,11 @@ const MAX_BYTES = 150 * 1024;
 // raised from 208 KB to 214 KB for the optional blink move (kit/blink.js, about 5.6 KB: movement, landing rules, effect, sound, touch tile, remap row; DEVLOG #47)
 // raised by 384 B for the blink and new-run fixes (key collision, modifier keys, ending screen, new-run reset, reduced flashing; DEVLOG #49): 960 B of code and comments, 740 B were left,
 // and the selftest below needs room for its own extra script tag (about 45 B) to reach the limit exactly
-const MAX_CODE_BYTES = 214 * 1024 + 384;
+// raised by another 384 B for the two-line loader in kit/character.js that fetches kit/sprites.js only when a content pack sets CONTENT.sprites (289 B; DEVLOG #50);
+// the sprite module itself is not loaded by index.html and has its own cap below
+const MAX_CODE_BYTES = 214 * 1024 + 768;
+// engine modules that index.html does not load (kit/*.js fetched on demand by another kit file, e.g. kit/sprites.js): each compiles, together at most 40 KB
+const MAX_ONDEMAND_BYTES = 40 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
@@ -59,6 +63,10 @@ export function staticGates(root) {
   // the game code used to sit inside index.html; after the engine/content split the same budget idea covers page + every local script the page loads (kit/, content/, anything else added later; the model and voice files are data loaded at run time, not counted)
   const codeBytes = bytes + pageScripts.filter((s) => s.local && s.text).reduce((n, s) => n + Buffer.byteLength(s.text), 0);
   codeBytes <= MAX_CODE_BYTES ? ok(`page code (index + every local script) ${codeBytes} B <= ${MAX_CODE_BYTES}`) : bad(`page code ${codeBytes} B > ${MAX_CODE_BYTES}`);
+  const kitDir = join(root, 'kit'), onDemand = existsSync(kitDir) ? readdirSync(kitDir).filter((f) => f.endsWith('.js') && !localFiles.includes('kit/' + f)) : [];
+  const odBytes = onDemand.reduce((n, f) => n + statSync(join(kitDir, f)).size, 0);
+  odBytes <= MAX_ONDEMAND_BYTES ? ok(`on-demand engine modules (${onDemand.join(', ') || 'none'}) ${odBytes} B <= ${MAX_ONDEMAND_BYTES}`) : bad(`on-demand engine modules ${odBytes} B > ${MAX_ONDEMAND_BYTES}`);
+  for (const f of onDemand) { try { new vm.Script(readFileSync(join(kitDir, f), 'utf8'), { filename: 'kit/' + f }); ok(`kit/${f} (on demand) compiles`); } catch (e) { bad(`kit/${f}: ${e.message}`); } }
   const missing = pageScripts.filter((s) => s.local && s.text === null).map((s) => s.src);
   missing.length === 0 ? ok(`all ${localFiles.length} local scripts exist`) : bad(`missing script files: ${missing.join(', ')}`);
 

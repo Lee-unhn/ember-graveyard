@@ -95,4 +95,6 @@
 
   window.EGChar = { attach, update, start, state: S };
   start();
+  // 內容包給了像素圖素材（CONTENT.sprites）才載入 kit/sprites.js，示範版不載入
+  if (window.CONTENT && CONTENT.sprites) { const s = document.createElement('script'); s.src = document.currentScript.src.replace(/[^/]*$/, 'sprites.js'); document.head.appendChild(s); }
 })();

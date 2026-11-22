@@ -1,6 +1,6 @@
 # kit/ 與內容包的介面
 
-`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
+`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、像素圖素材（選用）、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
 **內容**（對白、說話者、塔與幕的設定、首領名稱、語音與模型的路徑）不在 `kit/`，由一組放在 `window.CONTENT` 的資料提供。A 的示範內容在 `content/demo/`；另一個遊戲想只取引擎，就引入 `kit/`，自己寫一組同樣欄位的內容包。
 
 ## 載入順序（index.html 負責）
@@ -8,7 +8,7 @@
 1. three.js（CDN）
 2. 內容包的 script（全部先於 `kit/`），每個只做 `window.CONTENT = window.CONTENT || {}` 再補欄位
 3. `kit/core.js`、`world.js`、`combat.js`、`systems.js`、`story.js`、`ui.js`、`boot.js`（一般 script，不加 `defer`，依序執行；頂層 `const`／`let`／`function` 在檔案之間以名稱共用，不是 ES module）
-4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行
+4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行。像素圖素材模組 `kit/sprites.js` 不在 `index.html` 裡：最後一支 `kit/character.js` 看到 `CONTENT.sprites` 時才把它加進頁面（見「像素圖素材」）
 5. 頁面最後一個內嵌 script 只呼叫 `loop()` 啟動主迴圈
 
 `kit/core.js` 開頭檢查 `window.CONTENT`，沒有就丟出明確錯誤，並把原因寫在讀取畫面上（之後任何同步 script 找不到或丟錯，只要讀取畫面還開著，也會顯示「載入失敗：…」）。
@@ -142,6 +142,179 @@
 | 欄位 | 預設 | 說明 |
 |---|---|---|
 | `shadowTransparentBodies` | false | 畫質「高」時，半透明（不透明度 0.5 以上、一般混合、寫入深度）的主體要不要投影。長袍、幽魂這類外觀為了半透明設成透明材質，預設不投影（示範版現況）；設 true 後它們像不透明的怪物一樣有影子。光柱、地面光暈、貼地陰影不受影響 |
+
+## 像素圖素材（可選 `CONTENT.sprites`）
+
+內容包提供 PNG 圖集時，可以把整個畫面換成 2.5D 像素風格：角色、墓碑與樹這類擺設、法術特效是面向鏡頭的像素圖，地面是像素地磚，也可以讓整個場景以約 360 列的低解析度算繪再整數倍放大。**沒有這個欄位時引擎完全不載入這部分程式**：`kit/character.js` 只在 `CONTENT.sprites` 存在時才載入 `kit/sprites.js`（不經過 `index.html`），示範版的畫面、程式與載入的檔案都和以前相同。
+
+- 圖集與 JSON 在背景讀取，讀完那一格才換上；讀取前與讀取失敗時畫面維持原樣（讀不到的圖集記一行警告，用到它的部分不換，其他照常）。
+- 只換外觀：碰撞、傷害、破壞、地形演變、掉落都不動。
+- 格式不對（型別、範圍、指到不存在的圖集）時整組像素素材停用、畫面維持原樣，`window.__contentWarnings` 與 `console.warn` 記指名欄位的訊息；讀取畫面還開著時也寫在上面。欄位名打錯只記警告。
+- 圖片一律最近鄰取樣、不產生縮圖層（mipmap），放大後邊緣是硬的。
+
+### 圖集（`atlases`）
+
+```js
+CONTENT.sprites = {
+  atlases: {
+    hero:  { image: 'content/mypack/hero.png',  meta: 'content/mypack/hero.json' },   // meta 可以是路徑，也可以直接寫物件
+    tiles: { image: 'content/mypack/tiles.png', meta: { kind: 'tile', size: 16, cols: 4, rows: 4 } },
+  },
+  // 下面各節的欄位……
+};
+```
+
+| `meta.kind` | 欄位 | 說明 |
+|---|---|---|
+| `sprite` | `frameW`、`frameH`、`cols`、`rows`（正整數）、`anchor`（選填 `[x, y]`，預設 `[0.5, 1]`）、`rowNames`（選填）、`frames`（選填） | 角色與擺設。每格大小相同、由左上角起排；`anchor` 是每格裡站在地面上的那一點，以格寬、格高的比例計（從格的左上角算）：腳底在每格底邊上一列時，48 列高的格寫 `0.979`（47 ÷ 48）。`rowNames` 讓格子能用名字指排（例如 `["down","up","side"]`）。`frames` 裡 `empty: true` 的格會被略過（記警告），其他欄位不必有 |
+| `tile` | `size`、`cols`、`rows` | 地磚，每格是一塊 `size`×`size` 的無縫地磚 |
+| `fx` | `frameW`、`frameH`、`cols`、`rows`、`blend`（選填，`add` 或 `alpha`，預設 `add`） | 特效，黑底。`add`＝黑色等於透明（疊加發光）；`alpha`＝照圖片的透明度 |
+
+格子的位置不能超出圖檔大小。
+
+### 指定格子的寫法
+
+| 寫法 | 意思 |
+|---|---|
+| `5` | 第 5 格（由左到右、由上到下，從 0 起算） |
+| `[2, 3]`、`["side", 3]` | 第 2 排（或 `rowNames` 裡叫 `side` 的那一排）第 3 欄 |
+| `{ row: "side", from: 0, to: 5 }` | 同一排連續幾欄；`to` 比 `from` 小時倒著排；不給 `from`／`to` 就是整排 |
+
+一個清單可以混用，所以**同一個動作可以跨好幾排**，例如 `[{ row: "side", from: 0, to: 3 }, { row: "side2", from: 0, to: 1 }]`。
+
+### 角色（`actors`）
+
+鍵是 `player`（主角）、`spider`、`lizard`、`ghost`、`lord`。有設定的角色換成像素圖、隱藏原本的 3D 模型；**沒設定的怪物照舊用原本的模型**。
+
+| 欄位 | 說明 |
+|---|---|
+| `atlas` | `sprite` 種類的圖集名 |
+| `idle`（必填）、`walk`、`cast`、`cast:fire`／`cast:bolt`／`cast:meteor`／`cast:blood`、`hurt`、`die` | 待機、走、施法（可依招式分開，沒分就用 `cast`）、受傷、倒下。缺的動作用 `idle` 代替 |
+| `ppu` | 每公尺幾個像素（預設 `CONTENT.sprites.ppu`，再沒有就是 27.5：預設鏡頭、畫面 360 列時約一格一像素） |
+| `shadow` | 腳下像素影子的半徑（公尺，預設 0.5，0＝不畫） |
+| `lit` | `false`＝不受場景光影響（全亮）；預設 `true`，和場景一起受光 |
+| `corpse` | 倒下動作播完後再停留幾秒（預設 0） |
+
+**一個動作**可以寫成：
+
+| 寫法 | 說明 |
+|---|---|
+| `[格子, …]` | 依序播放，每秒 8 格 |
+| `{ frames: [格子, …], fps, loop }` | `fps` 每秒幾格；`loop` 預設：待機與走是 `true`，其他是 `false`（播完停在最後一格） |
+| `{ row, from, to, fps, loop }` | 同一排連續幾欄的簡寫 |
+| `{ down, up, side, left, right, mirror }` | 依方向分開，每個值是上面任一種。`side` 是面向右的那一排，面向左時左右翻轉；給了 `left`／`right` 就用它，不翻轉。缺的方向依序用 `down`、`up`、`side` 代替。不分方向的動作四個方向共用，面向左時同樣翻轉，`mirror: false` 關掉翻轉 |
+
+**怎麼挑格**：
+
+- 方向（下、上、左、右）以畫面為準：往鏡頭走是下、遠離鏡頭是上。主角走動時看移動方向，站著或施法時看瞄準方向；怪物看牠的移動方向。斜向時偏向原本的方向，不會在對角線上來回跳。
+- 狀態優先順序：倒下 → 施法 → 受傷 → 走 → 待機。施法動作的格數平均分在施法動作的時間內（受施法速度影響）；受傷在被打中時從頭播一次；怪物倒下後即使已從場上移除，也會把倒下動作播完（加上 `corpse` 秒數）才收掉。
+- 尺寸：寬＝格寬 ÷ `ppu`、高＝格高 ÷ `ppu`（公尺）。圖與畫面平行（正對鏡頭），所以畫面上的像素是正方形、邊是直的，靠近畫面邊緣也不會歪斜；錨點放在角色的地面位置，浮空的怪與主角跟著上下。所有像素圖彼此平行，前後遮擋依它們在地面上的遠近，和 3D 擺設之間照深度判斷。
+- 怪物被擊中時發白（`EG.reduceFlashing(true)` 時減弱，同 3D 模型）。
+
+### 擺設（`props`）
+
+| 鍵 | 狀態欄位 | 什麼時候用 |
+|---|---|---|
+| `tomb` | `up`（必填）、`fallen` | 立著；被打倒後 |
+| `tree` | `up`（必填）、`burning`、`burnt` | 立著；燃燒中（沒給就用 `up`）；燒毀倒下後 |
+| `sarc` | `up`（必填）、`broken` | 完整；破開後 |
+| `tower` | `unlit`（必填）、`lit` | 未點亮；點亮（回應狀態的塔在心跳時也用 `lit`） |
+
+另有 `atlas`、`ppu`、`lit`（同角色）。有設定的擺設隱藏原本的 3D 模型（塔的引導光柱保留）；狀態欄位沒給時那個狀態不畫。
+
+**狀態的值**：`[格子, …]`＝每個擺設依自己的位置固定挑一格（變化格，不閃爍）；`{ frames: [格子, …], fps }`＝動畫，每個擺設起始格不同（`sync: true` 讓全部同步）；`{ variants: [[格子, …], [格子, …]], fps }`＝每個擺設固定挑一組，再播那一組的動畫。
+
+### 地面（`ground`）
+
+| 欄位 | 說明 |
+|---|---|
+| `atlas` | `tile` 種類的圖集名 |
+| `tiles` | `{ 地形名: 值 }`。地形名是 `GRASS`（枯草）、`SOIL`（墓土）、`PAVE`（石板路）、`WATER`（積水）、`MUD`（泥沼）、`FIRE`（火焰）、`ASH`（灰燼）、`LAVA`（熔岩）、`CRATER`（坑洞）、`OBSID`（黑曜石）、`SHOCK`（帶電水）、`BLOOD`（血沼）、`WISP`（磷火墳）、`BONE`（骨堆）、`STEAM`（蒸氣），另有 `default`。值的寫法同擺設的狀態：清單＝依格座標固定挑一塊（變化格），`{ frames, fps }`＝動畫格（火、水這類，每格起始不同），`{ variants, fps }`＝兩者都要。沒給的地形用 `default`，再沒有用 `SOIL`，再沒有用第一個有給的 |
+| `detail` | `true`＝保留 3D 的草叢與碎石；預設 `false`（換成地磚時隱藏） |
+| `glow` | `true`＝保留火焰與熔岩上的平滑發光層；預設 `false` |
+
+每個地形格（1 公尺）畫一塊地磚。地形改變（燒焦、積水、熔岩、坑洞……）的那一格立刻換成對應的地磚，動畫格照 `fps` 換格；只把變動的那幾排送進顯示卡。地形範圍外（柵欄以外）的地面鋪 `SOIL` 的第一塊地磚。地磚每塊 `size` 像素時地面貼圖是 88×`size` 見方，超過顯示卡上限時地面維持原樣並記警告（16 像素時是 1408）。
+
+### 特效（`fx`）
+
+| 鍵 | 換掉的是 | 預設大小（公尺） |
+|---|---|---|
+| `fireball` | 火球投射物的火芯與尾焰（循環，跟著投射物，投射物消失就收掉） | 1.2 |
+| `orb` | 鏈雷雷球的光芯（循環，跟著投射物）；飛行中的小電弧與地面火花照舊 | 1.2 |
+| `explosion` | 爆炸的粒子：火球命中、血環血光落地、磷火墳爆炸；也是星墜落地沒給 `impact` 時用的 | 3（乘上爆炸本身的大小） |
+| `zap` | 雷球命中與每次彈跳命中的火花 | 2 |
+| `chain` | 鏈雷彈跳的電弧：從一隻怪拉到下一隻怪的長條 | 0.7（寬） |
+| `meteor` | 星墜落下的石塊與它的火尾（落地後的石塊也隱藏）；落點的紅圈照舊 | 2 |
+| `impact` | 星墜落地的爆炸 | 5（乘上該顆大小） |
+| `ring` | 血環的地面法陣（平貼地面，大小跟著法陣，法陣結束就收掉） | 1（乘上法陣大小） |
+| `hit` | 不換任何東西，每次對怪物造成傷害時在牠身上加播一次 | 1 |
+
+| 欄位 | 說明 |
+|---|---|
+| `atlas`、`frames`（必填） | 圖集名與格子清單（依序播放） |
+| `fps` | 每秒幾格，預設 12 |
+| `size` | 大小（公尺），預設見上表 |
+| `blend` | `add` 或 `alpha`，預設用圖集的 `blend` |
+| `particles` | `true`＝原本的粒子照放，翻頁圖疊在上面；預設 `false`（換掉） |
+
+不跟著東西的特效播完最後一格就收掉；跟著東西的（火球、雷球、星墜、血環）在那個東西消失時收掉。爆炸原本的燈光閃光、鏡頭震動、停格與音效都保留，爆炸的染色（例如血光的紅）也套在翻頁圖上。沒指定的特效照舊用粒子。重來、換幕清場與 `EG.clearEffects()` 會把進行中的翻頁圖一起清掉。翻頁圖面向鏡頭；同時最多 400 個，超過的不畫。
+
+### 整個畫面的低解析度（`pixelScreen`）
+
+| 值 | 說明 |
+|---|---|
+| 不給、`false` | 關閉：畫面解析度照舊 |
+| `true` | 以約 360 列算繪 |
+| `{ rows: 120 到 1080 的整數 }` | 以約這麼多列算繪 |
+
+開啟後整個場景（地面、擺設、角色、粒子、後製）都在低解析度的畫布上算繪，放大倍數＝視窗高度（裝置像素）÷ `rows` 四捨五入（至少 1），畫布以剛好整數倍、最近鄰的方式放大（`image-rendering: pixelated`）；視窗大小不是整數倍時右邊與下面留下不到一個放大像素的空白。例：1280×800 的視窗是 640×400 的畫面放大 2 倍，1920×1080 是 640×360 放大 3 倍。
+
+- **鏡頭對齊像素**：每次算繪前，鏡頭的位置對齊到一個低解析度像素的格線（畫面左右與上下兩個方向，以鏡頭對準的地面距離計），算完再還原，遊戲的瞄準不受影響。角色與擺設的位置也對齊同一組格線，所以移動不到一個像素時畫面完全不變，不會閃。
+- **移軸模糊關閉**：這個模式下最後一道合成的 `uTilt` 一律當作 0（擴充腳本設的值保留，模式關閉時照舊）。光暈、調色、四角變暗照舊。
+- 沒有顯示卡（軟體算繪）時引擎本來就把像素比例壓在 0.75 以下，這時放大倍數至少取到讓像素比例不超過 0.75。
+
+**已知的限制**：畫質「高」時月光的陰影跟著主角連續移動，沒有對齊像素，陰影邊緣在移動時會有一點閃動；地面霧本來就會飄動。
+
+### 與其他畫面功能的關係
+
+- 有任何角色換成像素圖、或開啟 `pixelScreen` 時，引擎原本「角色另外用低解析度畫一次再疊上去」的那一層關閉，還是 3D 模型的角色（沒設定像素圖的怪物）改在主畫面裡和其他東西一起畫，遮擋關係正確。只換地面或擺設時那一層照舊。
+- `CONTENT.monsters` 的換色、縮放只作用在 3D 模型；換成像素圖的角色用自己的 `ppu`。
+- 擴充腳本可以讀 `EGSprites.state`（`active`、`ready`、`lowRes`、`scale`、`w`、`h`、`actors`、`props`、`fx`）與 `EGSprites.debug(主角／怪物／擺設)`（目前的動作、方向、格子、是否翻轉）。
+
+### 範例
+
+```js
+window.CONTENT = window.CONTENT || {};
+CONTENT.sprites = {
+  pixelScreen: true,
+  atlases: {
+    mage: { image: 'content/mypack/mage.png', meta: 'content/mypack/mage.json' },   // kind sprite，rowNames ["down","up","side"]
+    mobs: { image: 'content/mypack/mobs.png', meta: 'content/mypack/mobs.json' },
+    deco: { image: 'content/mypack/deco.png', meta: 'content/mypack/deco.json' },
+    tiles: { image: 'content/mypack/tiles.png', meta: 'content/mypack/tiles.json' }, // kind tile
+    fx: { image: 'content/mypack/fx.png', meta: 'content/mypack/fx.json' },          // kind fx
+  },
+  actors: {
+    player: {
+      atlas: 'mage',
+      idle: { down: { row: 'down', from: 0, to: 1, fps: 2 }, up: { row: 'up', from: 0, to: 1, fps: 2 }, side: { row: 'side', from: 0, to: 1, fps: 2 } },
+      walk: { down: { row: 'down', from: 2, to: 5, fps: 10 }, up: { row: 'up', from: 2, to: 5, fps: 10 }, side: { row: 'side', from: 2, to: 5, fps: 10 } },
+      cast: { down: [['down', 6], ['down', 7]], up: [['up', 6], ['up', 7]], side: [['side', 6], ['side', 7]] },
+      hurt: { frames: [['down', 8]], fps: 6 }, die: { frames: [['down', 9], ['down', 10]], fps: 6 },
+    },
+    spider: { atlas: 'mobs', idle: [[0, 0]], walk: { row: 0, from: 0, to: 3, fps: 12 }, die: { frames: [[1, 0], [1, 1], [1, 2]], fps: 8 } },
+  },
+  props: {
+    tomb: { atlas: 'deco', up: [[0, 0], [0, 1], [0, 2]], fallen: [[0, 3]] },
+    tree: { atlas: 'deco', up: [[1, 0]], burning: { frames: [[1, 1], [1, 2]], fps: 8 }, burnt: [[1, 3]] },
+    tower: { atlas: 'deco', unlit: [[2, 0]], lit: { frames: [[2, 1], [2, 2], [2, 3]], fps: 6 } },
+  },
+  ground: { atlas: 'tiles', tiles: { SOIL: [0, 1, 2, 3], GRASS: [4, 5, 6], WATER: { frames: [8, 9], fps: 3 }, FIRE: { frames: [10, 11], fps: 8 }, LAVA: { frames: [12, 13], fps: 4 } } },
+  fx: { fireball: { atlas: 'fx', frames: [{ row: 0 }], fps: 12 }, explosion: { atlas: 'fx', frames: [{ row: 1 }], fps: 16 } },
+};
+```
+
+A 沒有正式的像素素材；測試用程式在畫布上畫出的色塊與方向箭頭當圖集（`tests/lib/sprite-fixture.js`），測試頁在載入前把它交給 `CONTENT.sprites`。
 
 ## 引擎行為（不是內容欄位，內容包不必設定）
 
@@ -323,5 +496,5 @@ EG.on('ending', () => EG.resetSpellParams('fire'));
 
 - `kit/` 不得出現內容包擁有的字串：說話者名字、塔名、首領名與其他 `text` 文字、對白句子（比對是真的執行內容檔、從 `CONTENT` 讀出來的，不是固定字表；unicode 跳脫與字串拼接也會被還原後比對），並附「偵測器確實讀到內容」的自我檢查。示範內容擁有的名字見 `content/demo/`。
 - 內容包只能放資料：不得出現 `THREE`、`renderer`、`document`、`function`、箭頭函式、`if`／`for`／`while`／`switch`／`try`／`throw`、`new`、`class`、getter／setter、`localStorage`／`fetch`／`eval`／計時器等有副作用的名稱，樣板字串裡的 `${…}` 也一併檢查。閘門檢查 `content/*/` 底下全部的 `.js`，加上 index.html 實際載入的內容 script。
-- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 214 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）。
+- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 214.75 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）；`index.html` 沒有載入、由其他 kit 檔案視需要加進頁面的模組（目前只有 `kit/sprites.js`）另計，合計不超過 40 KB，且每一支都要能編譯（`scripts/smoke.mjs` 把關）。
 - 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後其他內容包要換的話，再往 `CONTENT` 加欄位。

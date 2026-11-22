@@ -2,7 +2,7 @@
 // End-to-end: drive the game only through real keyboard / mouse events (Chrome DevTools Input domain),
 // then read the resulting page state. Setup shortcuts are marked "setup:" and never replace the action under test.
 //   node tests/e2e.mjs [--url=https://...]
-import { serve, openPage, reporter, sleep } from './lib/browser.mjs';
+import { serve, openPage, reporter, sleep, spriteInit } from './lib/browser.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 const rep = reporter('e2e');
@@ -352,8 +352,39 @@ async function keyTapFlow() {
   } finally { await p.close(); }
 }
 
+// pixel sprites (kit/sprites.js) with the test atlases: real keys turn the sprite, a real click casts and the effect flipbooks come and go;
+// the low-resolution page still aims where the cursor is (the canvas is shown at a whole-number scale, slightly smaller than the window)
+async function spriteFlow() {
+  for (const [mode, opts] of [['normal', {}], ['lowres', { pixelScreen: { rows: 360 } }]]) {
+    const p = await openPage(url, { width: W, height: H, init: spriteInit(opts) });
+    try {
+      rep.ok(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready`, 30000), `sprites(${mode}): page with the test atlases boots`);
+      await p.clickSel('#go');
+      await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.maxhp = player.hp = 1e9;`); // setup: still monsters, no death
+      // record every animation the player sprite shows, each frame, from now on
+      await p.evaluate(`window.__anims = new Set(); (function f() { const d = EGSprites.debug(player); if (d) __anims.add(d.anim + ':' + d.dir + ':' + d.flip); requestAnimationFrame(f); })()`);
+      if (mode === 'normal') for (const [code, dir, flip] of [['KeyS', 'down', false], ['KeyW', 'up', false], ['KeyD', 'right', false], ['KeyA', 'left', true]]) {
+        await p.keyDown(code);
+        const got = await p.waitFor(`__anims.has('walk:${dir}:${flip}') && EGSprites.debug(player).dir === '${dir}'`, 5000);
+        await p.keyUp(code);
+        rep.ok(got, `sprites: holding ${code.slice(3)} shows the walk cells facing ${dir}${flip ? ' (side row mirrored)' : ''}`);
+      }
+      if (mode === 'normal') rep.ok(await p.waitFor(`EGSprites.debug(player).anim === 'idle'`, 3000), 'sprites: letting go of the keys returns to idle');
+      await p.evaluate('EG.clearEffects()');
+      await p.mouse('mouseMoved', W / 2 + 120, H / 2 - 160); await p.mouse('mousePressed', W / 2 + 120, H / 2 - 160);
+      const fly = await p.waitFor(`EGSprites.fxList.some(f => f.key === 'fireball') && projs.some(q => q.kind === 'fire')`, 5000);
+      await p.mouse('mouseReleased', W / 2 + 120, H / 2 - 160);
+      rep.ok(fly && await p.evaluate(`[...__anims].some(a => a.startsWith('cast:'))`), `sprites(${mode}): a real click shows the cast cells and a fireball flipbook`);
+      rep.ok(await p.evaluate(`(() => { const q = projs.find(q => q.kind === 'fire'); return !q || q.vel.x > 0 && q.vel.z < 0; })()`), `sprites(${mode}): the fireball flies toward the cursor (up-right)`);
+      rep.ok(await p.waitFor(`!projs.length && !player.cast && EGSprites.fxList.length === 0`, 15000), `sprites(${mode}): every effect flipbook is gone after the fireballs land`);
+      if (mode === 'lowres') rep.ok(await p.evaluate(`EGSprites.state.lowRes && Number.isInteger(EGSprites.state.scale) && EGSprites.state.scale >= 2`), 'sprites(lowres): the page runs in low resolution at a whole-number scale');
+      rep.ok(p.errors.length === 0, `sprites(${mode}): no console errors`, p.errors.slice(0, 3));
+    } finally { await p.close(); }
+  }
+}
+
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
-try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); } }
+try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else if (only === 'sprites') await spriteFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); if (!live) await spriteFlow(); } }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

@@ -4,7 +4,7 @@
 //   node tests/checks.mjs [--url=https://...]
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { ROOT, serve, openPage, reporter } from './lib/browser.mjs';
+import { ROOT, serve, openPage, reporter, spriteInit } from './lib/browser.mjs';
 import { pageSources, splitViolations, contentScripts, sharedScopeDuplicates } from './lib/pagesrc.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
@@ -178,7 +178,50 @@ async function mermaidChecks() {
   } finally { await p.close(); }
 }
 
-try { staticChecks(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); }
+// ---------------------------------------------------------------- pixel sprites (kit/sprites.js, loaded only for a content pack with CONTENT.sprites)
+function spriteStatic() {
+  const { scripts } = pageSources(ROOT), ch = readFileSync(join(ROOT, 'kit', 'character.js'), 'utf8');
+  rep.ok(!scripts.some((s) => /sprites\.js/.test(s.src || '')), 'sprites: index.html does not load kit/sprites.js (the demo page carries no sprite code)');
+  rep.ok(/if \(window\.CONTENT && CONTENT\.sprites\) \{[^}]*sprites\.js/.test(ch), 'sprites: kit/character.js loads kit/sprites.js only when the content pack has CONTENT.sprites');
+}
+async function spriteChecks() {
+  const p = await openPage(url, { width: 1280, height: 800, init: spriteInit() });
+  try {
+    if (!(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready`, 30000))) { rep.ok(false, 'sprites: page with the test atlases boots'); return; }
+    await p.clickSel('#go'); await p.evaluate(STEP + `requestAnimationFrame = () => 0; for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); __step(10);`);
+    // cost of the sprite update itself under load: 50 monsters walking, spells, a burning field (the engine's own update has its own budget above)
+    const perf = await p.evaluate(`(() => { for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 2, dmg: 0 }); player.maxhp = player.hp = 1e9; mouse.set(.05, .3);
+      for (let z = -12; z < 12; z++) for (let x = -12; x < 12; x++) setT(cellOf(x + .5, z + .5), (x + z) % 5 ? TER.GRASS : TER.FIRE, 20);
+      let t = 0, n = 0, peak = 0; for (let f = 0; f < 300; f++) { if (f % 60 === 0) { player.cast = null; cds.meteor = 0; tryCast('meteor'); } if (f % 20 === 10) { player.cast = null; cds.fire = 0; tryCast('fire'); }
+        time += 1/60; logic(1/60); const a = performance.now(); EGSprites.update(1/60); t += performance.now() - a; n++; peak = Math.max(peak, EGSprites.fxList.length); }
+      return { avg: t / n, peak, actors: EGSprites.state.actors }; })()`);
+    rep.ok(perf.avg < 3, `sprites: update of ${perf.actors} character sprites, props, effects and tiles averages ${perf.avg.toFixed(2)} ms/frame (budget 3 ms; peak ${perf.peak} effect flipbooks)`);
+    // memory: five restarts with every spell keep the scene, GPU geometries and textures, and the quad pool flat
+    const leak = await p.evaluate(`(() => { const rounds = [];
+      for (let r = 0; r < 5; r++) { restart(); spawnEnemy('spider', 40, 0, 1e9); const guard = enemies[enemies.length - 1]; for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); mouse.set(.05, .3);
+        for (const id of ['meteor', 'fire', 'bolt', 'blood']) { player.cast = null; cds[id] = 0; tryCast(id); __step(90); } for (const e of [...enemies]) if (e !== guard) killEnemy(e); __step(400); renderer.render(scene, camera);
+        rounds.push({ scene: scene.children.length - loots.length - enemies.reduce((n, e) => n + 1 + (EGSprites.actorCfg[e.type] ? 2 : 0), 0), geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, quads: EGSprites.pool.length + EGSprites.fxList.length + EGSprites.state.actors, fx: EGSprites.fxList.length }); }
+      return rounds; })()`);
+    const span = (k) => Math.max(...leak.slice(1).map((r) => r[k])) - Math.min(...leak.slice(1).map((r) => r[k]));
+    rep.ok(span('scene') <= 3 && span('geo') <= 6 && span('tex') <= 1, `sprites: scene objects, GPU geometries and textures stay flat over 5 restarts (scene ${leak.map((r) => r.scene).join(' ')}, geometries ${leak.map((r) => r.geo).join(' ')}, textures ${leak.map((r) => r.tex).join(' ')})`);
+    rep.ok(span('quads') <= 12 && leak.every((r) => r.fx === 0), `sprites: the quad pool stays bounded and no effect flipbook outlives its effect (${leak.map((r) => r.quads).join(' ')})`);
+    rep.ok(p.errors.length === 0, 'sprites: no console errors (checks)', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+  // whole screen in low resolution: about 360 rows at a whole-number scale on three window sizes (desktop, odd size, phone)
+  for (const [w, h, mobile] of [[1280, 800], [1366, 767], [375, 812, true]]) {
+    const q = await openPage(url, { width: w, height: h, mobile, init: spriteInit({ pixelScreen: { rows: 360 } }) });
+    try {
+      await q.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.lowRes && EGSprites.state.h > 0`, 30000);
+      const r = await q.evaluate(`({ k: EGSprites.state.scale, bw: EGSprites.state.w, bh: EGSprites.state.h, cw: parseFloat(canvas.style.width), chh: parseFloat(canvas.style.height), ir: canvas.style.imageRendering, dpr: devicePixelRatio, vw: innerWidth, vh: innerHeight })`);
+      const kWant = Math.max(1, Math.round(r.vh * r.dpr / 360));
+      rep.ok(Number.isInteger(r.k) && r.k === kWant && r.cw * r.dpr === r.bw * r.k && r.chh * r.dpr === r.bh * r.k && r.ir === 'pixelated' && r.bh >= 270 && r.bh <= 540 && r.vw - r.cw < r.k && r.vh - r.chh < r.k,
+        `sprites: low resolution at ${w}x${h}: ${r.bw}x${r.bh} buffer shown at exactly x${r.k} (${r.cw}x${r.chh} px)`, r);
+      rep.ok(q.errors.length === 0, `sprites: no console errors at ${w}x${h} in low resolution`, q.errors.slice(0, 3));
+    } finally { await q.close(); }
+  }
+}
+
+try { staticChecks(); spriteStatic(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); if (!live) await spriteChecks(); }
 catch (e) { rep.ok(false, 'checks crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

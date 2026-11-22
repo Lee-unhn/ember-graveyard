@@ -29,7 +29,8 @@ export function serve(root = ROOT) {
 }
 
 /** Launch Chrome, open `url`, return helpers. `errors` collects page exceptions, console.error and network errors. */
-export async function openPage(url, { width = 1280, height = 800, mobile = false } = {}) {
+// `init`: script source run in the page before any of its own scripts (e.g. spriteInit() below)
+export async function openPage(url, { width = 1280, height = 800, mobile = false, init = '' } = {}) {
   const chrome = findChrome();
   if (!chrome) throw new Error('no Chrome/Chromium found (set CHROME_PATH)');
   const prof = mkdtempSync(join(tmpdir(), 'eg-cdp-'));
@@ -65,6 +66,7 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
   // (EG_AUDIBLE=1 keeps the real voice). window.__egSpoken counts the lines that would have been read.
   if (!process.env.EG_AUDIBLE) await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { try { const S = window.speechSynthesis; if (!S) return; window.__egSpoken = 0;
     S.speak = function (u) { window.__egSpoken++; setTimeout(() => { try { u.dispatchEvent(new Event('start')); u.dispatchEvent(new Event('end')); } catch (e) {} }, 0); }; } catch (e) {} })();` });
+  if (init) await send('Page.addScriptToEvaluateOnNewDocument', { source: init });
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   if (mobile) await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   // CPU_THROTTLE=6 reproduces a slow CI runner locally (Chrome slows its own CPU by that factor)
@@ -99,6 +101,8 @@ export async function openPage(url, { width = 1280, height = 800, mobile = false
     await sleep(300); try { rmSync(prof, { recursive: true, force: true }); } catch {} };
   return { send, evaluate, waitFor, key, keyDown, keyUp, mouse, click, clickSel, touch, tapSel, screenshot, errors, close };
 }
+/** Page init script that hands the page the test-only sprite atlases (tests/lib/sprite-fixture.js) as CONTENT.sprites; `opts` adds fields. */
+export const spriteInit = (opts = {}) => `window.__EG_SPRITE_OPTS = ${JSON.stringify(opts)};\n` + readFileSync(join(ROOT, 'tests', 'lib', 'sprite-fixture.js'), 'utf8');
 const VK = { KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyF: 70, KeyG: 71, KeyI: 73, KeyR: 82, Space: 32, Digit1: 49, Digit2: 50, Digit3: 51, Digit4: 52, Escape: 27, Tab: 9, KeyP: 80, ArrowLeft: 37, ArrowRight: 39 };
 
 /** Tiny reporter shared by every suite: fail-loud, counts, exit code. */

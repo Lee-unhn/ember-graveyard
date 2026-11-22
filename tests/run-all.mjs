@@ -12,6 +12,7 @@ import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync }
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { SPRITE_MUTATIONS } from './lib/sprite-mutations.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -73,6 +74,8 @@ if (!args.includes('--skip-mutation') && !url) {
     plant("egEnd=()=>story.phase==='end'", 'egEnd=()=>0');                                                       // 30. casting, blinking and walking behind the ending screen (DEVLOG timeline #49)
     plant('player.tacc=0;egRun();', 'player.tacc=0;');                                                           // 31. cooldowns and the queued cast carry into a new game (DEVLOG timeline #49)
     plant('if(egFlashOff)inten*=.3;', '');                                                                       // 32. EG.reduceFlashing leaves the pooled flashes bright (DEVLOG timeline #49)
+    // pixel sprites (kit/sprites.js, DEVLOG timeline #50); each one was also checked alone against the sprite suites (DEVLOG §5)
+    for (const [needle, repl] of SPRITE_MUTATIONS) plant(needle, repl);                                          // 33-46
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)
