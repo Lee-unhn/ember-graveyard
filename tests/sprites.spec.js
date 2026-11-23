@@ -153,6 +153,11 @@ window.__runSprites = async (mode) => {
       ok(until(() => S.fxList.some((f) => f.key === 'explosion'), 200), 'explosion flipbook on impact');
       ok(until(() => !projs.length && S.fxList.length === 0, 600), 'every flipbook released once the projectiles are gone and the explosion played');
     });
+    test('effects: every engine function the module replaces keeps the original\'s own properties (a content pack may tag them)', () => {
+      ok(window.__EG_FX_TAGGED === true, 'the fixture tagged the engine functions before the sprite module loaded');
+      ok(/fn\(o, arguments\)/.test(String(dealDamage)), 'dealDamage is replaced by the hit flipbook wrapper');
+      eq(window.__EG_FX_HOOKED.filter((n) => window[n].egTag !== n).join(), '', 'functions that lost their tag');
+    });
     test('effects: chain lightning is a beam from monster to monster; a hit spawns a hit flipbook', () => {
       fresh(); const a = mon('lizard', 0, -6, 50), b = mon('lizard', 2.5, -7, 50); freeze(); EG.clearEffects(); mouse.set(0, .3);
       const n0 = S.fxList.filter((f) => f.key === 'hit').length; dealDamage(a, 1, 'fire'); eq(S.fxList.filter((f) => f.key === 'hit').length, n0 + 1, 'one hit flipbook per hit');

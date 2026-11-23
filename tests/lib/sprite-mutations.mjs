@@ -13,5 +13,6 @@ export const SPRITE_MUTATIONS = [
   ['else { releaseRec(R); mons.delete(e); }', 'else { mons.delete(e); }'],                                  // dead monsters' quads stay in the scene
   ["if (a.idle === undefined) W(w + '.idle'", "if (0) W(w + '.idle'"],                                       // a character without idle passes validation
   ['p = snap(v3.set(s.x, 0, s.z))', 'p = v3.set(s.x, 0, s.z)'],                                             // characters off the pixel lattice
-  ['if (s.hurt && C.an.hurt) R.hurt = dur(C.an.hurt, R.dir);', ''],                                         // hits never show the hurt cells
+  ['if (s.hurt && C.an.hurt) R.hurt = dur(C.an.hurt, R.dir);', ''],
+  ['window[name] = Object.assign(w, o);', 'window[name] = w;'],                                            // wrapped engine functions lose their own properties                                         // hits never show the hurt cells
 ];

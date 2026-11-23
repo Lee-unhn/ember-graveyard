@@ -358,7 +358,7 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
   const quiet = (on, fn) => { const was = mute(on); try { return fn(); } finally { mute(was); } };
   let inMeteor = false;
   function hookFx() {
-    const has = (k) => !!fxCfg[k] && !fxCfg[k].particles, wrap = (name, fn) => { const o = window[name]; window[name] = function () { return fn(o, arguments); }; };
+    const has = (k) => !!fxCfg[k] && !fxCfg[k].particles, wrap = (name, fn) => { const o = window[name], w = function () { return fn(o, arguments); }; window[name] = Object.assign(w, o); }; // the replacement carries the original's own properties (a content pack may have tagged it)
     if (fxCfg.fireball) { wrap('fireballVisual', (o, a) => { spawn('fireball', { follow: a[0], scale: a[2] || 1, tint: a[1] }); if (fxCfg.fireball.particles) o.apply(null, a); });
       if (has('fireball')) wrap('fireTrail', () => {}); }
     if (fxCfg.orb) wrap('spawnOrb', (o, a) => { quiet(has('orb'), () => o.apply(null, a)); spawn('orb', { follow: projs[projs.length - 1] }); });

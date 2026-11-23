@@ -63,4 +63,7 @@
   };
   window.CONTENT = window.CONTENT || {};
   window.CONTENT.sprites = Object.assign(S, window.__EG_SPRITE_OPTS || {});
+  // tag every engine function the effects may replace, the way a content pack may tag one; the replacement must keep the tag
+  window.__EG_FX_HOOKED = ['fireballVisual', 'fireTrail', 'spawnOrb', 'explode', 'zapBurst', 'bolt', 'updateMeteors', 'startBlood', 'dealDamage'];
+  addEventListener('DOMContentLoaded', () => { window.__EG_FX_TAGGED = !window.EGSprites; for (const n of window.__EG_FX_HOOKED) if (typeof window[n] === 'function') window[n].egTag = n; });
 })();
