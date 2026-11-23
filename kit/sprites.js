@@ -398,10 +398,10 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
     camFrame(); updateActors(dt); updateProps(); updateGround(); updateFx(dt);
     if (G.on && !G.detail && window.EGDetail) for (const S of EGDetail.sets) S.mesh.visible = false;
   }
-  const visuals0 = window.visuals;
   Promise.all(Object.entries(SP.atlases).map(([n, a]) => loadAtlas(n, a))).then(() => {
     buildActors(); buildProps(); buildGround(); buildFx(); hookFx();
-    window.visuals = function (dt) { visuals0(dt); update(dt); };
+    // take visuals at the moment of wrapping, not when this file ran: another module (kit/look.js) may have wrapped it while the atlases loaded
+    const visuals0 = window.visuals; window.visuals = Object.assign(function (dt) { visuals0(dt); update(dt); }, visuals0);
     const cw = window.clearWorld; window.clearWorld = function () { cw.apply(null, arguments); dropMonsters(); clearFx(); };
     const ce = EG.clearEffects; EG.clearEffects = function () { ce.apply(EG, arguments); clearFx(); };
     camFrame(); update(0); state.ready = true;

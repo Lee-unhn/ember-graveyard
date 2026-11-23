@@ -1,6 +1,6 @@
 # kit/ 與內容包的介面
 
-`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、像素圖素材（選用）、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
+`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、像素圖素材（選用）、夜色與光（選用）、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
 **內容**（對白、說話者、塔與幕的設定、首領名稱、語音與模型的路徑）不在 `kit/`，由一組放在 `window.CONTENT` 的資料提供。A 的示範內容在 `content/demo/`；另一個遊戲想只取引擎，就引入 `kit/`，自己寫一組同樣欄位的內容包。
 
 ## 載入順序（index.html 負責）
@@ -8,7 +8,7 @@
 1. three.js（CDN）
 2. 內容包的 script（全部先於 `kit/`），每個只做 `window.CONTENT = window.CONTENT || {}` 再補欄位
 3. `kit/core.js`、`world.js`、`combat.js`、`systems.js`、`story.js`、`ui.js`、`boot.js`（一般 script，不加 `defer`，依序執行；頂層 `const`／`let`／`function` 在檔案之間以名稱共用，不是 ES module）
-4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行。像素圖素材模組 `kit/sprites.js` 不在 `index.html` 裡：最後一支 `kit/character.js` 看到 `CONTENT.sprites` 時才把它加進頁面（見「像素圖素材」）
+4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行。像素圖素材模組 `kit/sprites.js` 與夜色與光的模組 `kit/look.js` 不在 `index.html` 裡：最後一支 `kit/character.js` 看到 `CONTENT.sprites`／`CONTENT.look` 時才把它們加進頁面（見「像素圖素材」「夜色與光」）
 5. 頁面最後一個內嵌 script 只呼叫 `loop()` 啟動主迴圈
 
 `kit/core.js` 開頭檢查 `window.CONTENT`，沒有就丟出明確錯誤，並把原因寫在讀取畫面上（之後任何同步 script 找不到或丟錯，只要讀取畫面還開著，也會顯示「載入失敗：…」）。
@@ -316,6 +316,67 @@ CONTENT.sprites = {
 
 A 沒有正式的像素素材；測試用程式在畫布上畫出的色塊與方向箭頭當圖集（`tests/lib/sprite-fixture.js`），測試頁在載入前把它交給 `CONTENT.sprites`。
 
+## 夜色與光（可選 `CONTENT.look`）
+
+內容包可以重調夜色與光：清除色、霧、環境光與月光的顏色與強度、地面薄霧、地面上點光源的亮度分階、每種地形的色調與自發光、像素圖的補光、塔的燈與火焰，以及內容包自己擺的裝飾（可帶燈）。只改畫面：規則、碰撞（`block` 除外，見下）、傷害、地形演變都不動，也**不抽亂數**（`EG.seed` 固定亂數的場景有沒有這個模組，抽到的序列相同）。**沒有這個欄位時引擎完全不載入這部分程式**：`kit/character.js` 只在 `CONTENT.look` 存在時才載入 `kit/look.js`，示範版的畫面、程式與載入的檔案都和以前相同。
+
+- 載入時檢查型別：任何一項不對，整個模組停用、畫面維持原樣，`window.__contentWarnings` 與 `console.warn` 記指名欄位的訊息（讀取畫面還開著時也寫在上面）。欄位名打錯只記警告。`CONTENT.look = {}` 時模組開著但什麼都不改，畫面逐像素相同。
+- 顏色一律寫 `"#rrggbb"` 或 0 到 0xffffff 的整數。
+- 強度的倍率（`mul`）乘在引擎每格算好的值上（首領戰變暗、設定的畫面亮度照舊），每格重算一次，不會累乘。
+
+| 欄位 | 說明 |
+|---|---|
+| `clear` | 畫面最遠處（霧的盡頭）的清除色 |
+| `fog` | `{ color, mul }`：霧色；`mul` 乘在霧的濃度上 |
+| `hemi` | `{ sky, ground, mul }`：環境光的天空側、地面側顏色與強度倍率 |
+| `moon` | `{ color, mul }`：月光的顏色與強度倍率 |
+| `highMul` | 畫質「高」（後製開著）時環境光與月光再乘這個數；後製會提亮整體，兩種畫質的顏色才接近。預設 1 |
+| `mist` | `{ color, mul }`：地面薄霧三層的顏色與不透明度倍率 |
+| `terrain` | `{ 地形名或 default: { tint: [r, g, b], glow } }`。`tint` 是 0–1 的色調，在受光之前乘在地面（地形層）上，柵欄外的地面乘 `SOIL`（沒有就 `default`）的色調；`glow` 0–1 是那種地形自己發光的比例，用地面原本的顏色再乘上該像素亮度的平方（亮的裂縫與火苗發光、暗的底色不亮，不加平滑漸層）。每格一個像素的資料，地形改變時只把變了的格送進顯示卡 |
+| `steps` | `{ perUnit, dither }`：地面上點光源（塔、法術、燈、裝飾的燈）的亮度變成階梯，每 1 單位亮度 `perUnit` 階；階與階的交界 `dither`（0–1）寬用 4×4 網點交錯。月光不分階。只作用在地面與地形層（角色與擺設是四個頂點的方片，分階看不出來） |
+| `towers` | `{ y, distance, mul, colors, halo, flame }`：塔的燈的高度、照亮半徑（設了就改用平方衰減）、強度倍率、依塔的順序的顏色；`halo` 見下；`flame` 是點亮的塔上方的火焰粒子：`true`（預設，照舊在 3.8 公尺）、`false`（不畫）、數字（改在這個高度，公尺）。`false` 時粒子仍以大小 0、全透明的方式發出，所以引擎為它抽的亂數一個不少 |
+| `actors` | `{ diffuse, fill, fillColor }`：像素圖角色（`CONTENT.sprites.actors`，`lit` 不是 false 的）受光的比例、補光強度與顏色。補光用角色自己的圖當自發光，暗處輪廓清楚、冷色光下不偏色 |
+| `props` | 同上，給像素圖擺設（`CONTENT.sprites.props`） |
+| `decor` | 裝飾清單，見下 |
+
+**光暈**（`towers.halo`、`decor[i].halo`）：`{ color, size, y, peak }`。像素光暈：同心的 4 階亮度、階間網點，貼圖一個像素＝畫面一個像素（每公尺 `CONTENT.sprites.ppu` 像素，預設 27.5），加亮混合、不受霧影響。塔的光暈只在點亮時（回應狀態的塔在心跳時）出現，顏色預設是那座塔的燈色。
+
+**裝飾**（`decor`，每項一組）：
+
+| 欄位 | 說明 |
+|---|---|
+| `atlas` 或 `image`＋`meta` | 圖：`CONTENT.sprites.atlases` 裡的一個名字，或直接給圖檔與 JSON（格式同圖集） |
+| `cell` | 格子：0 起的編號（由左而右、由上而下）或 `[排, 欄]` |
+| `shrink` | 1–8 的整數：整格縮成 1/n，每 n×n 取出現最多的不透明顏色（像素密度和其他圖相同、細節變少）。預設 1 |
+| `at` | `[[x, z], …]`：沒有 `near` 時是場地上的位置（必填）；有 `near` 時是相對每個擺設的位移（預設 `[[0, 0]]`） |
+| `near` | `tower`、`tomb`、`tree`、`sarc`：放在每座塔／每塊墓碑／每棵樹／每具石棺旁。依附的擺設不是立著（倒下、燃燒、破開）時裝飾跟著不畫、燈熄 |
+| `share` | 0–1，有 `near` 時依擺設位置的雜湊固定挑這個比例（每次開局都挑同樣幾個，不抽亂數）。預設 1 |
+| `block` | 0 以上：擋路的半徑（公尺），載入時加進障礙。預設 0（不擋路）。只對單獨擺的與放在塔旁的有效；依附在會倒下的擺設旁的一律不擋路（記警告） |
+| `light` | `{ color, distance, intensity, y }`：每個裝飾一盞點光源，載入時就加好（數量固定，遊戲中途不加燈，材質不會重編）；全部裝飾合計最多 16 盞，超過的不加燈並記警告 |
+| `halo` | 光暈，顏色預設是燈的顏色 |
+| `flicker` | 燈與光暈的閃動速度倍率，0＝不閃。閃動是三個正弦的組合（約 ±12%，不抽亂數），`EG.reduceFlashing(true)` 時剩三成 |
+
+裝飾和像素圖一樣正對鏡頭、腳底在地面上；有 `CONTENT.sprites` 時位置也對齊低解析度的像素格線。
+
+```js
+CONTENT.look = {
+  clear: '#100f22', fog: { color: '#1b1a33', mul: 0.8 },
+  hemi: { sky: '#5d6a9a', ground: '#1b1a33', mul: 1.35 }, moon: { color: '#a9b8f0', mul: 1.25 }, highMul: 0.8,
+  terrain: { SOIL: { tint: [0.62, 0.82, 1] }, LAVA: { tint: [0.8, 0.7, 0.6], glow: 1 } },
+  steps: { perUnit: 3, dither: 0.35 },
+  towers: { y: 2.2, distance: 9, mul: 0.4, halo: { size: 3.6, y: 1.6, peak: 0.4 }, flame: false },
+  actors: { diffuse: 0.35, fill: 0.75, fillColor: '#ffe8c8' },
+  decor: [
+    { atlas: 'deco', cell: 5, near: 'tower', at: [[-2.7, 0.9], [2.7, 0.9]], light: { color: '#ff9a3c', distance: 6, intensity: 1.4, y: 1.2 }, halo: { size: 2.6, y: 1.1 } },
+    { atlas: 'deco', cell: 6, shrink: 2, near: 'tomb', share: 0.2, at: [[0.55, 0.3]], flicker: 1.4, halo: { color: '#ffd36a', size: 1.2, y: 0.45 } },
+  ],
+};
+```
+
+擴充腳本可以讀 `EGLook.state`（`on`、`frames`、`mats`、`decor`、`lights`、`halos`、`decorReady`、`patched`、`flame`、`err`）與 `EGLook.validate(值)`（回傳問題清單，空的表示可用）。
+
+**依賴**：地面分階與地形色調是在 three.js r128 的 Lambert 著色器原文上插一段；引擎升級 three.js 時原文對不上，就記一行警告、分階不作用（畫面回到不分階），`tests/look.spec.js` 會紅。
+
 ## 引擎行為（不是內容欄位，內容包不必設定）
 
 - **資源釋放**：怪物死亡或換幕清場時，會釋放它的幾何體與材質；掉落物、焦痕貼花、血環的材質也一併釋放。連續遊玩時上傳到顯示卡的幾何體數量會回到基準附近，不再隨怪物數一路成長。
@@ -496,5 +557,5 @@ EG.on('ending', () => EG.resetSpellParams('fire'));
 
 - `kit/` 不得出現內容包擁有的字串：說話者名字、塔名、首領名與其他 `text` 文字、對白句子（比對是真的執行內容檔、從 `CONTENT` 讀出來的，不是固定字表；unicode 跳脫與字串拼接也會被還原後比對），並附「偵測器確實讀到內容」的自我檢查。示範內容擁有的名字見 `content/demo/`。
 - 內容包只能放資料：不得出現 `THREE`、`renderer`、`document`、`function`、箭頭函式、`if`／`for`／`while`／`switch`／`try`／`throw`、`new`、`class`、getter／setter、`localStorage`／`fetch`／`eval`／計時器等有副作用的名稱，樣板字串裡的 `${…}` 也一併檢查。閘門檢查 `content/*/` 底下全部的 `.js`，加上 index.html 實際載入的內容 script。
-- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 214.75 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）；`index.html` 沒有載入、由其他 kit 檔案視需要加進頁面的模組（目前只有 `kit/sprites.js`）另計，合計不超過 40 KB，且每一支都要能編譯（`scripts/smoke.mjs` 把關）。
+- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 215.125 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）；`index.html` 沒有載入、由其他 kit 檔案視需要加進頁面的模組（目前是 `kit/sprites.js` 與 `kit/look.js`）另計，合計不超過 72 KB，且每一支都要能編譯（`scripts/smoke.mjs` 把關）。
 - 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後其他內容包要換的話，再往 `CONTENT` 加欄位。

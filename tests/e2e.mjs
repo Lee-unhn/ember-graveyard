@@ -2,7 +2,7 @@
 // End-to-end: drive the game only through real keyboard / mouse events (Chrome DevTools Input domain),
 // then read the resulting page state. Setup shortcuts are marked "setup:" and never replace the action under test.
 //   node tests/e2e.mjs [--url=https://...]
-import { serve, openPage, reporter, sleep, spriteInit } from './lib/browser.mjs';
+import { serve, openPage, reporter, sleep, spriteInit, lookInit } from './lib/browser.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 const rep = reporter('e2e');
@@ -383,8 +383,37 @@ async function spriteFlow() {
   }
 }
 
+// night look (kit/look.js) with the test CONTENT.look and atlases: real keys walk while the light strengths keep following the engine and the
+// decoration lights flicker; walking into the lone decoration with block stops at its edge; a real click casts; a lit tower shows no flame
+async function lookFlow() {
+  const p = await openPage(url, { width: W, height: H, init: lookInit({}, { sprites: {} }) });
+  try {
+    rep.ok(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready && window.EGLook && EGLook.state.decorReady`, 30000), 'look: page with the test look and atlases boots');
+    await p.clickSel('#go');
+    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.maxhp = player.hp = 1e9; TOWERS[0].lit = true;
+      window.__lk = { f0: EGLook.state.frames, b: new Set(), bad: 0 }; (function f() { const L = CONTENT.look, hq = EGPost.state.on ? L.highMul : 1;
+        if (Math.abs(hemi.intensity - (.6 - .44 * dark) * SET.bright * L.hemi.mul * hq) > 1e-6) __lk.bad++; __lk.b.add(EGLook.groups[0].items[0].light.intensity.toFixed(4)); requestAnimationFrame(f); })()`);
+    const x0 = await p.evaluate('player.pos.x');
+    await p.keyDown('KeyD'); const walked = await p.waitFor(`player.pos.x > ${x0} + 1.5`, 8000); await p.keyUp('KeyD');
+    const lk = await p.evaluate(`({ frames: EGLook.state.frames - __lk.f0, flicker: __lk.b.size, bad: __lk.bad, err: EGLook.state.err })`);
+    rep.ok(walked && lk.frames >= 3 && lk.flicker >= 3 && lk.bad === 0 && !lk.err, 'look: holding D walks while every frame keeps ambient = engine x multipliers and the decoration lights flicker', lk);
+    const I = await p.evaluate(`(() => { const I = EGLook.groups[2].items[0]; player.pos.set(I.x + 3, 0, I.z); camSnap = true; return { x: I.x, z: I.z }; })()`);
+    await p.keyDown('KeyA'); await p.waitFor(`player.pos.x < ${I.x} + 1.3`, 3000); await sleep(400); await p.keyUp('KeyA');
+    const stop = await p.evaluate(`Math.hypot(player.pos.x - ${I.x}, player.pos.z - ${I.z})`);
+    rep.ok(stop >= 1.2 - 1e-6 && stop < 1.6, `look: walking into the decoration with block 0.8 stops at its edge (${stop.toFixed(2)} m from its centre)`);
+    await p.evaluate(`player.pos.set(0, 0, 0); camSnap = true; EG.clearEffects();`); await sleep(100);
+    await p.mouse('mouseMoved', W / 2 + 120, H / 2 - 160); await p.mouse('mousePressed', W / 2 + 120, H / 2 - 160);
+    const fly = await p.waitFor(`projs.some(q => q.kind === 'fire')`, 5000); await p.mouse('mouseReleased', W / 2 + 120, H / 2 - 160);
+    rep.ok(fly, 'look: a real click casts a fireball with the look module on');
+    const fl = await p.evaluate(`new Promise((ok) => setTimeout(() => { const T = TOWERS[0]; ok({ near: ADD.list.filter((q) => Math.abs(q.x - T.x) < .6 && Math.abs(q.z - T.z) < .6 && q.y > 3).length,
+      shown: ADD.list.filter((q) => Math.abs(q.x - T.x) < .6 && Math.abs(q.z - T.z) < .6 && q.y > 3 && (q.s0 > 0 || q.a0 > 0)).length }); }, 600))`);
+    rep.ok(fl.near > 0 && fl.shown === 0, `look: the lit tower emits its flame invisibly (${fl.near} particles, none visible)`, fl);
+    rep.ok(p.errors.length === 0, 'look: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
-try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else if (only === 'sprites') await spriteFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); if (!live) await spriteFlow(); } }
+try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else if (only === 'sprites') await spriteFlow(); else if (only === 'look') await lookFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); if (!live) { await spriteFlow(); await lookFlow(); } } }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

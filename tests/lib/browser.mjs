@@ -114,3 +114,6 @@ export function reporter(title) {
     done() { console.log(fails ? `  RED: ${fails} failed, ${passes} passed` : `  GREEN: ${passes} passed`); return fails; },
   };
 }
+/** Page init script that hands the page the test CONTENT.look (tests/lib/look-fixture.js); `opts` replaces fields, `sprites` (spriteInit options) adds the test atlases first. */
+export const lookInit = (opts = {}, { sprites = null, decor = true } = {}) => (sprites ? spriteInit(sprites) + '\n' : '')
+  + `window.__EG_LOOK_OPTS = ${JSON.stringify(opts)}; window.__EG_LOOK_NO_DECOR = ${!decor};\n` + readFileSync(join(ROOT, 'tests', 'lib', 'look-fixture.js'), 'utf8');

@@ -4,7 +4,7 @@
 //   node tests/checks.mjs [--url=https://...]
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { ROOT, serve, openPage, reporter, spriteInit } from './lib/browser.mjs';
+import { ROOT, serve, openPage, reporter, spriteInit, lookInit } from './lib/browser.mjs';
 import { pageSources, splitViolations, contentScripts, sharedScopeDuplicates } from './lib/pagesrc.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
@@ -221,7 +221,37 @@ async function spriteChecks() {
   }
 }
 
-try { staticChecks(); spriteStatic(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); if (!live) await spriteChecks(); }
+// ---------------------------------------------------------------- night look (kit/look.js, loaded only for a content pack with CONTENT.look)
+function lookStatic() {
+  const { scripts } = pageSources(ROOT), ch = readFileSync(join(ROOT, 'kit', 'character.js'), 'utf8'), lk = readFileSync(join(ROOT, 'kit', 'look.js'), 'utf8');
+  rep.ok(!scripts.some((s) => /look\.js/.test(s.src || '')), 'look: index.html does not load kit/look.js (the demo page carries no look code)');
+  rep.ok(/if \(window\.CONTENT && CONTENT\.look\) \{[^}]*look\.js/.test(ch), 'look: kit/character.js loads kit/look.js only when the content pack has CONTENT.look');
+  rep.ok(!/Math\.random/.test(lk), 'look: kit/look.js never calls Math.random (seeded scenes draw the same sequence with or without it)');
+}
+async function lookChecks() {
+  const p = await openPage(url, { width: 1280, height: 800, init: lookInit({}, { sprites: {} }) });
+  try {
+    if (!(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready && window.EGLook && EGLook.state.decorReady`, 30000))) { rep.ok(false, 'look: page with the test look boots'); return; }
+    await p.clickSel('#go'); await p.evaluate(STEP + `requestAnimationFrame = () => 0; for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); __step(10);`);
+    // cost of the look frame itself under load: 50 monsters, spells, a burning and melting field (cells re-sent), three lit towers
+    const perf = await p.evaluate(`(() => { for (let k = 0; k < 50; k++) spawnEnemy('spider', -15 + (k % 10) * 3, -10 + Math.floor(k / 10) * 3, 1e9); player.maxhp = player.hp = 1e9; mouse.set(.05, .3);
+      for (const i of [0, 1, 2]) TOWERS[i].lit = true;
+      for (let z = -12; z < 12; z++) for (let x = -12; x < 12; x++) setT(cellOf(x + .5, z + .5), (x + z) % 5 ? TER.GRASS : TER.FIRE, 20);
+      let t = 0, n = 0; for (let f = 0; f < 300; f++) { if (f % 60 === 0) { player.cast = null; cds.meteor = 0; tryCast('meteor'); } if (f % 20 === 10) { player.cast = null; cds.fire = 0; tryCast('fire'); }
+        time += 1/60; logic(1/60); visuals(1/60); const a = performance.now(); EGLook.frame(1/60); t += performance.now() - a; n++; }
+      return { avg: t / n, uploads: EGLook.state.glowUploads, decor: EGLook.decor.length }; })()`);
+    rep.ok(perf.avg < 1, `look: the look frame (strengths, cells, ${perf.decor} decorations, halos) averages ${perf.avg.toFixed(3)} ms/frame under load (budget 1 ms; ${perf.uploads} cell uploads)`);
+    // five restarts with every spell: nothing the look module owns is added again (decorations, lights and halos are built once)
+    const leak = await p.evaluate(`(() => { const rounds = [];
+      for (let r = 0; r < 5; r++) { restart(); for (const id of ['meteor', 'fire', 'bolt', 'blood']) { player.cast = null; cds[id] = 0; tryCast(id); __step(90); } __step(200);
+        rounds.push({ mine: scene.children.filter((o) => o.userData.egLook).length, lights: scene.children.filter((o) => o.isPointLight).length, halos: EGLook.halos.length, decor: EGLook.decor.length }); }
+      return rounds; })()`);
+    rep.ok(leak.every((r) => JSON.stringify(r) === JSON.stringify(leak[0])), `look: objects, lights, halos and decorations stay the same over 5 restarts (${JSON.stringify(leak[0])})`, leak);
+    rep.ok(p.errors.length === 0, 'look: no console errors (checks)', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { staticChecks(); spriteStatic(); lookStatic(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); if (!live) { await spriteChecks(); await lookChecks(); } }
 catch (e) { rep.ok(false, 'checks crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

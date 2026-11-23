@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { inflateSync } from 'node:zlib';
-import { ROOT, serve, openPage, reporter, sleep, spriteInit } from './lib/browser.mjs';
+import { ROOT, serve, openPage, reporter, sleep, spriteInit, lookInit } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const remote = args.find((a) => /^https?:/.test(a));
@@ -155,6 +155,29 @@ for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) for (con
       R.ok(bad.length === 0, `${vp}: ${mode}: ${blocks} blocks checked at x${k}, ${mixed} mixed`, bad.join('; '));
     } else R.ok(bad.length === 0, `${vp}: ${mode}: play view with ${L.actors} sprites`, bad.join('; '));
     R.ok(page.errors.length === 0, `${vp}: ${mode}: console errors 0`, page.errors.slice(0, 3).join(' | '));
+  } finally { await page.close(); }
+}
+// night look (kit/look.js) with the test atlases: the play view with decorations, a lit tower with its halo and no flame, a lava pool glowing
+for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
+  if (remote) break;
+  const page = await openPage(url, { width: w, height: h, mobile: vp === 'phone', init: lookInit({}, { sprites: {} }) });
+  try {
+    R.ok(await page.waitFor(`!document.querySelector('#go').disabled && window.EGSprites && EGSprites.state.ready && window.EGLook && EGLook.state.decorReady`, 60000), `${vp}: look: test look and atlases loaded`);
+    await page.evaluate(`try{localStorage.clear()}catch(e){};startFree();player.maxhp=player.hp=1e9;for(const e of enemies)e.T=Object.assign({},e.T,{speed:0,dmg:0});
+      const T=TOWERS[0];T.lit=true;player.pos.set(T.x,0,T.z+5);camSnap=true;const C=(x,z)=>cellOf(x+.5,z+.5);for(let x=-2;x<=2;x++)for(let z=1;z<=3;z++)setT(C(T.x+x+4,T.z+z),TER.LAVA,30);caAcc=-1e9;
+      window.__fr=0;(function f(){__fr++;requestAnimationFrame(f)})()`);
+    await page.waitFor(`__fr > 8`, 10000);
+    const png = Buffer.from((await page.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64');
+    const f = join(OUT, `${vp}-look.png`); writeFileSync(f, png); files.push(f);
+    const L = await page.evaluate(`(() => { const T = TOWERS[0], v = new THREE.Vector3(); const onScreen = (x, y, z) => { v.set(x, y, z).project(camera); return Math.abs(v.x) < 1 && Math.abs(v.y) < 1; };
+      return { side: document.scrollingElement.scrollWidth > innerWidth + 1, decor: EGLook.decor.filter((I) => I.m && I.m.visible && onScreen(I.x, .5, I.z)).length,
+        halo: EGLook.halos.some((h) => h.owner === T && h.m.visible), flame: ADD.list.filter((q) => Math.abs(q.x - T.x) < .6 && Math.abs(q.z - T.z) < .6 && q.y > 3 && q.a0 > 0).length, err: EGLook.state.err }; })()`);
+    const img = pngRGBA(png), bad = [];
+    if (L.side) bad.push('page scrolls sideways'); if (L.decor < 2) bad.push(`decorations on screen ${L.decor}`); if (!L.halo) bad.push('no halo on the lit tower'); if (L.flame) bad.push(`${L.flame} visible flame particles`); if (L.err) bad.push(L.err);
+    let lum = 0, lum2 = 0, n = 0; for (let y = 0; y < img.h; y += 7) for (let x = 0; x < img.w; x += 7) { const [r, g, b] = img.px(x, y), l = .3 * r + .59 * g + .11 * b; lum += l; lum2 += l * l; n++; }
+    const std = Math.sqrt(lum2 / n - (lum / n) ** 2); if (std < 4) bad.push(`blank picture (luminance std ${std.toFixed(1)})`);
+    R.ok(bad.length === 0, `${vp}: look: play view with ${L.decor} decorations on screen, the lit tower's halo, no visible flame`, bad.join('; '));
+    R.ok(page.errors.length === 0, `${vp}: look: console errors 0`, page.errors.slice(0, 3).join(' | '));
   } finally { await page.close(); }
 }
 srv?.close();

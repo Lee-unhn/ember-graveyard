@@ -22,9 +22,12 @@ const MAX_BYTES = 150 * 1024;
 // and the selftest below needs room for its own extra script tag (about 45 B) to reach the limit exactly
 // raised by another 384 B for the two-line loader in kit/character.js that fetches kit/sprites.js only when a content pack sets CONTENT.sprites (289 B; DEVLOG #50);
 // the sprite module itself is not loaded by index.html and has its own cap below
-const MAX_CODE_BYTES = 214 * 1024 + 768;
-// engine modules that index.html does not load (kit/*.js fetched on demand by another kit file, e.g. kit/sprites.js): each compiles, together at most 40 KB
-const MAX_ONDEMAND_BYTES = 40 * 1024;
+// raised by another 384 B for the second loader line in kit/character.js (kit/look.js only when a content pack sets CONTENT.look; 194 B; DEVLOG #52):
+// 259 B were left and the selftest needs about 45 B for its own script tag
+const MAX_CODE_BYTES = 214 * 1024 + 768 + 384;
+// engine modules that index.html does not load (kit/*.js fetched on demand by another kit file: kit/sprites.js, kit/look.js): each compiles, together at most 72 KB
+// (40 KB until DEVLOG #52 added kit/look.js, about 26 KB; a page that sets neither CONTENT.sprites nor CONTENT.look downloads none of it)
+const MAX_ONDEMAND_BYTES = 72 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
