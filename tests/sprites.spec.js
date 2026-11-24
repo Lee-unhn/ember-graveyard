@@ -106,6 +106,14 @@ window.__runSprites = async (mode) => {
       c = shoot([proj(p.x, .5, p.z + 1.2)])[0]; ok(bluish(c), 'player in front covers the tomb ' + c);
       S.update(0);
     });
+    test('poses: EG.pose shows a pack action pose:<name> over walk and hurt until its time runs out (game time); an unknown pose or a dead monster shows the normal action', () => {
+      fresh(); const e = mon('spider', 5, 0, 1); freeze(); vis(1); ok(typeof EG.pose === 'function' && EG.pose === S.pose, 'EG.pose');
+      ok(EG.pose(e, 'bow', 0.5), 'the spider has a bow pose'); vis(1); eq(D(e).anim, 'pose:bow', 'pose shown'); eq(D(e).row, 1, 'pose row'); eq(D(e).col, 3, 'pose cell');
+      dealDamage(e, 1, 'fire'); vis(1); eq(D(e).anim, 'pose:bow', 'a hit does not interrupt the pose'); vis(30); ok(D(e).anim !== 'pose:bow', 'over after 0.5 s: ' + D(e).anim);
+      EG.pose(e, 'bow'); vis(90); eq(D(e).anim, 'pose:bow', 'no time given: held'); ok(EG.pose(e, null), 'cleared'); vis(1); ok(D(e).anim !== 'pose:bow', 'cleared shows the normal action');
+      ok(!EG.pose(e, 'kneel', 1), 'unknown pose reports false'); vis(1); ok(!/^pose/.test(D(e).anim), 'unknown pose: normal action'); ok(!EG.pose({}, 'bow', 1), 'not a monster');
+      EG.pose(e, 'bow', 9); dealDamage(e, 1e6, 'fire'); vis(1); eq(D(e).anim, 'die', 'death wins over a pose');
+    });
     test('monsters with sprites: model hidden, walk faces the movement, hurt then die, then the quad goes back to the pool', () => {
       fresh(); const e = mon('spider', 5, 0, 1); freeze(); vis(1); ok(!e.g.visible, 'model hidden'); const d0 = D(e); ok(d0 && d0.visible, 'sprite shown');
       e.T = Object.assign({}, e.T, { speed: 3 }); e.aggro = true; player.pos.set(-5, 0, 0); step(20); let d = D(e); eq(d.anim, 'walk', 'walking toward the player'); eq(d.dir, 'left', 'moving -x faces left'); eq(d.flip, true, 'mirrored');

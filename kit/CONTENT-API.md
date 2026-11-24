@@ -1,6 +1,6 @@
 # kit/ 與內容包的介面
 
-`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、像素圖素材（選用）、夜色與光（選用）、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
+`kit/` 是引擎：渲染、粒子、地形、法術、怪物、裝備、存檔、設定、後製、像素角色、像素圖素材（選用）、夜色與光（選用）、地形動作與法術擴充（選用）、光影、地面細節、霧、觸控、角色模型載入、故事流程的規則。
 **內容**（對白、說話者、塔與幕的設定、首領名稱、語音與模型的路徑）不在 `kit/`，由一組放在 `window.CONTENT` 的資料提供。A 的示範內容在 `content/demo/`；另一個遊戲想只取引擎，就引入 `kit/`，自己寫一組同樣欄位的內容包。
 
 ## 載入順序（index.html 負責）
@@ -8,7 +8,7 @@
 1. three.js（CDN）
 2. 內容包的 script（全部先於 `kit/`），每個只做 `window.CONTENT = window.CONTENT || {}` 再補欄位
 3. `kit/core.js`、`world.js`、`combat.js`、`systems.js`、`story.js`、`ui.js`、`boot.js`（一般 script，不加 `defer`，依序執行；頂層 `const`／`let`／`function` 在檔案之間以名稱共用，不是 ES module）
-4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行。像素圖素材模組 `kit/sprites.js` 與夜色與光的模組 `kit/look.js` 不在 `index.html` 裡：最後一支 `kit/character.js` 看到 `CONTENT.sprites`／`CONTENT.look` 時才把它們加進頁面（見「像素圖素材」「夜色與光」）
+4. `kit/controls.js` 起的 `defer` 腳本（觸控與改鍵、閃現 `kit/blink.js`、後製、像素角色、光影、地面細節、霧、角色載入器；`blink.js` 要排在 `controls.js` 之後），整份文件解析完才依文件順序執行。像素圖素材模組 `kit/sprites.js`、夜色與光的模組 `kit/look.js`、地形動作與法術擴充的模組 `kit/spellkit.js` 不在 `index.html` 裡：最後一支 `kit/character.js` 看到 `CONTENT.sprites`／`CONTENT.look`／`CONTENT.spellkit` 時才把它們加進頁面（見「像素圖素材」「夜色與光」「地形動作與法術擴充」）
 5. 頁面最後一個內嵌 script 只呼叫 `loop()` 啟動主迴圈
 
 `kit/core.js` 開頭檢查 `window.CONTENT`，沒有就丟出明確錯誤，並把原因寫在讀取畫面上（之後任何同步 script 找不到或丟錯，只要讀取畫面還開著，也會顯示「載入失敗：…」）。
@@ -190,6 +190,7 @@ CONTENT.sprites = {
 |---|---|
 | `atlas` | `sprite` 種類的圖集名 |
 | `idle`（必填）、`walk`、`cast`、`cast:fire`／`cast:bolt`／`cast:meteor`／`cast:blood`、`hurt`、`die` | 待機、走、施法（可依招式分開，沒分就用 `cast`）、受傷、倒下。缺的動作用 `idle` 代替 |
+| `pose:<名字>`（例 `pose:bow`） | 內容自己用的姿勢（低頭、施法預備、落地……），由擴充腳本呼叫 `EG.pose(角色, 名字, 秒)` 播放：期間取代施法、受傷、走、待機（倒下仍優先），秒數用遊戲時間，不給秒數就一直維持到 `EG.pose(角色, null)`。角色是 `player` 或怪物物件（從事件的 `target` 拿）；這個角色沒有那個姿勢時回傳 `false`、照常顯示。`EG.pose` 只在像素圖模組開著時存在 |
 | `ppu` | 每公尺幾個像素（預設 `CONTENT.sprites.ppu`，再沒有就是 27.5：預設鏡頭、畫面 360 列時約一格一像素） |
 | `shadow` | 腳下像素影子的半徑（公尺，預設 0.5，0＝不畫） |
 | `lit` | `false`＝不受場景光影響（全亮）；預設 `true`，和場景一起受光 |
@@ -207,7 +208,7 @@ CONTENT.sprites = {
 **怎麼挑格**：
 
 - 方向（下、上、左、右）以畫面為準：往鏡頭走是下、遠離鏡頭是上。主角走動時看移動方向，站著或施法時看瞄準方向；怪物看牠的移動方向。斜向時偏向原本的方向，不會在對角線上來回跳。
-- 狀態優先順序：倒下 → 施法 → 受傷 → 走 → 待機。施法動作的格數平均分在施法動作的時間內（受施法速度影響）；受傷在被打中時從頭播一次；怪物倒下後即使已從場上移除，也會把倒下動作播完（加上 `corpse` 秒數）才收掉。
+- 狀態優先順序：倒下 → 姿勢（`EG.pose`）→ 施法 → 受傷 → 走 → 待機。施法動作的格數平均分在施法動作的時間內（受施法速度影響）；受傷在被打中時從頭播一次；怪物倒下後即使已從場上移除，也會把倒下動作播完（加上 `corpse` 秒數）才收掉。
 - 尺寸：寬＝格寬 ÷ `ppu`、高＝格高 ÷ `ppu`（公尺）。圖與畫面平行（正對鏡頭），所以畫面上的像素是正方形、邊是直的，靠近畫面邊緣也不會歪斜；錨點放在角色的地面位置，浮空的怪與主角跟著上下。所有像素圖彼此平行，前後遮擋依它們在地面上的遠近，和 3D 擺設之間照深度判斷。
 - 怪物被擊中時發白（`EG.reduceFlashing(true)` 時減弱，同 3D 模型）。
 
@@ -377,6 +378,139 @@ CONTENT.look = {
 
 **依賴**：地面分階與地形色調是在 three.js r128 的 Lambert 著色器原文上插一段；引擎升級 three.js 時原文對不上，就記一行警告、分階不作用（畫面回到不分階），`tests/look.spec.js` 會紅。
 
+## 地形動作與法術擴充（可選 `CONTENT.spellkit`）
+
+內容包設了 `CONTENT.spellkit`（物件，或只寫 `true`）時，`kit/character.js` 才把 `kit/spellkit.js` 加進頁面（和 `kit/sprites.js`、`kit/look.js` 同一種載入法），示範版不下載也不執行。它加上：三種地形元素、給擴充腳本用的地形動作、四招的新參數、怪物狀態、四個事件、擺設自發光、技能列的名稱與圖示、「地形助攻」計數、可換的地形連鎖提示音。
+
+**新參數全部是預設值時，四招的行為和沒有這個模組時完全相同**：同樣的傷害、同樣的地形、抽同樣多次亂數（`tests/unit.mjs` 用固定種子打一場固定的仗，示範頁與開了模組的頁逐筆比對每一下傷害、整張地形與下一個亂數）。新的程式路徑只在對應的參數被設定時才走。
+
+### 欄位
+
+| 欄位 | 預設 | 說明 |
+|---|---|---|
+| `ember` | 2 | 「火種」燒幾秒（見下方 `ember` 元素） |
+| `lightDelay` | 0.3 | 光照到磷火墳後幾秒引爆 |
+| `volt` | `{ water: 1.4, recharge: 2.8, blood: 1.4, steam: 0.7, mud: 0.7, fence: 1, fenceRange: 6, fenceReach: 0.5, fenceDps: 26 }` | `volt` 元素的帶電秒數：積水、已帶電的水再通一次電、血沼、蒸氣、泥沼、鐵柵欄；柵欄往左右各傳幾公尺、貼著柵欄多近會受電、每秒傷害 |
+| `chainTone` | 引擎原本的音 | 「地形連鎖 ×N」的提示音。`false`＝不出聲；物件 `{ freq: 440, rise: 1.06, max: 20, sweep: 1.5, dur: 0.14, wave: 'triangle', vol: 0.12, fade: 1 }`：第 N 跳的音高＝`freq × rise^min(N, max)`，結尾音高再乘 `sweep`，音量＝`vol × fade^(N−2)`。`rise: 1` 就是每跳同一個音高（不成上行音階），`fade` 小於 1 就逐跳變小 |
+| `assist` | `false` | `true`：階段結算畫面在「地形擊殺」下面多一列「地形助攻 N 隻」（只在結算畫面，結局畫面不顯示） |
+| `skills` | — | `{ fire|bolt|meteor|blood: { name, label, icon } }`：技能列一開始就換上的名稱、名稱下的小字、圖示（同 `EG.setSkill`） |
+
+型別不對：整個模組不生效、頁面維持原樣，讀取時的內容警告逐欄寫出（例：`CONTENT.spellkit.chainTone.wave 要是sine、square、sawtooth、triangle 其中之一`）。欄位名打錯、`skills` 裡不是招式名的鍵只警告。
+
+### 三種新的地形元素
+
+引擎原本的元素（`fire`、`bolt`、`meteor`、`crater`、`blood`）不變；新元素只在內容要求時才用（法術參數的 `elem`、`trail`、`hopElem` 等，或 `EG.terrain`）。
+
+| 元素 | 打在 | 變成 |
+|---|---|---|
+| `ember`（火種） | 墓土、灰燼 | 燒 `ember` 秒的火，之後成灰燼 |
+|  | 石板路、坑洞 | 燒 `ember` 秒的火，之後**還原**成石板路／坑洞 |
+|  | 枯草、骨堆、積水、泥沼、磷火墳 | 同 `fire` |
+|  | 血沼 | 灰燼 |
+|  | 火焰 | 剩餘時間至少 `ember` 秒 |
+|  | 熔岩 | 再多 5 秒（最多 28 秒） |
+|  | 黑曜石 | 耐久 −1（第 3 次成坑洞） |
+|  | 蒸氣 | 提早 1 秒散去 |
+| `light`（光） | 磷火墳 | `lightDelay` 秒後引爆（同火焰引爆的規則與傷害） |
+|  | 血沼 | 照乾成墓土 |
+|  | 其他 | 不變（照樣發 `terrainHit` 事件，給畫面特效用） |
+| `volt`（雷） | 積水 | 整片相連的水帶電 `volt.water` 秒（最多 140 格，同引擎） |
+|  | 帶電水 | 整片再帶電 `volt.recharge` 秒 |
+|  | 血沼 | 整片相連的血沼帶電 `volt.blood` 秒，之後**還原**成血沼（剩下的血沼時間照舊） |
+|  | 蒸氣 | 整片相連的蒸氣帶電 `volt.steam` 秒，之後還原成蒸氣 |
+|  | 泥沼 | 只有那一格帶電 `volt.mud` 秒，之後還原成泥沼 |
+|  | 枯草、骨堆 | 30% 起火 |
+|  | 磷火墳 | 引爆 |
+|  | 黑曜石 | 耐久 −1 |
+
+帶電的格就是「帶電水」：每秒 26、移動 ×0.5（引擎原本的數值）。「還原」的格在它自己燒完或電完的那一刻變回原本的種類；中途被別的元素改掉（例如火種被血環的血光蓋成灰燼），就照新的變化走、不再還原。
+
+### 地形動作（`EG.terrain`）
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.terrain.area(x, z, r, el, secs?)` | 圓內每格施加元素 `el`；`secs` 給了就是這一次的火種秒數。`volt` 也讓半徑內的鐵柵欄帶電。回傳格數 |
+| `EG.terrain.path([[x, z], …], el, width = 1, secs?)` | 沿折線、寬 `width` 的每一格施加一次 |
+| `EG.terrain.ring(x, z, r, el, width = 1, secs?)` | 圓周上寬 `width` 的每一格施加一次（中間不動） |
+| `EG.terrain.sweep(x0, z0, x1, z1, el, secs = 0.6, width = 0.9, fx = 'fire', emberSecs?)` | 一個點在 `secs` 秒內從起點走到終點，經過的格各施加一次（滾火、火線、光線、電弧）；`fx` 是沿路的粒子：`'fire'`、`'light'`、`'volt'`、`'blood'` 或 `false`（不畫） |
+| `EG.terrain.strike(x, z, r = 1.5)` | 落雷點：墓土與灰燼燒火種、其他格 `volt`、半徑內的枯樹起火、鐵柵欄帶電 |
+| `EG.terrain.quench(x, z, r = 2)` | 熔岩碰到積水的地方立刻成黑曜石牆，水成蒸氣 |
+| `EG.terrain.fence(x, z, r = 1)` | 半徑內的鐵柵欄帶電：沿線左右各 `volt.fenceRange` 公尺，遇到斷掉的那段就停；貼著帶電柵欄（`volt.fenceReach` 以內）的怪每秒受 `volt.fenceDps`（算地形傷害、地形殺），柵欄發藍光 |
+| `EG.terrain.cellAt(x, z)` | `{ cell, type, timer, returnsTo }`：那一格的種類名（`TER` 的鍵）、剩餘秒數、之後會還原成什麼（沒有就是 `null`） |
+| `EG.terrain.elements` | 可用的元素名 |
+
+在一次施法的處理中（法術參數、事件的監聽函式裡）呼叫，改到的地形引爆的磷火、讓擺設倒下的壓擊都算**這次施法的爆發**（見下方「每次施法的紀錄」）。
+
+### 四招的新參數
+
+和原本的參數放在同一張表（`EG.setSpellParams`、`EG.spellParams`、`EG.resetSpellParams` 照舊）。元素名可用上一節的八種；空字串＝不施加。
+
+| 招式 | 欄位（預設） | 說明 |
+|---|---|---|
+| `fire` | `pierce: false` | 穿過怪物不爆（每隻穿過一次發 `spell` 事件 `pass`），飛完才爆 |
+| `fire` | `toAim: false`、`maxRange: 17` | 飛到這次施法瞄準的點才爆（三連發時各自沿自己的方向飛同樣遠），最遠 `maxRange` 公尺 |
+| `fire` | `reflect: 0` | 從別的格飛進積水、帶電水、黑曜石的格時反彈幾次（發 `reflect`） |
+| `fire` | `seed: 0`、`seedRadius: 1.5` | 大於 0：飛到瞄準點落地成「種子」（發 `seed`），等 `seed` 秒，有怪走進 `seedRadius` 內或時間到就爆 |
+| `fire` | `elem: 'fire'` | 爆炸改地形的元素（例 `'volt'`：積水整片帶電而不是變蒸氣，柵欄帶電） |
+| `fire` | `trail: ''`、`trailWidth: 1` | 飛行路徑經過的格施加這個元素（每格一次） |
+| `fire` | `sweeps: 0`、`sweepLength: 3`、`sweepTime: 0.6`、`sweepSpread: 0.7`、`sweepElem: 'ember'` | 爆炸後往前方扇形滾出幾團（相鄰夾角 `sweepSpread` 弧度），`sweepTime` 秒滾 `sweepLength` 公尺，經過的格施加 `sweepElem`（本身不打傷害） |
+| `bolt` | `fromSky: 0`、`skyRange: 16`、`pickRadius: 2` | 大於 0：不射雷球，瞄準點（最遠 `skyRange`）先出現預警圈，`fromSky` 秒後從天上劈下：打 `pickRadius` 內最近的怪，之後照常彈跳（發 `warn`、`strike`） |
+| `bolt` | `strikeRadius: 1.5`、`strikeElem: 'volt'` | 天上劈下的那一點改地形的範圍與元素（`'volt'` 時同 `EG.terrain.strike`） |
+| `bolt` | `hitElem: 'bolt'` | 雷球命中點與飛行中打到地面的元素 |
+| `bolt` | `hopElem: 'bolt'` | 每一跳打到的那一格的元素 |
+| `bolt` | `path: ''`、`pathWidth: 1` | 每一跳在兩隻怪之間的地面施加的元素（火線、光線） |
+| `bolt` | `waterNet: false` | 目前的目標站在積水或帶電水上時，下一跳也可以跳到同一片相連水面上的任何怪（不受 `range` 限制，挑最近的） |
+| `bolt` | `arcs: true` | `false`：彈跳不畫引擎的電弧與命中閃光（內容自己畫） |
+| `bolt` | `hopDelay` | 原本就有；設 0 時同一格之內一路跳完 |
+| `meteor` | `pattern: 'line'`、`lineStart: 3`、`lineGap: 1.6` | 從施法者往瞄準方向 `lineStart` 公尺起，每 `lineGap` 公尺一顆，由近到遠依序落下 |
+| `meteor` | `pattern: 'ring'`、`ringRadius: 3.5` | 以瞄準點為圓心、半徑 `ringRadius` 排成一圈依序落下 |
+| `meteor` | `elem: 'meteor'` | `'volt'`：落點的積水整片帶電（不變蒸氣），其他地面照舊成熔岩與坑洞；其他元素：整個落點範圍改施加那個元素 |
+| `meteor` | `quench: false` | 每顆落下後，熔岩碰到積水的地方立刻成黑曜石牆、水成蒸氣 |
+| `meteor` | `plow: 0` | 最後一顆落下後，沿第一顆到最後一顆的方向再往前犁出幾公尺坑洞（引擎原本的規則會讓熔岩流進坑洞） |
+| `meteor` | `arcBolt: 0` | 大於 0：相鄰兩顆的落點之間在地上拉一道電弧（畫面停留這麼多秒），經過的格施加 `volt`（發 `arc`） |
+| `blood` | `focus: false` | 八道血光全部射向離瞄準點最近的怪（`seek` 以內）；牠中途倒下，還沒命中的改射離牠最近的怪 |
+| `blood` | `crawl: 0`、`crawlElem: ''` | 大於 0：血光貼著地面以每秒這麼多公尺竄向目標，經過的格施加 `crawlElem` |
+| `blood` | `elem: 'blood'` | 血光落點改地形的元素（例 `'ember'`：落點燒火種） |
+| `blood` | `fireWall: 0`、`wallElem: 'ember'` | 大於 0：法陣出現時在這個半徑畫一圈 `wallElem`，火種秒數＝法陣的 `duration`（發 `wall`） |
+
+### 怪物狀態
+
+| 呼叫 | 作用 |
+|---|---|
+| `EG.status(怪物, 'root', 秒)` | 定身：不移動（仍受地形傷害） |
+| `EG.status(怪物, 'stun', 秒)` | 麻痺：不能近身攻擊，仍可移動 |
+| `EG.status(怪物, 'ground', 秒)` | 落地：浮空的怪（不含首領）暫時站到地上，受地面地形傷害與倒下的擺設壓擊 |
+| `EG.statusOf(怪物)` | `{ root, stun, ground }` 剩餘秒數 |
+
+怪物物件從 `hit`、`spell` 事件的 `target` 拿。時間用遊戲時間算（暫停時不走）；同一種狀態取較長的那個；`EG.clearEffects()` 全部清掉。每次成立發 `status` 事件。
+
+### 事件（模組開著時才有）
+
+| 事件 | 參數 | 何時 |
+|---|---|---|
+| `spell` | `{ type, spell, x, z, target?, cast, … }` | 新參數的時刻：`pass`（穿過）、`reflect`、`seed`、`explode`（火球或命中元素不同的雷球爆開；`seed: true` 表示是種子）、`warn`（天上的預警圈出現）、`strike`、`hop`（每一跳，`from`、`target`）、`land`（每顆星墜落地與每道血光落地；星墜附 `index`、`count`、`last`、`aim`）、`arc`、`wall` |
+| `status` | `{ target, kind, secs }` | `EG.status` 成立 |
+| `terrainHit` | `{ cell, x, z, el, from, to, cast }` | 任何元素打到一格（引擎原本的元素也算），`from`／`to` 是打之前、之後的種類名；沒有改變時兩者相同 |
+| `terrainChange` | `{ cell, x, z, from, to, cast }` | 任何一格的種類改變（含自動演變：延燒、燒完、流動；這些的 `cast` 是 `null`） |
+
+沒有任何監聽函式時，這四個事件不組參數、不花時間。
+
+### 擺設自發光（`EG.glow`）
+
+`EG.glow(擺設, { color: '#ffffff', strength: 1, secs: 0.5 })`：在擺設上疊一層相加混色的同形狀（3D 模型或像素圖都可以），`secs` 秒內淡出後移除；鐵柵欄是逐段發光。`EG.propsNear(x, z, r, kind?)` 回傳半徑內的擺設（`tomb`、`tree`、`fence`、`sarc`；是遊戲裡的物件本身，請只讀）。`EG.reduceFlashing(true)` 時亮度乘 0.3。
+
+### 技能列（`EG.setSkill`）
+
+`EG.setSkill(id, { name, label, icon })`：`name` 換技能格的名稱、`label` 換名稱下的小字（引擎原本寫「三連發」「彈跳 6 次」的那一行；之後引擎重寫小字時照樣保留內容給的）、`icon` 是圖檔網址（顯示在技能格右上角 18×18、像素不模糊，不蓋住按鍵提示）。值給 `null` 就回到引擎原本的。招式名或欄位不對：`console.warn` 一行、回傳 `false`，其他合格欄位照樣生效。
+
+### 地形助攻
+
+吃過地形傷害（`terrain`、`crush`、`boom`）、最後被法術打倒的怪，算一次「地形助攻」。地形殺的意思不變（最後一擊是地形的才算）。`EG.terrainAssists()` 回傳開新局以來的數目；`assist: true` 時顯示在階段結算。
+
+### 每次施法的紀錄（引擎本身，不用開模組）
+
+每次施放（`tryCast` 成立）引擎建一筆紀錄 `{ id, n, mul }`：`n` 是第幾次施法、`mul` 預設 1。在 `cast` 事件的監聽函式裡用 `EG.castInfo()` 拿到這一筆（是紀錄本身，不是複本），設定 `mul` 就**鎖定這次施法的傷害係數**：這次施法造成的每一下傷害都乘上它——火球與雷球的命中、鏈雷每一跳、星墜每一顆與它留下的燃燒地面、血環每一道血光，以及這次施法**引爆的磷火**（含接著連爆的）與這次施法**打倒的墓碑、點燃的枯樹倒下時的壓擊**。留在地上的地形（火、熔岩、帶電水、血沼……）與不是這次施法引起的磷火爆、壓擊一律 ×1。`hit` 事件多一個 `cast` 欄位：造成這一下的那次施法的紀錄（地形與其他傷害是 `null`）。不設 `mul` 時每一下都和以前相同。
+
 ## 引擎行為（不是內容欄位，內容包不必設定）
 
 - **資源釋放**：怪物死亡或換幕清場時，會釋放它的幾何體與材質；掉落物、焦痕貼花、血環的材質也一併釋放。連續遊玩時上傳到顯示卡的幾何體數量會回到基準附近，不再隨怪物數一路成長。
@@ -421,6 +555,7 @@ CONTENT.look = {
 | `EG.setSpellParams(id, { 欄位: 值, … })` | 覆寫部分欄位，回傳 `true`＝每個欄位都收下。招式或欄位名不存在、型別和預設值不同、數字是負的／`NaN`／無限大、次數欄位（`shots`、`bounces`、`drops`、`bolts`）不是整數、`pattern` 不是 `'scatter'`／`'arc'`：該欄位略過、`console.warn` 一行、回傳 `false`，其他合格欄位照樣生效，**不丟例外** |
 | `EG.resetSpellParams(id)` | 該招回到預設；不給 `id` 就四招全部回預設 |
 | `EG.spellParams(id)` | 目前生效的參數（複本，改它不影響遊戲） |
+| `EG.castInfo()` | 正在施法的那一次的紀錄 `{ id, n, mul }`（紀錄本身）；在 `cast` 事件裡設 `mul` 就鎖定這次施法的傷害係數（見「地形動作與法術擴充」的「每次施法的紀錄」）。沒有在施法時是 `null` |
 | `EG.on(事件, fn)`／`EG.off(事件, fn)` | 訂閱／取消；事件名打錯或 `fn` 不是函式時 `console.warn` 並略過 |
 | `EG.pause(on, owner = 'default')` | 擴充腳本自己的暫停：遊戲規則（怪物、投射物、計時器、故事進度）與施法全停，畫面照常更新，適合在塔下跳出升級面板。每個持有者（任意字串）各自按住：`pause(true, 'panel')` 按住、`pause(false, 'panel')` 只放開 `'panel'` 自己那一份；**只要還有任何一個持有者按著，遊戲就停著**。同一個持有者按兩次仍算一份。只給一個參數時持有者是 `'default'`，所以舊的 `pause(true)`／`pause(false)` 寫法行為不變。和暫停選單、對白各自獨立，互不解除 |
 | `EG.isPaused()`、`EG.pausedBy()` | 有任何持有者按著就是 `true`；`pausedBy()` 回傳目前按著的持有者陣列（複本） |
@@ -505,7 +640,7 @@ addEventListener('pointerdown', () => { const bus = EG.musicBus(); if (bus && !w
 | `bossStart` | — | 首領出場（重來首領戰也算一次） |
 | `bossDown` | — | 首領倒下 |
 | `cast` | 招式 `id` | 一次施放成立（已扣冷卻）。施法動作中按下而記住的招式（見「引擎行為」），在它真的施放的那一格才發 |
-| `hit` | `{ spell, kind, source, target, amount }` | 每次對怪物造成傷害；`amount` 已含暴擊。`kind` 是傷害種類，也就是地形系統用的元素（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`）；`spell` 與 `kind` 相同（舊欄位，保留相容）。`source` 是**真正造成這一下的法術部位**：`'fire'` 火球爆炸、`'meteor'` 星墜落地、`'meteorBurn'` 星墜留下的燃燒地面、`'bolt'` 鏈雷直擊、`'boltChain'` 鏈雷彈跳、`'boltSplash'` 未升級鏈雷打中後的周圍濺射、`'blood'` 血環的血光（含目標已倒、落空時的小範圍爆開）；不是法術造成的（燃燒的草地與熔岩、磷火爆炸、倒下的墓碑、直接呼叫 `dealDamage`）是 `null`。例：星墜落地是 `kind: 'fire', source: 'meteor'`，它的燃燒地面是 `kind: 'burn', source: 'meteorBurn'` |
+| `hit` | `{ spell, kind, source, target, amount }` | 每次對怪物造成傷害；`amount` 已含暴擊。`kind` 是傷害種類，也就是地形系統用的元素（`fire`／`bolt`／`blood`，以及地形與物件造成的 `burn`、`terrain`、`crush`、`boom`）；`spell` 與 `kind` 相同（舊欄位，保留相容）。`source` 是**真正造成這一下的法術部位**：`'fire'` 火球爆炸、`'meteor'` 星墜落地、`'meteorBurn'` 星墜留下的燃燒地面、`'bolt'` 鏈雷直擊、`'boltChain'` 鏈雷彈跳、`'boltSplash'` 未升級鏈雷打中後的周圍濺射、`'blood'` 血環的血光（含目標已倒、落空時的小範圍爆開）；不是法術造成的（燃燒的草地與熔岩、磷火爆炸、倒下的墓碑、直接呼叫 `dealDamage`）是 `null`。例：星墜落地是 `kind: 'fire', source: 'meteor'`，它的燃燒地面是 `kind: 'burn', source: 'meteorBurn'`。`cast` 是造成這一下的那次施法的紀錄（`EG.castInfo()` 的那一筆；這次施法引爆的磷火與打倒、點燃的擺設壓擊也算），其他是 `null` |
 | `kill` | 怪物種類（`spider`／`lizard`／`ghost`／`lord`） | 怪物倒下 |
 | `playerDeath` | 死因文字（死亡畫面上那一個） | 主角倒下 |
 | `restart` | — | 按下重來，清場之前 |
@@ -557,5 +692,5 @@ EG.on('ending', () => EG.resetSpellParams('fire'));
 
 - `kit/` 不得出現內容包擁有的字串：說話者名字、塔名、首領名與其他 `text` 文字、對白句子（比對是真的執行內容檔、從 `CONTENT` 讀出來的，不是固定字表；unicode 跳脫與字串拼接也會被還原後比對），並附「偵測器確實讀到內容」的自我檢查。示範內容擁有的名字見 `content/demo/`。
 - 內容包只能放資料：不得出現 `THREE`、`renderer`、`document`、`function`、箭頭函式、`if`／`for`／`while`／`switch`／`try`／`throw`、`new`、`class`、getter／setter、`localStorage`／`fetch`／`eval`／計時器等有副作用的名稱，樣板字串裡的 `${…}` 也一併檢查。閘門檢查 `content/*/` 底下全部的 `.js`，加上 index.html 實際載入的內容 script。
-- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 215.125 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）；`index.html` 沒有載入、由其他 kit 檔案視需要加進頁面的模組（目前是 `kit/sprites.js` 與 `kit/look.js`）另計，合計不超過 72 KB，且每一支都要能編譯（`scripts/smoke.mjs` 把關）。
+- 內容包的 script 必須全部排在 `kit/` 之前，而且不得加 `defer` 或 `async`；`kit/` 的一般 script 必須照上面第 3 點的順序、`core.js` 排第一，並全部排在第一個 `defer` 之前；頂層 `const`／`let`／`class` 不得在兩個一般 script 重複宣告；頁面載入的本機 script 總量計入 216.125 KB 程式碼預算（延後載入的 `kit/blink.js` 也算在內）；`index.html` 沒有載入、由其他 kit 檔案視需要加進頁面的模組（目前是 `kit/sprites.js`、`kit/look.js` 與 `kit/spellkit.js`）另計，合計不超過 120 KB，且每一支都要能編譯（`scripts/smoke.mjs` 把關）。
 - 法術數值在 `kit/combat.js` 的 `SPELL_DEF`，執行中由擴充腳本用 `EG.setSpellParams` 改（見上一節），內容包不設定。怪物種類與數值（`ETYPES`）、裝備的形狀與詞綴數值範圍目前仍在 `kit/`（怪物的名稱與外觀可用 `CONTENT.monsters` 覆寫、裝備名稱用 `CONTENT.loot`、裝備傷害詞綴用 `combat.gearDamage` 關，數值本身不行）；之後其他內容包要換的話，再往 `CONTENT` 加欄位。

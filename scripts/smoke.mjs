@@ -24,10 +24,14 @@ const MAX_BYTES = 150 * 1024;
 // the sprite module itself is not loaded by index.html and has its own cap below
 // raised by another 384 B for the second loader line in kit/character.js (kit/look.js only when a content pack sets CONTENT.look; 194 B; DEVLOG #52):
 // 259 B were left and the selftest needs about 45 B for its own script tag
-const MAX_CODE_BYTES = 214 * 1024 + 768 + 384;
+// raised by 1 KB for the per-cast record and its damage factor (tryCast, releaseCast, timers, projectiles, meteors, burns, rites, queued wisp blasts,
+// felled props: about 560 B), the chain-tone hook, the reset of a burnt tree's emission timers, and the third loader line in kit/character.js
+// (kit/spellkit.js only when a content pack sets CONTENT.spellkit; about 230 B; DEVLOG #53)
+const MAX_CODE_BYTES = 214 * 1024 + 768 + 384 + 1024;
 // engine modules that index.html does not load (kit/*.js fetched on demand by another kit file: kit/sprites.js, kit/look.js): each compiles, together at most 72 KB
 // (40 KB until DEVLOG #52 added kit/look.js, about 26 KB; a page that sets neither CONTENT.sprites nor CONTENT.look downloads none of it)
-const MAX_ONDEMAND_BYTES = 72 * 1024;
+// raised to 120 KB for kit/spellkit.js (terrain actions, spell parameters, monster states, events; DEVLOG #53)
+const MAX_ONDEMAND_BYTES = 120 * 1024;
 const ALLOWED_HOSTS = new Set(['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.w3.org']);
 const TEXT_EXT = new Set(['.html', '.md', '.mjs', '.js', '.mmd', '.json', '.txt', '.css', '.yml', '.yaml']);
 const SKIP_DIRS = new Set(['.git', 'node_modules']);

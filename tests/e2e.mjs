@@ -2,7 +2,7 @@
 // End-to-end: drive the game only through real keyboard / mouse events (Chrome DevTools Input domain),
 // then read the resulting page state. Setup shortcuts are marked "setup:" and never replace the action under test.
 //   node tests/e2e.mjs [--url=https://...]
-import { serve, openPage, reporter, sleep, spriteInit, lookInit } from './lib/browser.mjs';
+import { serve, openPage, reporter, sleep, spriteInit, lookInit, spellkitInit } from './lib/browser.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 const rep = reporter('e2e');
@@ -412,8 +412,53 @@ async function lookFlow() {
   } finally { await p.close(); }
 }
 
+async function spellkitFlow() {
+  const p = await openPage(url, { width: W, height: H, init: spellkitInit() });
+  try {
+    rep.ok(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSpellkit && EGSpellkit.state.on`, 30000), 'spellkit: page with the test CONTENT.spellkit boots and the module is on');
+    await p.clickSel('#go');
+    const bar = await p.evaluate(`(() => { const t = document.querySelector('.sk[data-s="fire"]'), img = t.querySelector('img.egIcon'), r = img && img.getBoundingClientRect();
+      return { name: t.querySelector('.n').textContent, label: t.querySelector('.m').textContent, icon: !!img && img.complete && img.naturalWidth === 4 && r.width === 18 }; })()`);
+    rep.ok(bar.name === '測試焰' && bar.label === '穿透' && bar.icon, 'spellkit: the skill bar shows the pack\'s name, label and icon for the fireball', bar);
+    // setup: still monsters, a sturdy mage, plain soil around the middle, and a listener that keeps the module's spell events
+    await p.evaluate(`for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); player.maxhp = player.hp = 1e9;
+      for (const q of props) if (q.kind !== 'fence' && Math.hypot(q.x, q.z) < 14) { q.state = 'down'; if (q.ob) q.ob.r = 0; }
+      for (let x = -12; x <= 12; x++) for (let z = -12; z <= 12; z++) { const i = cellOf(x + .5, z + .5); TT[i] = TER.SOIL; TM[i] = 0; paintCell(i); }
+      window.__ev = []; EG.on('spell', (o) => __ev.push({ type: o.type, spell: o.spell, x: o.x, z: o.z, index: o.index, t: time }));`);
+    // the screen point over a spot on the ground (the camera follows the mage, so read it each time)
+    const at = async (x, z) => p.evaluate(`(() => { const v = new THREE.Vector3(${x}, 0, ${z}).project(camera); return [(v.x * .5 + .5) * innerWidth, (-v.y * .5 + .5) * innerHeight]; })()`);
+    // 1. a real left click with seed 1.2: the fireball lands where the mouse points, waits, then blows
+    await p.evaluate(`player.pos.set(0, 0, 0); camSnap = true; EG.setSpellParams('fire', { shots: 1, seed: 1.2 });`); await sleep(150);
+    let [sx, sy] = await at(0, -6); await p.mouse('mouseMoved', sx, sy); await p.mouse('mousePressed', sx, sy);
+    await p.waitFor(`EGSpellkit.skProjs.length > 0`, 3000); await p.mouse('mouseReleased', sx, sy);
+    const seeded = await p.waitFor(`__ev.some((o) => o.type === 'seed')`, 5000), seed = await p.evaluate(`__ev.find((o) => o.type === 'seed')`);
+    const blew = await p.waitFor(`__ev.some((o) => o.type === 'explode')`, 8000), boom = await p.evaluate(`__ev.find((o) => o.type === 'explode')`), dt = boom ? boom.t - seed.t : -1;
+    rep.ok(seeded && blew && Math.hypot(seed.x, seed.z + 6) < 1.2 && Math.abs(dt - 1.2) < 0.1, `spellkit: a real click lays a fireball seed at the mouse point that blows after its wait (${dt.toFixed(2)} s game time)`, await p.evaluate('__ev'));
+    // 2. key 2 with fromSky: a warning ring at the mouse point, then a strike there
+    await p.evaluate(`__ev.length = 0; EG.setSpellParams('bolt', { fromSky: 0.4 }); story.unlocked.add('bolt');`); [sx, sy] = await at(5, 3); await p.mouse('mouseMoved', sx, sy);
+    await p.key('Digit2', '2', '2'); const warned = await p.waitFor(`scene.children.some((o) => o.userData.egSpellkit === 'warn')`, 3000);
+    const struck = await p.waitFor(`__ev.some((o) => o.type === 'strike')`, 5000), st = await p.evaluate(`__ev.find((o) => o.type === 'strike')`);
+    rep.ok(warned && struck && Math.hypot(st.x - 5, st.z - 3) < 1.2, 'spellkit: key 2 with fromSky shows a warning ring and strikes from the sky at the mouse point', st);
+    // 3. key 3 with the line pattern: ten drops in a straight line toward the mouse, in order
+    await p.evaluate(`__ev.length = 0; EG.setSpellParams('meteor', { pattern: 'line' }); story.unlocked.add('meteor');`); [sx, sy] = await at(-8, 0); await p.mouse('mouseMoved', sx, sy);
+    await p.key('Digit3', '3', '3'); const landed = await p.waitFor(`__ev.filter((o) => o.type === 'land').length >= 10`, 20000);
+    const line = await p.evaluate(`__ev.filter((o) => o.type === 'land').map((o) => [o.x, o.z, o.index])`);
+    const ordered = line.every((q, i) => q[2] === i), straight = line.every((q) => Math.abs(q[1] - line[0][1]) < 0.3), spaced = line.every((q, i) => !i || Math.abs(Math.abs(q[0] - line[i - 1][0]) - 1.6) < 0.05);
+    rep.ok(landed && ordered && straight && spaced, 'spellkit: key 3 with the line pattern drops ten meteors 1.6 m apart in a straight line toward the mouse', { landed, ordered, straight, spaced, line: line.map((q) => q.map((v) => +v.toFixed(2))) });
+    // 4. key 4 with a fire wall: a ring of fire around the mage
+    await p.evaluate(`EG.clearEffects(); story.unlocked.add('blood'); EG.setSpellParams('blood', { fireWall: 1.7 }); for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) { const i = cellOf(player.pos.x + x + .5, player.pos.z + z + .5); TT[i] = TER.SOIL; TM[i] = 0; paintCell(i); }`);
+    await p.key('Digit4', '4', '4'); const wall = await p.waitFor(`__ev.some((o) => o.type === 'wall')`, 3000);
+    const ringOk = await p.evaluate(`(() => { let on = 0, n = 0; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; n++; if (tileAt(player.pos.x + Math.cos(a) * 1.7, player.pos.z + Math.sin(a) * 1.7) === TER.FIRE) on++; } return on / n; })()`);
+    rep.ok(wall && ringOk >= 0.8, `spellkit: key 4 with fireWall raises a ring of fire around the mage (${Math.round(ringOk * 100)} % of the circle burning)`);
+    // 5. clicking the renamed skill tile still casts the fireball
+    await p.evaluate(`__ev.length = 0; EG.resetSpellParams(); EG.setSpellParams('fire', { shots: 1, toAim: true }); cds.fire = 0;`); await sleep(400);
+    await p.clickSel('.sk[data-s="fire"]'); rep.ok(await p.waitFor(`__ev.some((o) => o.type === 'explode' && o.spell === 'fire')`, 5000), 'spellkit: clicking the renamed fireball tile casts it');
+    rep.ok(p.errors.length === 0, 'spellkit: no console errors', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
-try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else if (only === 'sprites') await spriteFlow(); else if (only === 'look') await lookFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); if (!live) { await spriteFlow(); await lookFlow(); } } }
+try { if (only === 'keytaps') await keyTapFlow(); else if (only === 'blinksafety') await blinkSafetyFlow(); else if (only === 'sprites') await spriteFlow(); else if (only === 'look') await lookFlow(); else if (only === 'spellkit') await spellkitFlow(); else { await storyFlow(); await freeFlow(); await terrainFlow(); await menusFlow(); await touchFlow(); await blinkFlow(); await blinkSafetyFlow(); await keyTapFlow(); if (!live) { await spriteFlow(); await lookFlow(); await spellkitFlow(); } } }
 catch (e) { rep.ok(false, 'e2e crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

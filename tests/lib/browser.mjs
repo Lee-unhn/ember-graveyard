@@ -115,5 +115,7 @@ export function reporter(title) {
   };
 }
 /** Page init script that hands the page the test CONTENT.look (tests/lib/look-fixture.js); `opts` replaces fields, `sprites` (spriteInit options) adds the test atlases first. */
+/** Page init script that hands the page the test CONTENT.spellkit (tests/lib/spellkit-fixture.js); `value` replaces the whole field (e.g. {} or true). */
+export const spellkitInit = (value) => (value !== undefined ? `window.__EG_SPELLKIT_OPTS = ${JSON.stringify(value)};\n` : '') + readFileSync(join(ROOT, 'tests', 'lib', 'spellkit-fixture.js'), 'utf8');
 export const lookInit = (opts = {}, { sprites = null, decor = true } = {}) => (sprites ? spriteInit(sprites) + '\n' : '')
   + `window.__EG_LOOK_OPTS = ${JSON.stringify(opts)}; window.__EG_LOOK_NO_DECOR = ${!decor};\n` + readFileSync(join(ROOT, 'tests', 'lib', 'look-fixture.js'), 'utf8');

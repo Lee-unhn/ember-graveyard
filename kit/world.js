@@ -120,7 +120,7 @@ function setT(i,t,tm){if(i<0)return;TT[i]=t;TM[i]=tm||0;if(t===TER.OBSID)THP[i]=
 
 // 招式改地形
 const booms=[];
-function queueBoom(i,delay=.05){if(TT[i]!==TER.WISP)return;TT[i]=TER.FIRE;TM[i]=.4;paintCell(i);booms.push({i,t:delay})}
+function queueBoom(i,delay=.05){if(TT[i]!==TER.WISP)return;TT[i]=TER.FIRE;TM[i]=.4;paintCell(i);booms.push({i,t:delay,c:egCur})}
 function electrify(i){const q=[i],seen=new Set();let n=0;
   while(q.length&&n<140){const c=q.shift();if(seen.has(c))continue;seen.add(c);const t=TT[c];if(t!==TER.WATER&&t!==TER.SHOCK)continue;setT(c,TER.SHOCK,1.4);n++;
     const gx=c%GN,gz=Math.floor(c/GN);if(gx>0)q.push(c-1);if(gx<GN-1)q.push(c+1);if(gz>0)q.push(c-GN);if(gz<GN-1)q.push(c+GN)}}
@@ -178,7 +178,7 @@ const isTerrainKind=k=>k==='terrain'||k==='crush'||k==='boom';
 function onTerrainKill(e){terrainKills++;if(Math.random()<.6)dropLoot(e.pos);
   chainN=time-chainT<1.2?chainN+1:1;chainT=time;if(story.on)story.bestChain=Math.max(story.bestChain||0,chainN);
   if(chainN>=2){const el=$('#chainTag');el.textContent=`地形連鎖 ×${chainN}`;el.style.color=chainN>=8?'#ff5a7a':chainN>=4?'#ffe066':'#ffb35c';el.hidden=false;
-    el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');tone(440*Math.pow(1.06,Math.min(chainN,20)),440*Math.pow(1.06,Math.min(chainN,20))*1.5,.14,'triangle',.12)}}
+    el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');egChainTone(chainN)}}
 function terrainEffects(e,dt){
   if(e.type==='lord'){const t=tileAt(e.pos.x,e.pos.z);const m=t===TER.LAVA?4:t===TER.FIRE?2:0;if(m){e.tacc=(e.tacc||0)+TP[t].ed*m*dt;if(e.tacc>=12){const a=e.tacc;e.tacc=0;dealDamage(e,a,'terrain')}}return 1}
   if(e.T.float)return 1;
@@ -190,8 +190,8 @@ function terrainEffects(e,dt){
 function damageProps(pos,r,dmg,src){for(const p of props){if(p.state!=='up')continue;const d=Math.hypot(p.x-pos.x,p.z-pos.z);if(d>r+.6)continue;
   if(p.kind==='tree'){if(src==='fire'||src==='meteor'||src==='boom')igniteTree(p);continue}
   p.hp-=dmg;if(p.hp<=0)breakProp(p,pos)}}
-function igniteTree(p){if(p.state!=='up')return;p.state='burning';p.t=6;p.src=null}
-function breakProp(p,src){p.hp=0;const away=new V3(p.x-src.x,0,p.z-src.z);if(away.lengthSq()<1e-4)away.set(Math.random()-.5,0,Math.random()-.5);away.normalize();p.dir=away;
+function igniteTree(p){if(p.state!=='up')return;p.state='burning';p.t=6;p.src=null;p.c=egCur}
+function breakProp(p,src){p.hp=0;p.c=egCur;const away=new V3(p.x-src.x,0,p.z-src.z);if(away.lengthSq()<1e-4)away.set(Math.random()-.5,0,Math.random()-.5);away.normalize();p.dir=away;
   if(p.ob)p.ob.r=0;
   if(p.kind==='fence'){p.state='broken';setFence(p.idx,false);
     for(let k=0;k<10;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.8,z:p.z,vx:d.x*4,vy:Math.abs(d.y)*4,vz:d.z*4,kind:2,fm:2,frame:3,life:rand(.6,1),s0:.25,s1:.15,grav:14,r:.12,g:.12,b:.14,a0:.9,a1:.7})}return}
@@ -200,8 +200,8 @@ function breakProp(p,src){p.hp=0;const away=new V3(p.x-src.x,0,p.z-src.z);if(awa
     for(let k=0;k<14;k++){const d=randUnit();SMOKE.emit({x:p.x,y:.7,z:p.z,vx:d.x*3,vy:Math.abs(d.y)*3+1,vz:d.z*3,kind:2,fm:1,life:rand(.8,1.4),s0:.8,s1:2,r:.4,g:.45,b:.55,a0:.6,a1:0})}return}
   p.state='falling';p.t=0;p.axis=new V3(p.dir.z,0,-p.dir.x)}
 const _q=new THREE.Quaternion();
-function crush(p){for(const e of enemies){if(!e.alive||e.T.float)continue;const rx=e.pos.x-p.x,rz=e.pos.z-p.z,along=rx*p.dir.x+rz*p.dir.z,side=Math.abs(rx*p.dir.z-rz*p.dir.x);
-    if(along>-.2&&along<p.len+.3&&side<.55+e.radius)dealDamage(e,80,'crush')}
+function crush(p){egCur=p.c;for(const e of enemies){if(!e.alive||e.T.float)continue;const rx=e.pos.x-p.x,rz=e.pos.z-p.z,along=rx*p.dir.x+rz*p.dir.z,side=Math.abs(rx*p.dir.z-rz*p.dir.x);
+    if(along>-.2&&along<p.len+.3&&side<.55+e.radius)dealDamage(e,80,'crush')}egCur=null;
   for(let k=0;k<12;k++){const a=rand(0,p.len);SMOKE.emit({x:p.x+p.dir.x*a,y:.2,z:p.z+p.dir.z*a,vx:rand(-1,1),vy:rand(.5,1.4),vz:rand(-1,1),kind:2,fm:1,life:rand(.8,1.3),s0:.8,s1:2,r:.45,g:.42,b:.4,a0:.5,a1:0})}
   shake(.18);sfx.boom(.5)}
 const upBuf=new Uint8Array(TW*TPX*4),upSrc={isDataTexture:true,image:{data:null,width:0,height:0}},upPos=new THREE.Vector2(),
@@ -227,10 +227,10 @@ function updateProps(dt){for(const p of props){
   else if(p.kind==='sarc'&&p.state==='broken'&&p.t<1){p.t+=dt;p.lid.position.set(p.lid0.x+p.t*1.6,p.lid0.y+Math.sin(p.t*Math.PI)*1.2,p.lid0.z);p.lid.rotation.z=-p.t*1.2}}}
 function resetProps(){for(const p of props){p.state='up';p.t=0;p.hp=p.hp0;if(p.ob)p.ob.r=p.ob.r0;
   if(p.kind==='fence')setFence(p.idx,true);else{p.g.quaternion.copy(p.q0);p.g.position.copy(p.pos0)}
-  if(p.kind==='tree')p.mat.color.setHex(0x2a211b);if(p.kind==='sarc'){p.lid.position.copy(p.lid0);p.lid.rotation.set(0,0,0)}}}
+  if(p.kind==='tree'){p.mat.color.setHex(0x2a211b);p.acc={}}if(p.kind==='sarc'){p.lid.position.copy(p.lid0);p.lid.rotation.set(0,0,0)}}}
 function resetTerrain(){TT.set(TT0);TM.fill(0);THP.fill(0);booms.length=0;hot.length=0;for(let i=0;i<GN*GN;i++)paintCell(i);terrFull=true;resetProps();terrainKills=0;chainN=0;chainT=-9;$('#chainTag').hidden=true}
 function updateTerrain(dt){caAcc+=dt;if(caAcc>=.2){automata(caAcc);caAcc=0}
-  for(let k=booms.length-1;k>=0;k--){booms[k].t-=dt;if(booms[k].t<=0){const b=booms[k];booms.splice(k,1);boom(b.i)}}
+  for(let k=booms.length-1;k>=0;k--){booms[k].t-=dt;if(booms[k].t<=0){const b=booms[k];booms.splice(k,1);egCur=b.c;boom(b.i);egCur=null}}
   updateProps(dt);emitHot(dt);
   if(chainN&&time-chainT>1.4){$('#chainTag').hidden=true;chainN=0}}
 function solidPush(p,r){const gx0=Math.floor(p.x+GH-r),gx1=Math.floor(p.x+GH+r),gz0=Math.floor(p.z+GH-r),gz1=Math.floor(p.z+GH+r);

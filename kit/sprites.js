@@ -39,11 +39,11 @@
     const obj = (x, w) => { if (x === undefined) return false; if (!isObj(x)) { W(w, '物件'); return false; } return true; };
     if (obj(v.actors, C + '.actors')) for (const [k, a] of Object.entries(v.actors)) { const w = C + '.actors.' + k;
       if (!ACTORS.includes(k)) { warn(w + ' 不是可用的角色（' + ACTORS.join('、') + '），略過'); continue; }
-      if (!obj(a, w)) continue; atl(a, w); keys(a, ['atlas', 'ppu', 'shadow', 'lit', 'corpse', ...ANIMS], w, /^cast:(fire|bolt|meteor|blood)$/);
+      if (!obj(a, w)) continue; atl(a, w); keys(a, ['atlas', 'ppu', 'shadow', 'lit', 'corpse', ...ANIMS], w, /^(cast:(fire|bolt|meteor|blood)|pose:[A-Za-z0-9_-]+)$/);
       pos(a.ppu, w + '.ppu'); if (a.shadow !== undefined && !(num(a.shadow) && a.shadow >= 0)) W(w + '.shadow', '0 以上的數字');
       if (a.corpse !== undefined && !(num(a.corpse) && a.corpse >= 0)) W(w + '.corpse', '0 以上的數字'); if (a.lit !== undefined && typeof a.lit !== 'boolean') W(w + '.lit', ' true 或 false');
       if (a.idle === undefined) W(w + '.idle', '動作（每個角色至少要有待機）');
-      for (const n of Object.keys(a)) if ((ANIMS.includes(n) || /^cast:/.test(n)) && a[n] !== undefined && !animOk(a[n])) W(w + '.' + n, '動作：格子清單、{ frames, fps, loop }、{ row, from, to, fps }，或依方向 { down, up, side, left, right }'); }
+      for (const n of Object.keys(a)) if ((ANIMS.includes(n) || /^(cast|pose):/.test(n)) && a[n] !== undefined && !animOk(a[n])) W(w + '.' + n, '動作：格子清單、{ frames, fps, loop }、{ row, from, to, fps }，或依方向 { down, up, side, left, right }'); }
     if (obj(v.props, C + '.props')) for (const [k, p] of Object.entries(v.props)) { const w = C + '.props.' + k;
       if (!PROPS[k]) { warn(w + ' 不是可用的擺設（' + Object.keys(PROPS).join('、') + '），略過'); continue; }
       if (!obj(p, w)) continue; atl(p, w); keys(p, ['atlas', 'ppu', 'lit', ...PROPS[k]], w); pos(p.ppu, w + '.ppu');
@@ -188,7 +188,7 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
     for (const [k, a] of Object.entries(isObj(SP.actors) ? SP.actors : {})) {
       const at = A[a.atlas]; if (!ACTORS.includes(k) || !at) continue;
       if (at.meta.kind !== 'sprite') { warn('CONTENT.sprites.actors.' + k + ' 的圖集要是 sprite 種類，略過'); continue; }
-      const an = {}; for (const n of Object.keys(a)) if (ANIMS.includes(n) || /^cast:/.test(n)) { const x = anim(a[n], at, 'CONTENT.sprites.actors.' + k + '.' + n, n === 'idle' || n === 'walk'); if (x) an[n] = x; }
+      const an = {}; for (const n of Object.keys(a)) if (ANIMS.includes(n) || /^(cast|pose):/.test(n)) { const x = anim(a[n], at, 'CONTENT.sprites.actors.' + k + '.' + n, n === 'idle' || n === 'walk'); if (x) an[n] = x; }
       if (!an.idle) { warn('CONTENT.sprites.actors.' + k + '.idle 沒有可用的格子，這個角色維持原樣'); continue; }
       actorCfg[k] = { at, an, ppu: a.ppu || PPU, shadow: a.shadow ?? .5, corpse: a.corpse || 0, mat: mat(at, a.lit !== false) };
     }
@@ -200,16 +200,24 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
     const C = R.cfg; R.dir = dirOf(s.dx, s.dz, R.dir);
     if (s.hurt && C.an.hurt) R.hurt = dur(C.an.hurt, R.dir);
     R.hurt = Math.max(0, R.hurt - dt);
-    let a = s.dead ? 'die' : s.cast ? (C.an['cast:' + s.cast] ? 'cast:' + s.cast : 'cast') : R.hurt > 0 ? 'hurt' : s.moving ? 'walk' : 'idle';
+    let a = s.dead ? 'die' : s.pose && C.an['pose:' + s.pose] ? 'pose:' + s.pose : s.cast ? (C.an['cast:' + s.cast] ? 'cast:' + s.cast : 'cast') : R.hurt > 0 ? 'hurt' : s.moving ? 'walk' : 'idle';
     if (!C.an[a]) a = 'idle';
     if (a !== R.anim) { R.anim = a; R.t = 0; } else R.t += dt;
     const [S, flip] = pick(C.an[a], R.dir), n = S.cells.length;
-    const i = s.cast && a !== 'idle' ? Math.min(n - 1, Math.floor(s.castK * n)) : S.loop ? Math.floor(R.t * S.fps) % n : Math.min(n - 1, Math.floor(R.t * S.fps));
+    const i = s.cast && /^cast/.test(a) ? Math.min(n - 1, Math.floor(s.castK * n)) : S.loop ? Math.floor(R.t * S.fps) % n : Math.min(n - 1, Math.floor(R.t * S.fps));
     const M = C.at.meta, w = M.frameW / C.ppu, h = M.frameH / C.ppu, p = snap(v3.set(s.x, 0, s.z));
     R.cell = S.cells[i]; R.flip = flip; R.x = p.x; R.y = s.y; R.z = p.z; R.w = w; R.h = h;
     setCell(R.m, C.at, R.cell, flip, w, h); R.m.position.set(p.x, s.y, p.z); R.m.quaternion.copy(camera.quaternion);
     const f = s.flash ? 1 + 2.5 * (typeof egFlashOff !== 'undefined' && egFlashOff ? .3 : 1) : 1; tint(R.m, f, f, f);
     if (R.sh) { R.sh.position.set(p.x, .03, p.z); R.sh.scale.set(C.shadow * 2, C.shadow, 1); }
+  }
+  // a pose the content asks for (EGSprites.pose / EG.pose): an extra action 'pose:<name>' shown instead of cast, hurt, walk and idle until it runs out
+  const poseOf = (x) => x.egPose && x.egPose.until > time ? x.egPose.name : '';
+  function pose(x, name, secs = Infinity) {
+    if (x !== player && !enemies.includes(x)) return false;
+    if (!name) { delete x.egPose; return true; }
+    x.egPose = { name: String(name), until: time + (typeof secs === 'number' && secs >= 0 ? secs : Infinity) };
+    const C = actorCfg[x === player ? 'player' : x.type]; return !!(C && C.an['pose:' + name]);
   }
   let you = null; const mons = new Map();
   function releaseRec(R) { free(R.m); freeSh(R.sh); }
@@ -219,7 +227,7 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
       if (!you) { you = rec(pc); you.lx = player.pos.x; you.lz = player.pos.z; }
       const c = player.cast, mv = !!player.moving && player.alive && !c, ph = player.hurtT;
       const dx = mv ? player.pos.x - you.lx : Math.sin(player.face), dz = mv ? player.pos.z - you.lz : Math.cos(player.face);
-      show(you, { x: player.pos.x, y: player.float, z: player.pos.z, dx, dz, moving: mv, dead: !player.alive, cast: c ? c.id : '', castK: c ? c.t / c.dur : 0, hurt: ph > you.pf + 1e-9 }, dt);
+      show(you, { x: player.pos.x, y: player.float, z: player.pos.z, dx, dz, moving: mv, dead: !player.alive, cast: c ? c.id : '', castK: c ? c.t / c.dur : 0, hurt: ph > you.pf + 1e-9, pose: poseOf(player) }, dt);
       you.pf = ph; you.lx = player.pos.x; you.lz = player.pos.z;
       EGP.g.visible = false; EGP.shadow.visible = !you.sh;
     }
@@ -229,7 +237,7 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
       let R = mons.get(e); if (!R) { R = rec(C); R.lx = e.pos.x; R.lz = e.pos.z; mons.set(e, R); }
       R.seen = true; R.dying = e.dying >= 0;
       const mx = e.pos.x - R.lx, mz = e.pos.z - R.lz, mv = dt > 0 && Math.hypot(mx, mz) / dt > .25;
-      show(R, { x: e.pos.x, y: e.pos.y, z: e.pos.z, dx: Math.sin(e.rotY), dz: Math.cos(e.rotY), moving: mv && e.alive, dead: !e.alive, cast: '', castK: 0, hurt: (e.flinch || 0) > R.pf + 1e-9, flash: e.flash > 0 }, dt);
+      show(R, { x: e.pos.x, y: e.pos.y, z: e.pos.z, dx: Math.sin(e.rotY), dz: Math.cos(e.rotY), moving: mv && e.alive, dead: !e.alive, cast: '', castK: 0, hurt: (e.flinch || 0) > R.pf + 1e-9, flash: e.flash > 0, pose: e.alive ? poseOf(e) : '' }, dt);
       R.pf = e.flinch || 0; R.lx = e.pos.x; R.lz = e.pos.z; e.g.visible = false;
     }
     // a monster that left the list: a dying one finishes its fall animation (and lies for `corpse` seconds), anything else goes at once
@@ -412,5 +420,6 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
     const M = (R.cfg.at || {}).meta, c = R.cell;
     return { anim: R.anim || R.name, dir: R.dir, cell: c, row: M ? Math.floor(c / M.cols) : -1, col: M ? c % M.cols : -1, flip: !!R.flip, visible: R.m.visible, x: R.m.position.x, y: R.m.position.y, z: R.m.position.z, w: R.w, h: R.h, mesh: R.m };
   }
-  window.EGSprites = { state, validate, debug, snap, actorCfg, fxCfg, fxList, propRecs, ground: G, tileFor: (i) => (G.on ? tileFor(i) : -1), shown: (i) => (G.on ? G.shown[i] : -1), pool, update };
+  if (state.active) EG.pose = pose;
+  window.EGSprites = { state, validate, debug, snap, actorCfg, fxCfg, fxList, propRecs, ground: G, tileFor: (i) => (G.on ? tileFor(i) : -1), shown: (i) => (G.on ? G.shown[i] : -1), pool, update, pose };
 })();

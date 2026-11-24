@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { inflateSync } from 'node:zlib';
-import { ROOT, serve, openPage, reporter, sleep, spriteInit, lookInit } from './lib/browser.mjs';
+import { ROOT, serve, openPage, reporter, sleep, spriteInit, lookInit, spellkitInit } from './lib/browser.mjs';
 
 const args = process.argv.slice(2);
 const remote = args.find((a) => /^https?:/.test(a));
@@ -178,6 +178,30 @@ for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
     const std = Math.sqrt(lum2 / n - (lum / n) ** 2); if (std < 4) bad.push(`blank picture (luminance std ${std.toFixed(1)})`);
     R.ok(bad.length === 0, `${vp}: look: play view with ${L.decor} decorations on screen, the lit tower's halo, no visible flame`, bad.join('; '));
     R.ok(page.errors.length === 0, `${vp}: look: console errors 0`, page.errors.slice(0, 3).join(' | '));
+  } finally { await page.close(); }
+}
+// terrain actions and spell extensions (kit/spellkit.js): the skill bar with the pack's name, label and icon, and the act result
+// with the "terrain assist" row; nothing may overflow at desktop or phone width
+for (const [vp, w, h] of [['desktop', 1280, 720], ['phone', 375, 667]]) {
+  if (remote) break;
+  const page = await openPage(url, { width: w, height: h, mobile: vp === 'phone', init: spellkitInit() });
+  try {
+    R.ok(await page.waitFor(`!document.querySelector('#go').disabled && window.EGSpellkit && EGSpellkit.state.on`, 60000), `${vp}: spellkit: test CONTENT.spellkit loaded`);
+    await page.evaluate(`try{localStorage.clear()}catch(e){};startStory();while(dlg)endDialog();player.maxhp=player.hp=1e9;window.__fr=0;(function f(){__fr++;requestAnimationFrame(f)})()`);
+    await page.waitFor(`__fr > 8`, 10000);
+    let png = Buffer.from((await page.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64'); let f = join(OUT, `${vp}-spellkit-bar.png`); writeFileSync(f, png); files.push(f);
+    const B = await page.evaluate(`(() => { const t = document.querySelector('.sk[data-s="fire"]'), r = t.getBoundingClientRect(), i = t.querySelector('img.egIcon'), ir = i && i.getBoundingClientRect(), bar = document.querySelector('#skills').getBoundingClientRect();
+      return { side: document.scrollingElement.scrollWidth > innerWidth + 1, icon: !!i && ir.width > 0 && ir.left >= r.left - .5 && ir.right <= r.right + .5 && ir.top >= r.top - .5 && ir.bottom <= r.bottom + .5,
+        clear: (() => { const k = t.querySelector('.k').getBoundingClientRect(); return !i || ir.left >= k.right || ir.bottom <= k.top || ir.top >= k.bottom; })(), inView: bar.left >= -.5 && bar.right <= innerWidth + .5 && bar.bottom <= innerHeight + .5, name: t.querySelector('.n').textContent, over: t.scrollWidth > t.clientWidth + 1 }; })()`);
+    const bad = []; if (B.side) bad.push('page scrolls sideways'); if (!B.icon) bad.push('icon missing or outside its tile'); if (!B.inView) bad.push('skill bar leaves the screen'); if (B.over) bad.push('fire tile overflows'); if (!B.clear) bad.push('icon covers the key hint'); if (B.name !== '測試焰') bad.push('name ' + B.name);
+    R.ok(bad.length === 0, `${vp}: spellkit: the skill bar shows the pack name and icon inside the tile, clear of the key hint`, bad.join('; '));
+    await page.evaluate(`EGSpellkit.state.assists = EGSpellkit.state.act0 + 3; showResult(0, null);`); await sleep(200);
+    png = Buffer.from((await page.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64'); f = join(OUT, `${vp}-spellkit-result.png`); writeFileSync(f, png); files.push(f);
+    const Rr = await page.evaluate(`(() => { const rows = [...document.querySelectorAll('#rTab tr')], box = document.querySelector('#result .card') || document.querySelector('#result'), b = box.getBoundingClientRect(), a = rows.find((r) => r.textContent.startsWith('地形助攻'));
+      return { idx: rows.indexOf(a), text: a ? a.textContent : '', fits: rows.every((r) => { const q = r.getBoundingClientRect(); return q.left >= b.left - .5 && q.right <= b.right + .5; }), side: document.scrollingElement.scrollWidth > innerWidth + 1, btn: (() => { const q = document.querySelector('#rNext').getBoundingClientRect(); return q.bottom <= innerHeight + .5 && q.top >= 0; })() }; })()`);
+    const bad2 = []; if (Rr.idx !== 3) bad2.push('assist row at ' + Rr.idx); if (!/3 隻/.test(Rr.text)) bad2.push('text ' + Rr.text); if (!Rr.fits) bad2.push('a row leaves the card'); if (Rr.side) bad2.push('page scrolls sideways'); if (!Rr.btn) bad2.push('next button off screen');
+    R.ok(bad2.length === 0, `${vp}: spellkit: the act result lists the terrain assists right after the terrain kills and still fits`, bad2.join('; '));
+    R.ok(page.errors.length === 0, `${vp}: spellkit: console errors 0`, page.errors.slice(0, 3).join(' | '));
   } finally { await page.close(); }
 }
 srv?.close();

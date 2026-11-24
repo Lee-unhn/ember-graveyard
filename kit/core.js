@@ -303,6 +303,8 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ // lighting.js 的 mark() 用 (m.transparent && !egShadowBody(m)) 決定半透明主體投不投影
 /*H*/ const egShadowBody=m=>!!((CONTENT.render||{}).shadowTransparentBodies)&&m.blending===THREE.NormalBlending&&m.depthWrite&&m.opacity>=.5;
 /*H*/ // 擴充腳本介面 window.EG（kit/ 之後載入的 script 用，見 CONTENT-API.md）：法術參數、事件、暫停
+/*H*/ // egCur＝正在處理的那一次施法（tryCast 建的紀錄，傷害乘 mul）；egChainTone＝地形連鎖提示音（內容可換）；EG_ENUM＝字串參數可用的值
+/*H*/ let egCur=null,egN=0;function egChainTone(n){const f=440*Math.pow(1.06,Math.min(n,20));tone(f,f*1.5,.14,'triangle',.12)}const EG_ENUM={pattern:['scatter','arc']};
 /*H*/ const spellP=id=>SPELLS[id],EG_EV={},EG_EVENTS='towerLit actStart bossStart bossDown cast hit kill playerDeath restart ending newGame continueGame blink dialogStart dialogEnd'.split(' ');let egHeld=false;
 /*H*/ // egQ＝施法動作中按下的招式與當時的動作（動作結束那格施放）；egMusicOff＝擴充腳本關掉內建音樂
 /*H*/ let egQ=[],egMusicOff=false;
@@ -322,10 +324,10 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/ window.EG={on(n,f){if(!EG_EVENTS.includes(n)||typeof f!=='function')return egW('on: unknown event or not a function: '+n);(EG_EV[n]=EG_EV[n]||[]).push(f)},
 /*H*/   off(n,f){const L=EG_EV[n]||[],i=L.indexOf(f);if(i>=0)L.splice(i,1)},
 /*H*/   setSpellParams(id,o){const D=SPELL_DEF[id];if(!D||!o||typeof o!=='object'){egW('setSpellParams: unknown spell or not an object: '+id);return false}let all=true;
-/*H*/     for(const k of Object.keys(o)){const v=o[k],d=D[k],good=d!==undefined&&typeof v===typeof d&&(typeof v==='string'?['scatter','arc'].includes(v):v>=0&&isFinite(v)&&(!/^(shots|bounces|drops|bolts)$/.test(k)||Number.isInteger(v)));
+/*H*/     for(const k of Object.keys(o)){const v=o[k],d=D[k],good=d!==undefined&&typeof v===typeof d&&(typeof v==='string'?(EG_ENUM[k]||[]).includes(v):v>=0&&isFinite(v)&&(!/^(shots|bounces|drops|bolts)$/.test(k)||Number.isInteger(v)));
 /*H*/       if(good)SPELLS[id][k]=v;else{all=false;egW('setSpellParams: '+id+'.'+k+' ignored (unknown key, wrong type or out of range)')}}refreshSkillLabels();return all},
 /*H*/   resetSpellParams(id){for(const k of id===undefined?Object.keys(SPELL_DEF):[id])if(SPELL_DEF[k])Object.assign(SPELLS[k],SPELL_DEF[k]);else egW('resetSpellParams: unknown spell '+k);refreshSkillLabels()},
-/*H*/   spellParams(id){return SPELLS[id]?{...SPELLS[id]}:undefined},
+/*H*/   spellParams(id){return SPELLS[id]?{...SPELLS[id]}:undefined},castInfo:()=>player.cast&&player.cast.k||null,
 /*H*/   pause(on,o='default'){EG_PO[on?'add':'delete'](o);egHeld=EG_PO.size>0},isPaused:()=>egHeld,pausedBy:()=>[...EG_PO],inCombat:()=>enemies.some(e=>e.alive)||story.phase==='boss',events:[...EG_EVENTS],
 /*H*/   player:()=>({x:player.pos.x,z:player.pos.z,hp:player.hp,maxHp:player.maxhp,alive:player.alive}),
 /*H*/   towers:()=>TOWERS.map((T,i)=>({index:i,name:T.name,spell:T.spell,x:T.x,z:T.z,lit:!!(T.lit||T.pulse),active:story.on&&i===story.act&&!T.lit&&!T.pulse})),
@@ -337,5 +339,5 @@ const runeTex=canvasTex(512,512,(ctx)=>{
 /*H*/     for(const n in KB)if(KB[n]===c){const d=KB_DEFAULT[n]===c?'':KB_DEFAULT[n];egW(`reserveKey: ${c} was bound to ${n}, now ${d||'unbound'}`);KB[n]=d}window.EGControls&&EGControls.redrawKeys()},
 /*H*/   reduceFlashing(on){return egFlashOff=!!on},flashingReduced:()=>egFlashOff,
 /*H*/   seed(n){Math.random=n==null?_sysRandom:mulberry32(n)},
-/*H*/   clearEffects(){for(const S of [ADD,SMOKE]){S.pool.push(...S.list);S.list.length=0}const k=(L,f)=>{for(const o of L.splice(0)){o.dead=true;f(o)}},r=(m,g)=>{scene.remove(m);(g?egFree:egFreeMat)(m)};
+/*H*/   clearEffects(){egCur=null;for(const S of [ADD,SMOKE]){S.pool.push(...S.list);S.list.length=0}const k=(L,f)=>{for(const o of L.splice(0)){o.dead=true;f(o)}},r=(m,g)=>{scene.remove(m);(g?egFree:egFreeMat)(m)};
 /*H*/     k(projs,o=>0);k(meteors,o=>{r(o.mesh);r(o.ring)});k(rocks,o=>r(o.mesh));k(burns,o=>r(o.decal,1));k(rites,o=>r(o.mesh,1));k(shocks,o=>r(o.mesh));k(dmgs,o=>o.el.remove());timers.length=caAcc=emitHot.acc=0;ambAcc={};for(const T of TOWERS)T.acc={}}};

@@ -45,7 +45,7 @@
       player: { atlas: 'hero', idle: { down: [['down', 0]], up: [['up', 0]], side: [['side', 0]] },
         walk: { down: { row: 'down', fps: 8 }, up: { row: 'up', fps: 8 }, side: { frames: [{ row: 'side', from: 0, to: 3 }, { row: 'side2', from: 0, to: 1 }], fps: 8 } },
         cast: [['misc', 0], ['misc', 1]], hurt: { frames: [['misc', 2]], fps: 4 }, die: { frames: [['misc', 3]], fps: 4 } },
-      spider: { atlas: 'mon', shadow: .4, idle: [[0, 0]], walk: { row: 0, fps: 8 }, hurt: { frames: [[1, 0]], fps: 6 }, die: { frames: [[1, 1], [1, 2]], fps: 3 } },
+      spider: { atlas: 'mon', shadow: .4, idle: [[0, 0]], walk: { row: 0, fps: 8 }, hurt: { frames: [[1, 0]], fps: 6 }, die: { frames: [[1, 1], [1, 2]], fps: 3 }, 'pose:bow': { frames: [[1, 3]], fps: 4 } },
     },
     props: {
       tomb: { atlas: 'props', up: [[0, 0], [0, 1]], fallen: [[0, 2]] },

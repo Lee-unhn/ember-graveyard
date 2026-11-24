@@ -4,7 +4,7 @@
 //   node tests/checks.mjs [--url=https://...]
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { ROOT, serve, openPage, reporter, spriteInit, lookInit } from './lib/browser.mjs';
+import { ROOT, serve, openPage, reporter, spriteInit, lookInit, spellkitInit } from './lib/browser.mjs';
 import { pageSources, splitViolations, contentScripts, sharedScopeDuplicates } from './lib/pagesrc.mjs';
 
 const live = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
@@ -251,7 +251,37 @@ async function lookChecks() {
   } finally { await p.close(); }
 }
 
-try { staticChecks(); spriteStatic(); lookStatic(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); if (!live) { await spriteChecks(); await lookChecks(); } }
+function spellkitStatic() {
+  const { scripts } = pageSources(ROOT), ch = readFileSync(join(ROOT, 'kit', 'character.js'), 'utf8');
+  rep.ok(!scripts.some((s) => /spellkit\.js/.test(s.src || '')), 'spellkit: index.html does not load kit/spellkit.js (the demo page carries no spellkit code)');
+  rep.ok(/if \(window\.CONTENT && CONTENT\.spellkit\) \{[^}]*spellkit\.js/.test(ch), 'spellkit: kit/character.js loads kit/spellkit.js only when the content pack has CONTENT.spellkit');
+}
+async function spellkitChecks() {
+  const p = await openPage(url, { width: 1280, height: 800, init: spellkitInit() });
+  try {
+    if (!(await p.waitFor(`!document.querySelector('#go').disabled && window.EGSpellkit && EGSpellkit.state.on`, 30000))) { rep.ok(false, 'spellkit: page with the test CONTENT.spellkit boots'); return; }
+    await p.clickSel('#go'); await p.evaluate(STEP + `requestAnimationFrame = () => 0; for (const e of enemies) e.T = Object.assign({}, e.T, { speed: 0, dmg: 0 }); __step(10);`);
+    // cost under load: 50 monsters, the heaviest new parameters on all four spells, a charged fence, glows, a rooted crowd
+    const perf = await p.evaluate(`(() => { for (let k = 0; k < 50; k++) spawnEnemy('spider', -15 + (k % 10) * 3, -10 + Math.floor(k / 10) * 3, 1e9); player.maxhp = player.hp = 1e9; mouse.set(.05, .3);
+      for (let z = -12; z < 12; z++) for (let x = -12; x < 12; x++) setT(cellOf(x + .5, z + .5), (x + z) % 4 ? TER.GRASS : (x % 3 ? TER.WATER : TER.BLOOD), 20);
+      EG.setSpellParams('fire', { trail: 'light', sweeps: 3, toAim: true }); EG.setSpellParams('bolt', { fromSky: .2, path: 'ember', waterNet: true }); EG.setSpellParams('meteor', { pattern: 'line', arcBolt: .3, quench: true, plow: 4 }); EG.setSpellParams('blood', { crawl: 12, crawlElem: 'volt', fireWall: 1.7 });
+      const f0 = props.find((q) => q.kind === 'fence'); for (const e of enemies.slice(0, 20)) EG.status(e, 'root', 99);
+      let t = 0, n = 0, worst = 0; for (let f = 0; f < 300; f++) { if (f % 60 === 0) { player.cast = null; cds.meteor = 0; tryCast('meteor'); } if (f % 20 === 10) { player.cast = null; cds.fire = 0; tryCast('fire'); }
+        if (f % 75 === 30) { player.cast = null; cds.bolt = 0; tryCast('bolt'); } if (f % 100 === 50) { player.cast = null; cds.blood = 0; tryCast('blood'); } if (f % 30 === 0) { EG.terrain.fence(f0.x, f0.z, .5); EG.glow(props[f % 40], { secs: .5 }); }
+        time += 1/60; const a = performance.now(); logic(1/60); const d = performance.now() - a; t += d; worst = Math.max(worst, d); visuals(1/60); n++; }
+      return { avg: t / n, worst, err: EGSpellkit.state.err }; })()`);
+    rep.ok(perf.avg < 8 && !perf.err, `spellkit: game logic with every heavy new parameter, a charged fence, glows and 20 rooted monsters averages ${perf.avg.toFixed(2)} ms/frame (budget 8 ms, worst ${perf.worst.toFixed(1)} ms)`, perf);
+    // five restarts with every spell: nothing the module owns is left behind (warning rings, glows, fence copies are created once)
+    const leak = await p.evaluate(`(() => { const rounds = [];
+      for (let r = 0; r < 5; r++) { restart(); for (const id of ['meteor', 'fire', 'bolt', 'blood']) { player.cast = null; cds[id] = 0; tryCast(id); __step(90); } EG.glow(props[3], { secs: .2 }); __step(200);
+        rounds.push({ mine: scene.children.filter((o) => o.userData.egSpellkit).length, special: EGSpellkit.skProjs.length + EGSpellkit.sweeps.length + EGSpellkit.strikes.length, glows: EGSpellkit.glows.size, back: EGSpellkit.back.size > 2000 }); }
+      return rounds; })()`);
+    rep.ok(leak.every((r) => JSON.stringify(r) === JSON.stringify(leak[0])) && leak[0].special === 0 && leak[0].glows === 0, `spellkit: module objects stay the same over 5 restarts (${JSON.stringify(leak[0])})`, leak);
+    rep.ok(p.errors.length === 0, 'spellkit: no console errors (checks)', p.errors.slice(0, 3));
+  } finally { await p.close(); }
+}
+
+try { staticChecks(); spriteStatic(); lookStatic(); spellkitStatic(); await mermaidChecks(); await desktopChecks(); await phoneChecks(); if (!live) { await spriteChecks(); await lookChecks(); await spellkitChecks(); } }
 catch (e) { rep.ok(false, 'checks crashed', e.message); }
 finally { srv?.close(); }
 process.exit(rep.done() ? 1 : 0);

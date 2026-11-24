@@ -99,4 +99,6 @@
   if (window.CONTENT && CONTENT.sprites) { const s = document.createElement('script'); s.src = document.currentScript.src.replace(/[^/]*$/, 'sprites.js'); document.head.appendChild(s); }
   // 同上：有 CONTENT.look（夜色與光）才載入 kit/look.js
   if (window.CONTENT && CONTENT.look) { const s = document.createElement('script'); s.src = document.currentScript.src.replace(/[^/]*$/, 'look.js'); document.head.appendChild(s); }
+  // 同上：有 CONTENT.spellkit（地形動作與法術擴充）才載入 kit/spellkit.js
+  if (window.CONTENT && CONTENT.spellkit) { const s = document.createElement('script'); s.src = document.currentScript.src.replace(/[^/]*$/, 'spellkit.js'); document.head.appendChild(s); }
 })();

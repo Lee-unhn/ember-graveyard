@@ -38,7 +38,7 @@ function restart(){egEmit('restart');
   clearWorld();player.pos.set(0,0,0);player.kills=0;wave=1;waveTimer=0;spawnWave(50);toast('第 1 波')}
 // logic＝規則一格；visuals＝畫面一格。暫停只停 logic。驗收探針直接呼叫這兩個。
 function logic(dt){
-  for(let i=timers.length-1;i>=0;i--){timers[i].t-=dt;if(timers[i].t<=0){const f=timers[i].fn;timers.splice(i,1);f()}}
+  for(let i=timers.length-1;i>=0;i--){timers[i].t-=dt;if(timers[i].t<=0){const T=timers[i],f=T.fn;timers.splice(i,1);egCur=T.c;f();egCur=null}}
   updatePlayer(dt);updateEnemies(dt);updateShocks(dt);updateProjs(dt);updateMeteors(dt);updateBurns(dt);updateRites(dt);updateLoot(dt);updateTerrain(dt);ambient(dt);updateStory(dt);
   if(!story.on&&player.alive&&!enemies.some(e=>e.alive)){if(waveTimer<=0){waveTimer=2.5;toast(`第 ${wave} 波清空`)}else{waveTimer-=dt;if(waveTimer<=0){wave++;spawnWave(50+wave*5);toast(`第 ${wave} 波來了`);waveTimer=0}}}}
 function visuals(dt){updateTowers(dt);flushTerrain();ADD.update(dt);SMOKE.update(dt);updateLights(dt);updateCamera(dt);updateTexts(dt);updateDialog(dt);updateHud(dt)}

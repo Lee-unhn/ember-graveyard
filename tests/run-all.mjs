@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { SPRITE_MUTATIONS } from './lib/sprite-mutations.mjs';
 import { LOOK_MUTATIONS } from './lib/look-mutations.mjs';
+import { SPELLKIT_MUTATIONS } from './lib/spellkit-mutations.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -33,7 +34,7 @@ rows.push(['screens', run('tests/screens.mjs', url ? [url.slice(6)] : [])]);
 if (!url) rows.push(['breaker', run('tests/breaker.mjs')]); // builds its own temporary sites, so it has no --url mode
 
 if (!args.includes('--skip-mutation') && !url) {
-  // plant thirty-two defects in a scratch copy; the suites must notice
+  // plant the defects in a scratch copy; the suites must notice
   const dir = mkdtempSync(join(tmpdir(), 'eg-mut-'));
   try {
     cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/]\.git([\\/]|$)/.test(s) });
@@ -79,6 +80,9 @@ if (!args.includes('--skip-mutation') && !url) {
     for (const [needle, repl] of SPRITE_MUTATIONS) plant(needle, repl);                                          // 33-47
     // night look (kit/look.js, DEVLOG timeline #52); each one was also checked alone against the look suites (tests/look-mutations.mjs)
     for (const [needle, repl] of LOOK_MUTATIONS) plant(needle, repl);                                            // 48-76
+    // per-cast record, terrain actions, spell extensions and sprite poses (kit/spellkit.js and the engine hooks, DEVLOG timeline #53);
+    // each one was also checked alone against the unit pages it names (tests/spellkit-mutations.mjs)
+    for (const [needle, repl] of SPELLKIT_MUTATIONS) plant(needle, repl);                                        // 77-
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)

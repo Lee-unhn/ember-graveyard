@@ -66,12 +66,12 @@ function tryCast(id,poll){if(egHeld||egEnd())return;if(!running||paused||menuOpe
   ray.setFromCamera(mouse,camera);ray.ray.intersectPlane(gplane,aim);
   player.face=Math.atan2(aim.x-player.pos.x,aim.z-player.pos.z);
   let target=aim.clone();const d=target.distanceTo(new V3(player.pos.x,0,player.pos.z));if(d>17)target=player.pos.clone().setY(0).lerp(target,17/d);
-  player.cast={id,t:0,dur:s.dur/cs,rel:s.rel,released:false,target};cds[id]=s.cd/cs;egEmit('cast',id);
-  if(id==='blood'){startBlood();player.cast.released=true}else sfx.cast()}
-function releaseCast(c){const h=handPos(),dir=new V3(c.target.x-h.x,0,c.target.z-h.z).normalize();
+  player.cast={id,t:0,dur:s.dur/cs,rel:s.rel,released:false,target,k:{id,n:++egN,mul:1}};cds[id]=s.cd/cs;egEmit('cast',id);
+  if(id==='blood'){egCur=player.cast.k;startBlood();egCur=null;player.cast.released=true}else sfx.cast()}
+function releaseCast(c){egCur=c.k;const h=handPos(),dir=new V3(c.target.x-h.x,0,c.target.z-h.z).normalize();
   if(c.id==='fire'){if(tierOf('fire')){const F=spellP('fire');for(let i=0;i<F.shots;i++)spawnFireball(h,dir.clone().applyAxisAngle(new V3(0,1,0),(i-(F.shots-1)/2)*F.spread))}else spawnFireball(h,dir)}
   else if(c.id==='bolt')spawnOrb(h,dir);
-  else if(c.id==='meteor')castMeteor(c.target)}
+  else if(c.id==='meteor')castMeteor(c.target);egCur=null}
 function hurtPlayer(d,src=EG_TERM.monster){if(!player.alive)return;player.hp-=d;player.lastHurt=src;player.hurtT=.25;sfx.hurt();$('#vig').style.boxShadow='inset 0 0 160px rgba(200,0,20,.55)';
   if(player.hp<=0){player.hp=0;player.alive=false;player.cast=null;egEmit('playerDeath',src);
     $('#deadCause').textContent='擊倒你的是：'+player.lastHurt;$('#deadTip').textContent='提示：'+(DEATH_TIPS[player.lastHurt]||DEFAULT_TIP);
