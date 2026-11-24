@@ -70,6 +70,21 @@ function runSmokeStatic(dir) { const r = spawnSync(process.execPath, [join(dir, 
 // Anything else that differs from main is still a finding.
 const MARK = '/*H*/';
 const REVERSE = [
+  // per-cast record, chain-tone hook, burnt-tree reset (DEVLOG timeline #53): each cast carries { id, n, mul } through releases, timers, projectiles, meteors, burns,
+  // rites, queued wisp blasts and felled props; dealDamage multiplies by mul (1 unless an extension locks a factor) and the hit event names the cast (defaults = main's numbers)
+  ["function after(t,fn){timers.push({t,fn,c:egCur})}", "function after(t,fn){timers.push({t,fn})}"],
+  ["if(!e.alive)return;const k=egCur;if(k)amt*=k.mul;const cc", "if(!e.alive)return;const cc"], ["amount:amt,cast:k})", "amount:amt})"],
+  ["life:F.life,dead:false,acc:{},c:egCur}", "life:F.life,dead:false,acc:{}}"], ["life:1.3,dead:false,acc:{},c:egCur}", "life:1.3,dead:false,acc:{}}"],
+  ["projs.splice(i,1);egCur=p.c;", "projs.splice(i,1);"], ["'boltSplash')}}\n      egCur=null}", "'boltSplash')}}\n    }"],
+  [",vel:new V3(7,-22,6).multiplyScalar(1/.75),c:egCur}", ",vel:new V3(7,-22,6).multiplyScalar(1/.75)}"], ["m.dead=true;egCur=m.c;", "m.dead=true;"], ["shake(.38*s);egCur=null}", "shake(.38*s)}"],
+  ["ly:.3,c:egCur}", "ly:.3}"], ["b.tick=.5;egCur=b.c;aoe(", "b.tick=.5;aoe("], ["rr),'fire');egCur=null}", "rr),'fire')}"],
+  ["acc:{},k:egCur}", "acc:{}}"], ["b.dead=true;egCur=o.k;explode(", "b.dead=true;explode("], ["'blood',0,'blood');egCur=null}}}", "'blood',0,'blood')}}}"],
+  ["booms.push({i,t:delay,c:egCur})", "booms.push({i,t:delay})"], ["egChainTone(chainN)}}", "tone(440*Math.pow(1.06,Math.min(chainN,20)),440*Math.pow(1.06,Math.min(chainN,20))*1.5,.14,'triangle',.12)}}"],
+  ["p.src=null;p.c=egCur}", "p.src=null}"], ["p.hp=0;p.c=egCur;", "p.hp=0;"], ["function crush(p){egCur=p.c;", "function crush(p){"], ["dealDamage(e,80,'crush')}egCur=null;", "dealDamage(e,80,'crush')}"],
+  ["if(p.kind==='tree'){p.mat.color.setHex(0x2a211b);p.acc={}}", "if(p.kind==='tree')p.mat.color.setHex(0x2a211b);"], ["booms.splice(k,1);egCur=b.c;boom(b.i);egCur=null}", "booms.splice(k,1);boom(b.i)}"],
+  [",target,k:{id,n:++egN,mul:1}};", ",target};"], ["if(id==='blood'){egCur=player.cast.k;startBlood();egCur=null;", "if(id==='blood'){startBlood();"],
+  ["function releaseCast(c){egCur=c.k;", "function releaseCast(c){"], ["castMeteor(c.target);egCur=null}", "castMeteor(c.target)}"],
+  ["const T=timers[i],f=T.fn;timers.splice(i,1);egCur=T.c;f();egCur=null}", "const f=timers[i].fn;timers.splice(i,1);f()}"],
   // blink key collision, modifier keys, ending screen, new-run reset, reduced flashing (DEVLOG timeline #49): Ctrl/Meta/Alt combos do not cast or open the bag; no cast or movement
   // behind the ending screen; clearWorld resets cooldowns, the queued cast, hit-stop, shake and leftover effects; with EG.reduceFlashing on, pooled flashes and the hit whitening dim (off = main)
   ["if(e.code===KB.inv&&!egMod(e))toggleInv();", "if(e.code===KB.inv)toggleInv();"], ["if(m&&!egMod(e))tryCast(m);", "if(m)tryCast(m);"],
