@@ -5,7 +5,7 @@
 //   node tests/spellkit-mutations.mjs [--only=<index>[,<index>...]] [--from=<index>] [--to=<index>]   (about 1 to 2 minutes per defect)
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { SPELLKIT_MUTATIONS } from './lib/spellkit-mutations.mjs';
@@ -18,7 +18,7 @@ for (const [i, [needle, repl, suite]] of SPELLKIT_MUTATIONS.entries()) {
   if (only ? !only.includes(i) : i < from || i > to) continue;
   const dir = mkdtempSync(join(tmpdir(), 'eg-kmut-'));
   try {
-    cpSync(ROOT, dir, { recursive: true, filter: (s) => !/[\\/](\.git|incoming|godot|\.screens|\.claude)([\\/]|$)/.test(s) });
+    cpSync(ROOT, dir, { recursive: true, filter: (s) => !/(^|[\\/])(\.git|incoming|godot|\.screens|\.claude)([\\/]|$)/.test(relative(ROOT, s)) });   // relative: this checkout may itself sit under a .claude folder
     const files = ['index.html', ...readdirSync(join(dir, 'kit')).filter((x) => x.endsWith('.js')).map((x) => 'kit/' + x)].map((x) => join(dir, x));
     const hit = files.filter((f) => readFileSync(f, 'utf8').includes(needle));
     if (hit.length !== 1) { rows.push([i, needle, `needle found in ${hit.length} files`]); console.log(`${i}. ${rows.at(-1)[2]}`); continue; }

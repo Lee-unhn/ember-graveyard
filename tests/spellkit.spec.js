@@ -76,7 +76,7 @@ window.__runSpellkit = async () => {
   test('damage outside a cast (terrain under a monster) carries no record and is not multiplied', () => {
     fresh(); clean(10, -20, 5); paint(8, -22, 12, -18, TER.LAVA); EG.on('hit', onHit); hits.length = 0; EG.on('cast', () => { EG.castInfo().mul = 5; });
     const e = dummy('lizard', 10, -20); step(30); const t = hits.filter((x) => x.kind === 'terrain'); ok(t.length > 0, 'terrain hits');
-    ok(t.every((x) => x.cast === null && Math.abs(x.amount - 6) < 1.5), 'no record, about 6 per tick: ' + t.map((x) => x.amount.toFixed(2)).join(','));
+    ok(t.every((x) => x.cast === null && (Math.abs(x.amount - 6) < 1.5 || Math.abs(x.amount - 6 * 1.8) < 2.7)), 'no record, about 6 per tick (x1.8 on a critical hit): ' + t.map((x) => x.amount.toFixed(2)).join(','));
   });
   test('bursts carry the cast: a wisp grave blown by the fireball hurts with the factor; a wisp blown by spreading fire has no record', () => {
     fresh(); clean(0, 9, 6); paint(-3, 6, 3, 12, TER.SOIL); const w = cellOf(0.5, 9.5); TT[w] = TER.WISP; paintCell(w); EG.on('hit', onHit); hits.length = 0;
