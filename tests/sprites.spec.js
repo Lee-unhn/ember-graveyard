@@ -192,11 +192,18 @@ window.__runSprites = async (mode) => {
     });
     test('quads are pooled: 5 rounds of 20 monsters and spells leave the scene, the pool and the GPU geometry count flat', () => {
       fresh(); const own = () => loots.length + enemies.reduce((n, e) => n + 1 + (S.actorCfg[e.type] ? 2 : 0), 0); // loot and live monsters (free mode sends new waves) are not leaks
+      // renderer.info.memory.geometries counts a geometry only once it has been drawn, so two things that are not leaks used to move it (DEVLOG #149):
+      // a pooled quad that was never on screen at a measuring frame is uploaded the first round it is handed out (+1 a round), and a shared
+      // loot shape is uploaded the first round that kind drops in view. So every round replays the same random draws (same wave, drops and
+      // pool demand), and every pooled quad is drawn once before reading the count. A geometry dropped without dispose still adds up.
+      const warmPool = () => { const W = new THREE.Scene(); for (const m of S.pool) W.add(m); renderer.render(W, camera); for (const m of S.pool) W.remove(m); };
       const snap = () => [scene.children.length - own(), renderer.info.memory.geometries, S.pool.length + S.fxList.length + S.state.actors]; const rounds = [];
-      for (let r = 0; r < 5; r++) { restart(); const guard = mon('spider', 40, 0, 1e9); for (let k = 0; k < 20; k++) spawnEnemy('spider', (k % 5) * 3 - 6, -4 - Math.floor(k / 5) * 2, 1); freeze(); mouse.set(0, .3);
-        for (const id of ['fire', 'bolt', 'meteor', 'blood']) { player.cast = null; cds[id] = 0; tryCast(id); step(60); } for (const e of [...enemies]) if (e !== guard) killEnemy(e); step(240); /* the guard stays alive so free mode sends no new wave */ renderer.render(scene, camera); rounds.push(snap()); }
+      for (let r = 0; r < 5; r++) { EG.seed(149); restart(); const guard = mon('spider', 40, 0, 1e9); for (let k = 0; k < 20; k++) spawnEnemy('spider', (k % 5) * 3 - 6, -4 - Math.floor(k / 5) * 2, 1); freeze(); mouse.set(0, .3);
+        for (const id of ['fire', 'bolt', 'meteor', 'blood']) { player.cast = null; cds[id] = 0; tryCast(id); step(60); } for (const e of [...enemies]) if (e !== guard) killEnemy(e); step(240); /* the guard stays alive so free mode sends no new wave */ renderer.render(scene, camera); warmPool(); rounds.push(snap()); }
+      EG.seed(null);
       const flat = (k) => Math.max(...rounds.map((x) => x[k])) - Math.min(...rounds.slice(1).map((x) => x[k]));
-      ok(flat(0) <= 2, 'scene children flat ' + rounds.map((x) => x[0])); ok(flat(1) <= 4, 'geometries flat ' + rounds.map((x) => x[1])); ok(flat(2) <= 10, 'quads flat ' + rounds.map((x) => x[2]));
+      ok(flat(0) <= 2, 'scene children flat ' + rounds.map((x) => x[0])); ok(flat(1) <= 4, 'geometries flat ' + rounds.map((x) => x[1]));
+      ok(rounds[2][1] === rounds[3][1] && rounds[3][1] === rounds[4][1], 'the same replayed round adds no geometry once settled (rounds 3-5 equal) ' + rounds.map((x) => x[1])); ok(flat(2) <= 10, 'quads flat ' + rounds.map((x) => x[2]));
     });
     test('without pixelScreen the canvas is not touched: full resolution, no inline size, tilt-shift unchanged', () => {
       eq(S.state.lowRes, false, 'not in low resolution'); eq(canvas.style.width, '', 'canvas keeps its page size'); ok(renderer.getPixelRatio() >= .75, 'pixel ratio as before');
