@@ -77,12 +77,12 @@ if (!args.includes('--skip-mutation') && !url) {
     plant('player.tacc=0;egRun();', 'player.tacc=0;');                                                           // 31. cooldowns and the queued cast carry into a new game (DEVLOG timeline #49)
     plant('if(egFlashOff)inten*=.3;', '');                                                                       // 32. EG.reduceFlashing leaves the pooled flashes bright (DEVLOG timeline #49)
     // pixel sprites (kit/sprites.js, DEVLOG timeline #50); each one was also checked alone against the sprite suites (DEVLOG §5)
-    for (const [needle, repl] of SPRITE_MUTATIONS) plant(needle, repl);                                          // 33-47
+    for (const [needle, repl] of SPRITE_MUTATIONS) plant(needle, repl);                                          // 33-48
     // night look (kit/look.js, DEVLOG timeline #52); each one was also checked alone against the look suites (tests/look-mutations.mjs)
-    for (const [needle, repl] of LOOK_MUTATIONS) plant(needle, repl);                                            // 48-76
+    for (const [needle, repl] of LOOK_MUTATIONS) plant(needle, repl);                                            // 49-77
     // per-cast record, terrain actions, spell extensions and sprite poses (kit/spellkit.js and the engine hooks, DEVLOG timeline #53);
     // each one was also checked alone against the unit pages it names (tests/spellkit-mutations.mjs)
-    for (const [needle, repl] of SPELLKIT_MUTATIONS) plant(needle, repl);                                        // 77-
+    for (const [needle, repl] of SPELLKIT_MUTATIONS) plant(needle, repl);                                        // 78-
     src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))] = src[codeFiles.find((x) => src[x].includes('function vnoise(x,y){'))].replace(/tnoise\(/g, 'vnoise(');
     for (const x of codeFiles) writeFileSync(join(dir, x), src[x]);
     const g = join(dir, 'godot', 'main.gd'), gd = readFileSync(g, 'utf8');                // 8. Godot particles lose their scale (P5 bug)
