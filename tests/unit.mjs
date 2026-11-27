@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Unit tests: load the game headlessly, inject tests/unit.spec.js, run each test against the page's own functions.
 // Then the optional pixel-sprite module (kit/sprites.js): inert on the demo page, and tests/sprites.spec.js on two pages that
-// received the test atlases (tests/lib/sprite-fixture.js), one of them with the whole screen in low resolution.
+// received the test atlases (tests/lib/sprite-fixture.js), one of them with the whole screen in low resolution, and tests/orb.spec.js
+// on two pages that also run kit/spellkit.js, one per load order (the orb flipbook must follow the orb that really flies).
 // Then the optional night-look module (kit/look.js): inert on the demo page, and tests/look.spec.js on a page with the test
 // CONTENT.look and atlases (tests/lib/look-fixture.js) and on one with only a moved tower flame.
 // Then the optional terrain actions and spell extensions (kit/spellkit.js): inert on the demo page, the same fight with and without
@@ -70,6 +71,24 @@ if (!live && !lookOnly && !kitOnly) {
       rep.ok(results.length >= (mode === 'normal' ? 20 : 6), `sprites(${mode}): suite size ${results.length}`);
       rep.ok(q.errors.length === 0, `sprites(${mode}): no page errors`, q.errors.slice(0, 3));
     } catch (e) { rep.ok(false, `sprites(${mode}) runner crashed`, e.message); } finally { await q.close(); }
+  }
+  // 3. the orb flipbook next to kit/spellkit.js (DEVLOG #150): both modules are fetched on demand, so either can sit on top of spawnOrb;
+  //    one page per order: the first module comes from the page's own loader, the second is loaded by hand once the first is on
+  const load = (f) => `new Promise((ok) => { const s = document.createElement('script'); s.src = 'kit/${f}'; s.onload = ok; document.head.appendChild(s); })`;
+  for (const [mode, init, first, second, secondInit, secondOn] of [
+    ['spritesOnTop', spellkitInit(), 'window.EGSpellkit && EGSpellkit.state.on', 'sprites.js', spriteInit({}), 'EGSprites.state.ready'],
+    ['spellkitOnTop', spriteInit({}), 'window.EGSprites && EGSprites.state.ready', 'spellkit.js', spellkitInit(), 'EGSpellkit.state.on']]) {
+    const q = await openPage(url, { init });
+    try {
+      rep.ok(await q.waitFor(`!document.querySelector('#go').disabled && ${first}`, 30000), `orb(${mode}): page booted and the first module is on`);
+      await q.evaluate(secondInit); await q.evaluate(`window.__so = spawnOrb`); await q.evaluate(load(second));
+      rep.ok(await q.waitFor(secondOn, 30000) && await q.evaluate(`spawnOrb !== __so`), `orb(${mode}): ${second} loaded second and replaced spawnOrb on top of the first module`);
+      await q.evaluate(readFileSync(join(ROOT, 'tests', 'orb.spec.js'), 'utf8'));
+      const results = await q.evaluate(`window.__runOrb('${mode}')`);
+      for (const r of results) rep.ok(r.ok, `orb(${mode}): ${r.name}`, r.err);
+      rep.ok(results.length >= 7, `orb(${mode}): suite size ${results.length}`);
+      rep.ok(q.errors.length === 0, `orb(${mode}): no page errors`, q.errors.slice(0, 3));
+    } catch (e) { rep.ok(false, `orb(${mode}) runner crashed`, e.message); } finally { await q.close(); }
   }
 }
 // ---------------------------------------------------------------- night look and light (kit/look.js)

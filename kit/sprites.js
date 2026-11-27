@@ -365,11 +365,20 @@ const shGeo = new T.PlaneGeometry(1, 1), shMat = new T.MeshBasicMaterial({ map: 
   function mute(on) { const was = muted; muted = on; if (on) ADD.emit = SMOKE.emit = NOOP; else { delete ADD.emit; delete SMOKE.emit; } return was; }
   const quiet = (on, fn) => { const was = mute(on); try { return fn(); } finally { mute(was); } };
   let inMeteor = false;
+  // the projectile of `kind` the engine actually put into projs while fn ran (the last one, or null): the orb flipbook follows that
+  // object, not projs' last entry. Another module may take the new orb out of projs again (kit/spellkit.js moves it to its own list
+  // when CONTENT sets bolt.hitElem) or create none at all (bolt.fromSky); and the two modules load in either order (DEVLOG #150)
+  function pushed(kind, fn) {
+    const L = projs, own = Object.prototype.hasOwnProperty.call(L, 'push'), prev = L.push; let got = null;
+    L.push = function (...a) { for (const x of a) if (x && x.kind === kind) got = x; return prev.apply(this, a); };
+    try { fn(); } finally { if (own) L.push = prev; else delete L.push; }
+    return got;
+  }
   function hookFx() {
     const has = (k) => !!fxCfg[k] && !fxCfg[k].particles, wrap = (name, fn) => { const o = window[name], w = function () { return fn(o, arguments); }; window[name] = Object.assign(w, o); }; // the replacement carries the original's own properties (a content pack may have tagged it)
     if (fxCfg.fireball) { wrap('fireballVisual', (o, a) => { spawn('fireball', { follow: a[0], scale: a[2] || 1, tint: a[1] }); if (fxCfg.fireball.particles) o.apply(null, a); });
       if (has('fireball')) wrap('fireTrail', () => {}); }
-    if (fxCfg.orb) wrap('spawnOrb', (o, a) => { quiet(has('orb'), () => o.apply(null, a)); spawn('orb', { follow: projs[projs.length - 1] }); });
+    if (fxCfg.orb) wrap('spawnOrb', (o, a) => { let r; const p = pushed('bolt', () => { r = quiet(has('orb'), () => o.apply(null, a)); }); if (p) spawn('orb', { follow: p }); return r; });
     wrap('explode', (o, a) => { const key = inMeteor && fxCfg.impact ? 'impact' : fxCfg.explosion ? 'explosion' : '';
       if (!key) return quiet(false, () => o.apply(null, a)); quiet(!fxCfg[key].particles, () => o.apply(null, a)); spawn(key, { pos: a[0], scale: a[1] ?? 1, tint: a[2] }); });
     if (fxCfg.zap) wrap('zapBurst', (o, a) => { quiet(has('zap'), () => o.apply(null, a)); spawn('zap', { pos: a[0] }); });

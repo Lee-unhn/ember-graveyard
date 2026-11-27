@@ -15,5 +15,7 @@ export const SPRITE_MUTATIONS = [
   ['p = snap(v3.set(s.x, 0, s.z))', 'p = v3.set(s.x, 0, s.z)'],                                             // characters off the pixel lattice
   ['if (s.hurt && C.an.hurt) R.hurt = dur(C.an.hurt, R.dir);', ''],
   ['window[name] = Object.assign(w, o);', 'window[name] = w;'],                                            // wrapped engine functions lose their own properties                                         // hits never show the hurt cells
-  ['k(burns,o=>r(o.decal,1))', 'k(burns,o=>r(o.decal))'], // restart (clearWorld -> egRun -> clearEffects) frees only the material: the burning ground's geometry stays on the GPU (DEVLOG #149)
+  ['k(burns,o=>r(o.decal,1))', 'k(burns,o=>r(o.decal))'],
+  // the orb flipbook follows projs' last entry again: null when kit/spellkit.js took the orb or made none, a fireball when one is flying (DEVLOG #150)
+  ["let r; const p = pushed('bolt', () => { r = quiet(has('orb'), () => o.apply(null, a)); }); if (p) spawn('orb', { follow: p }); return r;", "quiet(has('orb'), () => o.apply(null, a)); spawn('orb', { follow: projs[projs.length - 1] });"], // restart (clearWorld -> egRun -> clearEffects) frees only the material: the burning ground's geometry stays on the GPU (DEVLOG #149)
 ];
